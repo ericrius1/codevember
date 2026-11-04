@@ -1,0 +1,30 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+:root { --bg: #ece7df; --fg: #2b2520; --muted: #7d746a; --line: #d6cfc4; --accent: #b4441f; --mono: 'IBM Plex Mono', ui-monospace, monospace; }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--fg); }
+body { font: 400 13px/1.6 var(--mono); -webkit-font-smoothing: antialiased; }
+a { color: inherit; text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--fg) 30%, transparent); text-underline-offset: 3px; }
+a:hover { text-decoration-color: currentColor; }
+header, main, footer { max-width: 1240px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+header { padding-top: clamp(28px, 6vw, 64px); padding-bottom: clamp(24px, 4vw, 44px); }
+.trail { color: var(--muted); font-size: 12px; margin-bottom: 22px; }
+.trail a { color: var(--muted); text-decoration: none; }
+.trail a:hover { color: var(--fg); }
+.trail span { margin: 0 6px; }
+h1 { font: 500 clamp(22px, 4vw, 34px)/1.15 var(--mono); letter-spacing: 0.14em; margin: 0 0 14px; }
+header p { max-width: 62ch; margin: 0; color: color-mix(in srgb, var(--fg) 78%, var(--bg)); }
+
+main { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr)); gap: clamp(20px, 3vw, 36px); }
+article { min-width: 0; }
+.tile { display: block; aspect-ratio: 1; background: var(--tile, #ddd); overflow: hidden; position: relative; border-radius: 3px; }
+.tile video { width: 100%; height: 100%; display: block; object-fit: cover; }
+.tile .soon { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 12px; }
+.cap { padding-top: 12px; }
+.cap h2 { font: 500 13px var(--mono); letter-spacing: 0.1em; text-transform: uppercase; margin: 0 0 4px; }
+.cap .n { color: var(--muted); margin-right: 6px; }
+.cap p { margin: 0 0 8px; color: var(--muted); }
+.links { display: flex; gap: 16px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
+
+footer { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; margin-top: clamp(40px, 6vw, 80px);
+  padding-top: 16px; padding-bottom: max(32px, env(safe-area-inset-bottom)); border-top: 1px solid var(--line); }

@@ -1,0 +1,27 @@
+{
+  "name": "codevember",
+  "private": true,
+  "type": "module",
+  "description": "Codevember 2026: a WebGPU sketch a day on weft, each a seamless loop, live and filmed. ericlevin.dev/codevember",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "render": "node tools/render.mjs",
+    "deploy": "zsh tools/deploy.sh",
+    "weft": "npm update @ericrius1/weft"
+  },
+  "dependencies": {
+    "@ericrius1/weft": "git+https://github.com/ericrius1/weft.git#dist/weft"
+  },
+  "devDependencies": {
+    "@webgpu/types": "^0.1.74",
+    "playwright": "^1.55.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.7"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
+  }
+}

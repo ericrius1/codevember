@@ -1,0 +1,8 @@
+{
+  "compilerOptions": {
+    "target": "ES2022", "module": "ESNext", "moduleResolution": "bundler", "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": true, "noEmit": true, "skipLibCheck": true, "allowArbitraryExtensions": true, "isolatedModules": true,
+    "types": ["@webgpu/types", "vite/client", "@ericrius1/weft/client"]
+  },
+  "include": ["src", "[0-9][0-9]"]
+}
