@@ -1,1 +1,17 @@
-[]
+[
+ {
+  "id": "04",
+  "title": "04 / Gyre",
+  "sub": "Forty glazed hoops, each turning over twice a loop, the outside first. A seamless 16-second loop, sphere-traced in WebGPU on weft.",
+  "date": "2026-11-04",
+  "created": "2026-11-04T07:54-08:00",
+  "seconds": 16,
+  "width": 1080,
+  "height": 1080,
+  "mb": 14.7,
+  "video": "https://footage.ericrius1.workers.dev/codevember/c5ade22de34ab9f1/04.mp4",
+  "small": null,
+  "poster": "https://footage.ericrius1.workers.dev/codevember/768e9fa61b79b2b4/04-poster.jpg",
+  "card": "https://footage.ericrius1.workers.dev/codevember/981769bc1364f976/04-card.jpg"
+ }
+]

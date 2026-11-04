@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { join, resolve } from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
+import { WebSocketServer } from 'ws';
 import { weft } from '@ericrius1/weft/vite';
 
 // Codevember: the gallery (index.html), a page per day (01/ … 30/, each its own sketch), and the footage page
@@ -14,7 +15,9 @@ const days = readdirSync(root).filter((d) => /^\d\d$/.test(d) && existsSync(join
 // files in between: supersampled frames scaled down (lanczos) to the film's size, the HUD laid over, x264.
 //   POST /__render/hud?name=      the HUD, a transparent PNG at the film's size
 //   POST /__render/start?name=&w=&h=&fps=&size=
-//   POST /__render/frame          one frame, w*h*4 bytes, top row first
+//   WS   /__render/frames         the frames, each a binary message of w*h*4 bytes, top row first, answered 'ok' once
+//                                 ffmpeg has taken it (a fetch POST of one 2160² frame takes over a second in Chrome;
+//                                 a WebSocket message, a few tens of ms)
 //   POST /__render/end            → { out }
 function renderSink(): Plugin {
   const dir = resolve(root, 'film');
@@ -42,13 +45,6 @@ function renderSink(): Plugin {
       res.end('ok');
       return;
     }
-    if (url.pathname === '/frame') {
-      const b = await body(req);
-      if (!ff?.stdin) { res.statusCode = 409; res.end('not started'); return; }
-      if (!ff.stdin.write(b)) await new Promise((ok) => ff!.stdin!.once('drain', ok));
-      res.end('ok');
-      return;
-    }
     if (url.pathname === '/end') {
       ff?.stdin?.end();
       const code = await done;
@@ -61,7 +57,18 @@ function renderSink(): Plugin {
   };
   return {
     name: 'codevember-render-sink',
-    configureServer(server) { server.middlewares.use('/__render', (req, res) => { if (req.method !== 'POST') { res.statusCode = 405; res.end(); return; } handle(req, res); }); },
+    configureServer(server) {
+      server.middlewares.use('/__render', (req, res) => { if (req.method !== 'POST') { res.statusCode = 405; res.end(); return; } handle(req, res); });
+      const wss = new WebSocketServer({ noServer: true, maxPayload: 512 << 20 });
+      wss.on('connection', (ws) => ws.on('message', async (data: Buffer) => {
+        if (!ff?.stdin) { ws.send('not started'); return; }
+        if (!ff.stdin.write(data)) await new Promise((ok) => ff!.stdin!.once('drain', ok));
+        ws.send('ok');
+      }));
+      server.httpServer?.on('upgrade', (req, socket, head) => {
+        if (req.url?.endsWith('/__render/frames')) wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
+      });
+    },
   };
 }
 

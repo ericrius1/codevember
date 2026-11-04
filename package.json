@@ -16,10 +16,12 @@
     "@ericrius1/weft": "git+https://github.com/ericrius1/weft.git#dist/weft"
   },
   "devDependencies": {
+    "@types/ws": "^8.18.2",
     "@webgpu/types": "^0.1.74",
     "playwright": "^1.55.0",
     "typescript": "^5.9.3",
-    "vite": "^7.3.7"
+    "vite": "^7.3.7",
+    "ws": "^8.22.1"
   },
   "allowScripts": {
     "esbuild@0.28.2": true

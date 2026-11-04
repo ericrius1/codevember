@@ -107,11 +107,11 @@ export async function sketch(meta: SketchMeta, setup: (ctx: Ctx) => Promise<Fram
   });
   document.body.classList.add('ready');
 
-  if (render) await film(kit, meta, fps, Number(params.get('size') ?? 1080), () => n, (k) => (n = k));
+  if (render) await film(kit, meta, fps, Number(params.get('size') ?? 1080), (k) => (n = k));
 }
 
 // ---------------------------------------------------------------- render mode
-async function film(kit: Kit, meta: SketchMeta, fps: number, size: number, getN: () => number, setN: (n: number) => void) {
+async function film(kit: Kit, meta: SketchMeta, fps: number, size: number, setN: (n: number) => void) {
   const name = new URLSearchParams(location.search).get('name') ?? pad(meta.day);
   const post = (path: string, body?: BodyInit) => fetch(`/__render/${path}`, { method: 'POST', body }).then((r) => { if (!r.ok) throw new Error(`${path}: ${r.status}`); return r; });
   const status = (s: string) => ((window as any).__render = { ...(window as any).__render, status: s });
@@ -137,23 +137,35 @@ async function film(kit: Kit, meta: SketchMeta, fps: number, size: number, getN:
   setN((meta.warm ?? 0) * perLoop);
   const loops = meta.filmLoops ?? Math.max(1, Math.round(15 / meta.loop));
   const total = loops * perLoop;
-  await document.fonts.ready;
+  // (the HUD is hidden when filming, so nothing on the page has asked for its font yet; and its @font-face rules
+  // arrive with the stylesheet's @import, which may not have yet)
+  for (let i = 0; i < 200 && ![...document.fonts].some((f) => f.family.includes('IBM Plex Mono')); i++) await new Promise((r) => setTimeout(r, 25));
+  await Promise.all(['500 17px "IBM Plex Mono"', '400 14px "IBM Plex Mono"'].map((f) => document.fonts.load(f)));
   await post(`hud?name=${name}`, await hudPng(meta, size));
   const [w, h] = kit.size.canvas;
   await post(`start?name=${name}&w=${w}&h=${h}&fps=${fps}&size=${size}`);
+  const ws = new WebSocket(`${location.origin.replace(/^http/, 'ws')}/__render/frames`);
+  ws.binaryType = 'arraybuffer';
+  await new Promise((ok, no) => { ws.onopen = ok; ws.onerror = no; });
+  const sent = () => new Promise<void>((ok, no) => { ws.onmessage = (e) => (e.data === 'ok' ? ok() : no(new Error(String(e.data)))); });
   const t0 = performance.now();
   for (let i = 0; i < total; i++) {
     const img = await cap.step(1 / fps);
-    await post('frame', img.data);
+    const ack = sent();
+    ws.send(img.data);
+    await ack;
     if (i % 30 === 0) status(`frame ${i}/${total}`);
   }
+  ws.close();
   const r = await (await post('end')).json();
-  (window as any).__render = { status: 'done', out: r.out, code: r.code, frames: total, seconds: (performance.now() - t0) / 1000, getN };
+  (window as any).__render = { status: 'done', out: r.out, code: r.code, frames: total, seconds: (performance.now() - t0) / 1000 };
 }
 
 /** the film's HUD: the title top left, the address bottom left, as a transparent PNG the size of the film */
 async function hudPng(meta: SketchMeta, size: number): Promise<Blob> {
-  const c = new OffscreenCanvas(size, size), g = c.getContext('2d')!;
+  // (a canvas in the document: an OffscreenCanvas doesn't see the page's web fonts)
+  const c = document.createElement('canvas'), g = c.getContext('2d')!;
+  c.width = c.height = size;
   const s = size / 1080, m = 44 * s;
   g.fillStyle = meta.colors.fg;
   g.textBaseline = 'top';
@@ -164,9 +176,9 @@ async function hudPng(meta: SketchMeta, size: number): Promise<Blob> {
   g.font = `400 ${14 * s}px "IBM Plex Mono", ui-monospace, monospace`;
   g.textBaseline = 'alphabetic';
   spaced(g, 'ericlevin.dev/codevember', m, size - m, 0.6 * s);
-  return c.convertToBlob({ type: 'image/png' });
+  return new Promise<Blob>((ok) => c.toBlob((b) => ok(b!), 'image/png'));
 }
-function spaced(g: OffscreenCanvasRenderingContext2D, text: string, x: number, y: number, track: number) {
+function spaced(g: CanvasRenderingContext2D, text: string, x: number, y: number, track: number) {
   for (const ch of text) { g.fillText(ch, x, y); x += g.measureText(ch).width + track; }
 }
 
