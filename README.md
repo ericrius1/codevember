@@ -30,6 +30,21 @@ freezes the clock at a phase; `?debug` (or backquote) is weft's overlay, with sl
 
 box3d.js (isaac-mason) and pmndrs/math are fair game when a day wants physics or the maths.
 
+## People, rigs and sound
+
+A day can have people in it. `src/rig` is Boulder's character runtime, lifted (its HeroRig: the whole-body solver,
+the arm fit, finger IK, verlet chains, the face): a person is built in Blender by Boulder's town pipeline from a spec
+in the day's folder (09/character: `zsh 09/character/build.sh` → `09/assets/<who>_{hi,lo}.bin.gz`), loaded with
+`loadHero` and posed each frame by a `BodyGoal`. Beside it, `src/rig/strike.ts` (a stroke planner for anything swung
+at a surface: the whip of a downswing, contact, the rebound, the kinetic chain's phases, a hammer grip's hand goal)
+and `src/rig/strands.ts` (verlet strands rooted on bones: locks, filaments, cords), both also in Boulder. Skinning in
+WGSL is weft's (`#include "weft/skin"`).
+
+A day with sound gives its meta an `audio` file one loop long: the HUD gets a Sound button, and while it plays the
+loop's clock is the sound's. Its film takes `film/<dd>.wav` under it if there is one (tools/render.mjs).
+
+`--q 'cam=x,y,z,tx,ty,tz,fov'` (render.mjs) passes the page parameters through: 09 takes a fixed camera, for looking.
+
 ## The films
 
 `tools/render.mjs` starts a dev server of its own (no reloads, so editing while it films can't break it) and opens the

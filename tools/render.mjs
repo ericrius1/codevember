@@ -1,10 +1,11 @@
-// Films a day's loop: node tools/render.mjs 04 [--size 1080] [--ss 2] [--fps 60] [--stills 0,0.25,0.5]
+// Films a day's loop: node tools/render.mjs 04 [--size 1080] [--ss 2] [--fps 60] [--stills 0,0.25,0.5] [--q 'k=v&…']
 // Headless Chrome (WebGPU on Metal, muted) opens the day in render mode on a dev server of its own, which steps the
 // loop exactly 1/fps a frame from u = 0, reads every frame back from the swapchain at size × ss and posts it raw to
 // the server's film sink (vite.config.ts): ffmpeg scales it down (lanczos), lays the HUD over and writes
 // film/<day>.mp4. --stills writes film/<day>-still-<i>.png at those phases
 // instead, and a contact sheet of them, film/<day>-sheet.png.
 import { spawn, execFileSync } from 'node:child_process';
+import { existsSync, renameSync } from 'node:fs';
 import { chromium } from 'playwright';
 
 const argv = process.argv.slice(2);
@@ -30,6 +31,8 @@ page.on('pageerror', (e) => console.error('page:', e.message));
 page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') console.error(`page ${m.type()}:`, m.text()); });
 const q = new URLSearchParams({ render: '', size: String(size), ss: String(ss), fps: String(fps), name: day });
 if (stills) q.set('stills', stills);
+// (--q 'a=1&b=2': more of the page's own parameters, a debug camera say)
+for (const [k, v] of new URLSearchParams(flag('q', ''))) q.set(k, v);
 await page.goto(`${ORIGIN}/codevember/${day}/?${q}`);
 const t0 = Date.now();
 let last = '';
@@ -46,6 +49,14 @@ for (;;) {
 }
 await browser.close();
 server.kill();
+// the day's sound (film/<day>.wav, one loop long, made by the day's own tools): laid under the film, AAC
+if (!stills && existsSync(`film/${day}.wav`)) {
+  const out = `film/${day}.mp4`, tmp = `film/${day}.av.mp4`;
+  execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', out, '-stream_loop', '-1', '-i', `film/${day}.wav`, '-map', '0:v', '-map', '1:a',
+    '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', tmp]);
+  renameSync(tmp, out);
+  console.log(`${out}: with film/${day}.wav`);
+}
 if (stills && stills.split(',').length > 1) {
   const n = stills.split(',').length, cols = Math.min(n, 4);
   const ins = Array.from({ length: n }, (_, i) => ['-i', `film/${day}-still-${i}.png`]).flat();

@@ -29,6 +29,12 @@ body.ready #stage { opacity: 1; }
   padding: 5px 12px; border-radius: 999px; cursor: pointer; opacity: 0.6; }
 .seg button.on { background: var(--fg); color: var(--bg); opacity: 1; }
 .seg button:disabled { opacity: 0.25; cursor: default; }
+.tr { display: flex; gap: 8px; align-items: center; }
+button.sound { font: 500 11px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg); cursor: pointer;
+  border: 1px solid color-mix(in srgb, var(--fg) 25%, transparent); border-radius: 999px; padding: 6px 13px; opacity: 0.75;
+  background: color-mix(in srgb, var(--bg) 60%, transparent); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+button.sound.on { background: var(--fg); color: var(--bg); opacity: 1; }
+button.sound[hidden] { display: none; }
 
 video.film { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(100vw, 100vh); height: min(100vw, 100vh);
   object-fit: contain; display: none; background: var(--bg); }

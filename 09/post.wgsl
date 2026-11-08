@@ -1,0 +1,93 @@
+// The lens: bloom (a mip chain down and back up), the shock's refraction where its shell is seen edge-on, time
+// dilation's look (the colour drifting, the edges fringing, the light smeared toward the middle), then the grade and
+// the tone, a vignette, grain.
+#include "./common"
+#include "weft/fullscreen"
+#include "weft/output"
+
+struct PostU {
+  // x exposure, y bloom strength, z the threshold's knee, w grain
+  look: vec4f,
+  // x chromatic fringe, y the radial smear (dilation), z vignette, w saturation
+  look2: vec4f,
+  // the shock's centre on screen (uv), z its ring's radius on screen (uv), w strength
+  shock: vec4f,
+  // x the source texel size (down/up), y, z, w the flash (white-out)
+  misc: vec4f,
+}
+@group(2) @binding(0) var<uniform> P: PostU;
+@group(2) @binding(1) var src: texture_2d<f32>;
+@group(2) @binding(2) var bloomTex: texture_2d<f32>;
+
+override HDR: bool = false;
+override P3: bool = false;
+
+fn tap(uv: vec2f) -> vec3f { return textureSampleLevel(src, samp_linear, uv, 0.0).rgb; }
+
+@fragment fn fs_down(i: FullscreenOut) -> @location(0) vec4f {
+  let ts = 1.0 / vec2f(textureDimensions(src));
+  let uv = i.uv;
+  // (13 taps, the "call of duty" downsample: no fireflies)
+  let a = tap(uv + ts * vec2f(-2.0, -2.0)); let b = tap(uv + ts * vec2f(0.0, -2.0)); let c = tap(uv + ts * vec2f(2.0, -2.0));
+  let d = tap(uv + ts * vec2f(-1.0, -1.0)); let e = tap(uv + ts * vec2f(1.0, -1.0));
+  let f = tap(uv + ts * vec2f(-2.0, 0.0)); let g = tap(uv); let h = tap(uv + ts * vec2f(2.0, 0.0));
+  let j = tap(uv + ts * vec2f(-1.0, 1.0)); let k = tap(uv + ts * vec2f(1.0, 1.0));
+  let l = tap(uv + ts * vec2f(-2.0, 2.0)); let m = tap(uv + ts * vec2f(0.0, 2.0)); let n = tap(uv + ts * vec2f(2.0, 2.0));
+  var o = (d + e + j + k) * 0.125 + (a + c + l + n) * 0.03125 + (b + f + h + m) * 0.0625 + g * 0.125;
+  if (P.misc.x > 0.5) {
+    // the first level: only what's bright (a soft knee), clamped
+    let br = max(o.r, max(o.g, o.b));
+    let kk = P.look.z;
+    let w = sat((br - kk * 0.5) / max(kk, 1e-3));
+    o = min(o * w * w, vec3f(60.0));
+  }
+  return vec4f(o, 1.0);
+}
+@fragment fn fs_up(i: FullscreenOut) -> @location(0) vec4f {
+  let ts = 1.0 / vec2f(textureDimensions(src));
+  let uv = i.uv;
+  let s = tap(uv + ts * vec2f(-1.0, -1.0)) + tap(uv + ts * vec2f(1.0, -1.0)) + tap(uv + ts * vec2f(-1.0, 1.0)) + tap(uv + ts * vec2f(1.0, 1.0))
+    + 2.0 * (tap(uv + ts * vec2f(0.0, -1.0)) + tap(uv + ts * vec2f(0.0, 1.0)) + tap(uv + ts * vec2f(-1.0, 0.0)) + tap(uv + ts * vec2f(1.0, 0.0)))
+    + 4.0 * tap(uv);
+  return vec4f(s / 16.0 * 0.85, 1.0);
+}
+
+fn hdrAt(uv: vec2f) -> vec3f { return textureSampleLevel(src, samp_linear, uv, 0.0).rgb; }
+
+@fragment fn fs_final(i: FullscreenOut) -> @location(0) vec4f {
+  var uv = i.uv;
+  let asp = frame.res.x / frame.res.y;
+  // the shock's ring: the picture bent outward across it, a bright edge
+  let sc = P.shock.xy;
+  var dv = (uv - sc) * vec2f(asp, 1.0);
+  let dl = length(dv);
+  let ring = (dl - P.shock.z) / 0.035;
+  let bend = P.shock.w * exp(-ring * ring) * ring * -0.03;
+  uv += normalize(dv + vec2f(1e-5)) / vec2f(asp, 1.0) * bend;
+  // dilation's smear toward the middle and the colour's fringe
+  let toC = uv - 0.5;
+  let fr = P.look2.x * (0.002 + 0.01 * dot(toC, toC));
+  var c = vec3f(hdrAt(uv - toC * fr).r, hdrAt(uv).g, hdrAt(uv + toC * fr).b);
+  if (P.look2.y > 0.001) {
+    var acc = c; var wsum = 1.0;
+    for (var k = 1; k < 8; k++) {
+      let w = 1.0 - f32(k) / 8.0;
+      acc += hdrAt(uv - toC * P.look2.y * f32(k) / 8.0) * w; wsum += w;
+    }
+    c = acc / wsum;
+  }
+  c += textureSampleLevel(bloomTex, samp_linear, uv, 0.0).rgb * P.look.y;
+  c += vec3f(0.45, 0.85, 0.8) * exp(-ring * ring) * P.shock.w * 0.25;
+  c *= P.look.x;
+  c += vec3f(1.0, 0.92, 0.8) * P.misc.w;
+  // the grade: saturation, a warm-cool split
+  let l = luma(c);
+  c = mix(vec3f(l), c, P.look2.w);
+  var m = aces(c * 0.8);
+  // vignette, grain
+  let v = 1.0 - P.look2.z * dot(toC, toC) * 1.6;
+  m *= v;
+  let g = (hash12(i.pos.xy + fract(G.clock.x * 13.7) * 100.0) - 0.5) * P.look.w;
+  m += g;
+  return vec4f(canvasEncode(max(m, vec3f(0.0)), P3), 1.0);
+}

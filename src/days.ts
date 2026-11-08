@@ -11,6 +11,7 @@ export interface Day {
 
 export const DAYS: Day[] = [
   { day: 4, title: 'Gyre', loop: 16, note: 'Forty glazed hoops, each turning over twice a loop, the outside first.', colors: { bg: '#e6e0d7', fg: '#2b2520' } },
+  { day: 9, title: 'Membrane', loop: 26, note: 'A shaman strikes a great drum, time slows, and the hide between universes ripples back.', colors: { bg: '#0b0714', fg: '#efe3cf', accent: '#5fe3d0' } },
 ];
 
 export const day = (n: number) => {

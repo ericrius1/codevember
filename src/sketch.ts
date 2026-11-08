@@ -24,6 +24,9 @@ export interface SketchMeta {
   filmLoops?: number;
   /** the page and the HUD: background, text, accent */
   colors: { bg: string; fg: string; accent?: string };
+  /** the loop's sound (a file exactly one loop long): a Sound button in the HUD, and while it plays the loop's clock
+   *  is the sound's, so the picture keeps time with it; the film plays it too */
+  audio?: string;
 }
 
 export interface Ctx {
@@ -86,6 +89,16 @@ export async function sketch(meta: SketchMeta, setup: (ctx: Ctx) => Promise<Fram
   await kit.ready();
 
   let t = 0, n = 0, paused = false;
+  // the sound: off until asked for (a browser won't play it before a gesture anyway); playing, it keeps the clock
+  const sound = meta.audio && !render ? new Audio(meta.audio) : null;
+  if (sound) {
+    sound.loop = true; sound.preload = 'auto';
+    hud.sound((on) => {
+      if (on) { sound.currentTime = t % meta.loop; sound.play().catch(() => hud.soundState(false)); }
+      else sound.pause();
+      hud.film.muted = !on;
+    });
+  }
   // (?perf: stepped by hand like a film, for tools/perf.mjs to time)
   if (render || params.has('perf')) kit.manual = true;
   (window as any).__kit = kit;
@@ -93,7 +106,8 @@ export async function sketch(meta: SketchMeta, setup: (ctx: Ctx) => Promise<Fram
     if (render) t = (n / fps) % meta.loop;
     else if (params.has('u')) t = Number(params.get('u')) * meta.loop;
     else {
-      if (!paused) t = (t + dt) % meta.loop;
+      if (sound && !sound.paused && sound.readyState >= 2) t = sound.currentTime % meta.loop;
+      else if (!paused) t = (t + dt) % meta.loop;
       // let a turned view settle back
       if (!pointer.down) { const k = 1 - Math.exp(-dt * 1.6); orbit.yaw -= orbit.yaw * k; orbit.pitch -= orbit.pitch * k; }
     }
@@ -102,7 +116,10 @@ export async function sketch(meta: SketchMeta, setup: (ctx: Ctx) => Promise<Fram
   });
 
   addEventListener('keydown', (e) => {
-    if (e.code === 'Space') { paused = !paused; e.preventDefault(); }
+    if (e.code === 'Space') {
+      paused = !paused; e.preventDefault();
+      if (sound && hud.soundOn) { if (paused) sound.pause(); else { sound.currentTime = t % meta.loop; sound.play().catch(() => {}); } }
+    }
     if (e.key === 'f') hud.setMode(hud.mode === 'film' ? 'live' : 'film');
   });
   document.body.classList.add('ready');
@@ -211,6 +228,7 @@ function buildHud(meta: SketchMeta) {
       <div class="hint">${meta.hint ?? 'Drag to turn · Space to pause'}</div>
     </div>
     <div class="tr">
+      ${meta.audio ? '<button class="sound" aria-pressed="false" hidden>Sound</button>' : ''}
       <div class="seg" role="tablist">
         <button data-mode="live" class="on">Live</button><button data-mode="film" disabled>Film</button>
       </div>
@@ -224,7 +242,17 @@ function buildHud(meta: SketchMeta) {
   video.className = 'film';
   document.body.append(video);
   const buttons = [...el.querySelectorAll<HTMLButtonElement>('.seg button')];
+  const soundBtn = el.querySelector<HTMLButtonElement>('.sound');
   const api = {
+    film: video,
+    soundOn: false,
+    /** the Sound button: shown, calling back with on/off */
+    sound(cb: (on: boolean) => void) {
+      if (!soundBtn) return;
+      soundBtn.hidden = false;
+      soundBtn.addEventListener('click', () => { api.soundState(!api.soundOn); cb(api.soundOn); });
+    },
+    soundState(on: boolean) { api.soundOn = on; soundBtn?.classList.toggle('on', on); soundBtn?.setAttribute('aria-pressed', String(on)); },
     mode: 'live' as 'live' | 'film',
     setMode(m: 'live' | 'film') {
       api.mode = m;
