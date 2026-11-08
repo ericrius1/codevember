@@ -194,8 +194,9 @@ export class Drum {
   }
 
   async loadTextures() {
-    const load = async (name: string) => {
-      const blob = await (await fetch(new URL(`./assets/${name}`, import.meta.url).href)).blob();
+    const load = async (url: string) => {
+      const name = url.split('/').pop()!;
+      const blob = await (await fetch(url)).blob();
       const bmp = await createImageBitmap(blob);
       const t = this.kit.texture({ label: name, format: 'rgba8unorm', size: [bmp.width, bmp.height], mips: 'full', usage: ['sample', 'copy-dst', 'render'] });
       t.writeImage(bmp);
@@ -205,7 +206,7 @@ export class Drum {
       this.kit.run([mips]);
       return t;
     };
-    [this.hideTex, this.rimTex] = await Promise.all([load('hide.jpg'), load('rim.jpg')]);
+    [this.hideTex, this.rimTex] = await Promise.all([load(new URL('./assets/hide.jpg', import.meta.url).href), load(new URL('./assets/rim.jpg', import.meta.url).href)]);
   }
 
   /** this frame's steps of the hide: as many as the membrane's clock moved (film dt × min(rate, MEMBRANE_PACE)), each

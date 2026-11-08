@@ -159,7 +159,8 @@ sketch({ ...day(9), filmLoops: 1, warm: 1, hint: 'Sound on, for the drum · Spac
     const ringA = shockR > 0 && shockR < dH ? Math.atan(shockR / dH) / th * 0.5 : 0;
     const ringK = t > big && zf > 0 && ringA > 0 ? Math.exp(-(t - big) * 0.35) * (1 - Math.min(1, shockR / dH) ** 4) : 0;
     P.set({ look: [1.0, 0.9, 1.2, 0.035] as never, look2: [0.4 + 3 * deep * deep, 0.07 * deep * deep * deep, 0.55, 1.0 + 0.2 * deep] as never,
-      shock: [sx, sy, ringA, ringK * 0.9] as never, misc: [0, 0, 0, 0] as never });
+      shock: [sx, sy, ringA, ringK * 0.9] as never,
+      misc: [0, 0.55 * Math.sin((t - ACT.cosmos) * 0.9) * smooth(ACT.cosmos - 1, ACT.foam, t) * (1 - smooth(ACT.home, ACT.settle, t)), 0, 0] as never });
     PF.set({ look: [1.0, 0.9, 1.2, 0.035] as never, look2: [0, 0, 0, 1] as never, shock: [0.5, 0.5, 0, 0] as never, misc: [1, 0, 0, 0] as never });
     void STORY_LOOP; void DILATE;
     return [...drum.run, scene, ...post, out];

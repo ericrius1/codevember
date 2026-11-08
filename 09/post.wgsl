@@ -79,6 +79,8 @@ fn hdrAt(uv: vec2f) -> vec3f { return textureSampleLevel(src, samp_linear, uv, 0
   c += textureSampleLevel(bloomTex, samp_linear, uv, 0.0).rgb * P.look.y;
   c += vec3f(0.45, 0.85, 0.8) * exp(-ring * ring) * P.shock.w * 0.25;
   c *= P.look.x;
+  // (the whole universe's colour drifting while time's out of joint)
+  c = max(hueShift(c, P.misc.y), vec3f(0.0));
   c += vec3f(1.0, 0.92, 0.8) * P.misc.w;
   // the grade: saturation, a warm-cool split
   let l = luma(c);
