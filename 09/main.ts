@@ -15,6 +15,7 @@ import { LOOP, story, rate, BIG, ACT, DILATE, STORY_LOOP } from './score';
 import { Shaman } from './shaman';
 import { Drum, Beater, DRUM, membranePace } from './drum';
 import { moment, BEATER, strokes, drive } from './perform';
+import { GripHold, aimAt } from './grip';
 import { shot } from './camera';
 import { Regalia } from './regalia';
 import cosmosShader from './cosmos.wgsl';
@@ -35,11 +36,17 @@ sketch({ ...day(9), filmLoops: 1, warm: 1, hint: 'Sound on, for the drum · Spac
   kit.setGlobals(G);
 
   // ---------------------------------------------------------------- the scene's targets
-  const hdr = kit.texture({ label: 'hdr', format: 'rgba16float', size: 'render', usage: ['render', 'sample'] });
-  const depth = kit.texture({ label: 'depth', format: 'depth32float', size: 'render', usage: ['render', 'sample'] });
+  const hdr = kit.texture({ label: 'hdr', format: 'rgba16float', size: 'render', usage: ['render', 'sample', 'copy-src'] });
+  const depth = kit.texture({ label: 'depth', format: 'depth32float', size: 'render', usage: ['render', 'sample', 'copy-src'] });
+  // (the scene behind the hide, and its depth: copied before the hide's drawn, which shows it through itself)
+  const behind = kit.texture({ label: 'behind', format: 'rgba16float', size: 'render', usage: ['sample', 'copy-dst'] });
+  const behindDepth = kit.texture({ label: 'behind.depth', format: 'depth32float', size: 'render', usage: ['sample', 'copy-dst'] });
   const bloom = kit.texture({ label: 'bloom', format: 'rgba16float', size: 'render', scale: 0.5, mips: BLOOM, usage: ['render', 'sample'] });
 
   const shaman = await Shaman.load(kit);
+  // the beater fixed in her hand: posed a few frames at a moment when her hand's where the stroke asks, then held
+  const hold = new GripHold(shaman.rig);
+  { const s0 = story(0.3); for (let i = 0; i < 4; i++) drive(shaman.rig, moment(s0), s0, 1 / 60); hold.calibrate(moment(s0).beater); }
   const drum = new Drum(kit);
   await drum.loadTextures();
   const beater = new Beater(kit, BEATER.reach, BEATER.headR);
@@ -53,8 +60,11 @@ sketch({ ...day(9), filmLoops: 1, warm: 1, hint: 'Sound on, for the drum · Spac
   beater.draw(scene, drum);
   shaman.draw(scene);
   regalia.draw(scene);
+  const copyBehind = [kit.copy(hdr, behind, 'behind'), kit.copy(depth, behindDepth, 'behind.depth')];
+  const front = kit.pass({ label: 'scene.hide', color: [{ target: hdr, clear: false }], depth: { target: depth, clear: false } });
+  drum.drawHide(front, behind, behindDepth);
   const MU = kit.uniforms(motesShader.structs.MoteU, 'motes');
-  scene.draw(motesShader, { label: 'motes', vertex: 'vsMote', fragment: 'fsMote', count: 6, instances: 900 + 3200, bind: { MU } as never,
+  front.draw(motesShader, { label: 'motes', vertex: 'vsMote', fragment: 'fsMote', count: 6, instances: 900 + 3200, bind: { MU } as never,
     blend: 'add', depthWrite: false, depthCompare: 'greater' });
 
   const P = kit.uniforms(postShader.structs.PostU, 'post');
@@ -123,13 +133,17 @@ sketch({ ...day(9), filmLoops: 1, warm: 1, hint: 'Sound on, for the drum · Spac
     if (jumped) regalia.settle(2.5);
     regalia.step(ds, M.hit, fwd, s, M.flash, M.flash, M.push);
     const bs = M.beater;
-    beater.place(bs.hand, bs.shaft, [0, 0, 1]);
+    const held = hold.place(bs, aimAt(bs.since));
+    beater.place(held.hand, held.shaft, held.side);
     // ---------------------------------------------------------------- the hide: its steps through this frame
     drum.advance(dt, r, s0, s, (sk) => {
       const x = strokes.at(sk).st;
       return { c: x.head, r: BEATER.headR };
     });
     drum.look(s, 1, M.rock);
+    // the hide thins to a veil from the great stroke on, as the universe's own membrane starts to ripple, most while the
+    // worlds are open, and is a hide again by the time the pulse comes back
+    drum.glass(0.62 * smooth(BIG.t + 0.02, ACT.cosmos + 0.4, t) * (1 - smooth(ACT.home, ACT.settle, t)), t);
     // ---------------------------------------------------------------- the light, the shock, the cosmos
     const big = BIG.t;
     // the shock's front: barely moving through the dilated moment, then racing out as time comes back
@@ -187,6 +201,6 @@ sketch({ ...day(9), filmLoops: 1, warm: 1, hint: 'Sound on, for the drum · Spac
       misc: [0, 0, 0, 0] as never });
     PF.set({ look: [1.0, 0.9, 1.2, 0.035] as never, look2: [0, 0, 0, 1] as never, shock: [0.5, 0.5, 0, 0] as never, misc: [1, 0, 0, 0] as never });
     void STORY_LOOP; void DILATE;
-    return [...drum.run, scene, ...post, out];
+    return [...drum.run, scene, ...copyBehind, front, ...post, out];
   };
 });

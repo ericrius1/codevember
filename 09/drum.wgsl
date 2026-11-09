@@ -19,6 +19,9 @@ struct DrumU {
   center: vec4f,
   // x the rim texture's repeats round the shell, y the hide's glow, z the time (s), w the inner light's flicker
   look: vec4f,
+  // x how far you see through the hide (0 opaque .. 1; the great stroke's), y the refraction's strength (screen uv
+  // per unit of the normal's tilt), z the fuzz's length (m), w its breeze's clock (s)
+  glass: vec4f,
 }
 @group(2) @binding(0) var<uniform> D: DrumU;
 // the drum rocked on its stand by a stroke: turned about the stand's foot (z through it)
@@ -45,6 +48,9 @@ struct HideOut {
 // a rigid prop (the beater): its model matrix (its rotation orthonormal)
 struct PropU { model: mat4x4f }
 @group(2) @binding(8) var<uniform> PM: PropU;
+// what's behind the hide (the scene drawn without it, and its depth): seen through it, refracted
+@group(2) @binding(9) var behindTex: texture_2d<f32>;
+@group(2) @binding(10) var behindDepth: texture_depth_2d;
 
 /** the hide's displacement at uv (bilinear by hand: rg32float isn't filterable) */
 fn simAt(uv: vec2f) -> f32 {
@@ -108,18 +114,30 @@ fn simAt(uv: vec2f) -> f32 {
   let backlit = vec3f(1.0, 0.48, 0.16) * alb * thru * (1.0 - 0.35 * r * r);
   var col: vec3f;
   if (front) {
-    let diff = sat(dot(N, L.keyL)) * L.key + sat(dot(N, L.drumL)) * L.drum * 0.2 + L.amb;
+    // a skin, not a board: light goes into it and comes out further on, redder (wrapped diffuse, the wrap's light
+    // tinted the colour light takes on through a hide), its relief softened by it
+    let wrapK = (dot(N, L.keyL) + 0.55) / 1.55;
+    let wrapD = (dot(N, L.drumL) + 0.55) / 1.55;
+    let scatterTint = vec3f(1.0, 0.62, 0.38);
+    let wk = sat(wrapK);
+    let wd = sat(wrapD);
+    let lit = mix(scatterTint * wk, vec3f(sat(dot(N, L.keyL))), 0.55) * L.key + mix(scatterTint * wd, vec3f(sat(dot(N, L.drumL))), 0.55) * L.drum * 0.2;
+    let diff = lit + L.amb;
     // (its relief: the ripples' slopes shaded as a raking light from above and her side would — the rings read as rings
     // however bright the light through it is)
     let tilt = N - vec3f(-1.0, 0.0, 0.0);
     let rake = dot(tilt, normalize(vec3f(0.0, 0.75, 0.65)));
-    let relief = clamp(1.0 + 3.2 * rake, 0.35, 1.9);
+    let relief = clamp(1.0 + 2.6 * rake, 0.45, 1.75);
     col = (alb * diff * 0.45 + backlit) * relief;
-    // the crests catch the lights: sharp glints, and the sky's shimmer slid across them (a taut, oiled skin)
-    col += vec3f(1.0, 0.9, 0.75) * (ggx(N, V, L.keyL, 0.16) * L.key * 0.35 + ggx(N, V, L.drumL, 0.2) * L.drum * 0.25);
-    let fs = fresnel(0.035, sat(dot(N, V)));
+    // the crests catch the lights: soft glints (a hide's fine down, not oil), and the sky's shimmer slid across them
+    col += vec3f(1.0, 0.88, 0.72) * (ggx(N, V, L.keyL, 0.34) * L.key * 0.22 + ggx(N, V, L.drumL, 0.38) * L.drum * 0.16);
+    let nv = sat(dot(N, V));
+    let fs = fresnel(0.035, nv);
     let R = reflect(-V, N);
     col += fs * (L.rim * (0.8 + 1.4 * sat(R.y)) + L.amb * 0.6) * (0.6 + 2.0 * length(tilt.yz));
+    // velvet: the down on it lit at the grazing angles, warm where the light's through it
+    let sheen = pow(1.0 - nv, 3.0);
+    col += sheen * (alb * 0.6 + vec3f(0.25, 0.16, 0.1)) * (L.key * (0.4 + 0.6 * wk) + L.rim * 0.8 + L.drum * 0.3) * 0.55;
     // the painted lines glow, more as the hide's struck and as it's stretched
     col += mix(vec3f(0.2, 1.0, 0.85), vec3f(1.0, 0.7, 0.2), gold / max(paint, 1e-3)) * paint * (0.2 + 0.6 * stretch + 0.18 * G.drumCol.w) * D.look.y * relief;
   } else {
@@ -128,7 +146,127 @@ fn simAt(uv: vec2f) -> f32 {
   // (the ripples catch the light: a sheen along their slopes)
   col += vec3f(1.0, 0.8, 0.5) * stretch * 0.18 * D.look.y;
   col += vec3f(0.35, 0.85, 0.8) * shockAt(in.wpos) * 0.3;
+  // after the great stroke the hide thins to a veil: what's behind it (the drum's lit hollow, and out through its open
+  // back the worlds) shows through, bent by the ripples as through water — more where they're steepest, less through
+  // the painted lines, the colours parting a little at the bends
+  if (D.glass.x > 0.001 && front) {
+    let suv = in.pos.xy * frame.invRes;
+    let tilt = N - rockDir(vec3f(-1.0, 0.0, 0.0));
+    let tv = (frame.view * vec4f(tilt, 0.0)).xy;
+    let off = vec2f(tv.x, -tv.y) * D.glass.y;
+    var seen = vec3f(0.0);
+    for (var c = 0; c < 3; c++) {
+      let k = 1.0 + f32(c) * 0.09;
+      var q = suv + off * k;
+      // (anything in front of the hide there — her, the beater — isn't behind it: look straight through instead)
+      let qi = vec2i(clamp(q, vec2f(0.0), vec2f(0.9999)) * frame.res);
+      if (textureLoad(behindDepth, qi, 0) > in.pos.z) { q = suv; }
+      let b = textureSampleLevel(behindTex, samp_linear, clamp(q, vec2f(0.0), vec2f(1.0)), 0.0).rgb;
+      seen[c] = b[c];
+    }
+    let nv = sat(dot(N, V));
+    let tr = clamp(D.glass.x * (0.6 + 1.1 * stretch) * (1.0 - 0.7 * paint) * (1.0 - 0.8 * pow(1.0 - nv, 4.0)), 0.0, 0.88);
+    // (through parchment: the light warmed, the hide's own glow over it)
+    let through = seen * mix(vec3f(1.0, 0.78, 0.55), vec3f(1.0), 0.45) * 1.15 + backlit * 0.35;
+    col = mix(col, through, tr);
+  }
   return vec4f(col, 1.0);
+}
+
+// ---------------------------------------------------------------- the hide's down: fine hairs, in shells
+// The hide is drawn again as FUZZ_SHELLS shells stepped out along its normal, each cut to the cross-sections of a
+// field of fine hairs at its height (a hair a cell of a jittered grid on the hide, tapering, of its own length): up
+// close, a down of separate hairs catching the light, their tips lit through; further off, where a hair's thinner than
+// a pixel, each shell fades to its hairs' mean cover — a soft haze, a velvet edge. They sway on a slow breeze over
+// the hide and whip aside as a ripple passes under them.
+const FUZZ_SHELLS = 12u;
+const FUZZ_CELL = 0.0026;
+struct FuzzOut {
+  @builtin(position) pos: vec4f,
+  @location(0) wpos: vec3f,
+  @location(1) uv: vec2f,
+  @location(2) n: vec3f,
+  @location(3) ab: vec2f,
+  @location(4) @interpolate(flat) k: f32,
+  @location(5) curv: f32,
+};
+@vertex fn vsFuzz(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> FuzzOut {
+  var o: FuzzOut;
+  let v = verts[vi];
+  let lp = meshPos(v);
+  let uv = meshUV(v);
+  let g = D.sim2.w;
+  let e = 1.5 / f32(N);
+  let sc = 1.0 / (2.0 * e * 2.0 * D.sim.x);
+  let h = simAt(uv) * g;
+  let hx = (simAt(uv + vec2f(e, 0.0)) - simAt(uv - vec2f(e, 0.0))) * g * sc;
+  let hy = (simAt(uv + vec2f(0.0, e)) - simAt(uv - vec2f(0.0, e))) * g * sc;
+  // (the hide's speed's slope: a ripple running under the hairs)
+  let vel = textureLoad(simTex, clamp(vec2i(uv * f32(N)), vec2i(0), vec2i(i32(N) - 1)), 0);
+  let vx = textureLoad(simTex, clamp(vec2i((uv + vec2f(e, 0.0)) * f32(N)), vec2i(0), vec2i(i32(N) - 1)), 0);
+  let vy = textureLoad(simTex, clamp(vec2i((uv + vec2f(0.0, e)) * f32(N)), vec2i(0), vec2i(i32(N) - 1)), 0);
+  let whip = vec2f((vx.x - vx.y) - (vel.x - vel.y), (vy.x - vy.y) - (vel.x - vel.y)) * g * 900.0;
+  let k = (f32(ii) + 1.0) / f32(FUZZ_SHELLS);
+  let n = normalize(vec3f(-1.0, hy, hx));
+  // the breeze: a slow drift over the hide, curling
+  let tb = D.glass.w;
+  let p3 = vec3f(lp.xy * 3.0, tb * 0.15);
+  let breeze = vec2f(vnoise(p3) - 0.5, vnoise(p3 + vec3f(5.2, 1.3, 7.7)) - 0.5) * 1.1 + vec2f(0.15, -0.35);
+  let lean = (breeze + clamp(whip, vec2f(-3.0), vec2f(3.0))) * k * k * D.glass.z * 0.9;
+  let C = D.center.xyz;
+  // (out along the normal, toward her: -x, and over in the hide's plane by the lean; a little drooping)
+  let wp = rock(C + vec3f(h, lp.y, lp.x) + n * (k * D.glass.z) + vec3f(0.0, lean.y - k * k * D.glass.z * 0.15, lean.x));
+  o.wpos = wp;
+  o.pos = frame.viewProj * vec4f(wp, 1.0);
+  o.uv = uv;
+  o.n = rockDir(n);
+  o.ab = lp.xy;
+  o.k = k;
+  let lapv = simAt(uv + vec2f(e, 0.0)) + simAt(uv - vec2f(e, 0.0)) + simAt(uv + vec2f(0.0, e)) + simAt(uv - vec2f(0.0, e)) - 4.0 * simAt(uv);
+  o.curv = lapv * g / (D.sim.y * D.sim.y);
+  return o;
+}
+@fragment fn fsFuzz(in: FuzzOut) -> @location(0) vec4f {
+  // (everything that takes a derivative first, and one discard at the very end: an early one leaves Chrome's Metal
+  // blots of black)
+  let tuv = (in.uv - 0.5) * 0.985 + 0.5;
+  var alb = pow(textureSample(hideTex, samp_linear, vec2f(tuv.x, 1.0 - tuv.y)).rgb, vec3f(2.2));
+  let p = in.ab / FUZZ_CELL;
+  let ic = floor(p);
+  let r3 = hash33(vec3f(ic, 7.0));
+  let c = ic + 0.5 + (r3.xy - 0.5) * 0.7;
+  // (each hair its own length and thickness; some cells bare)
+  let lenK = 0.35 + 0.65 * r3.z;
+  let here = step(hash12(ic + 31.7), 0.8) * step(in.k, lenK);
+  let rad = 0.2 * pow(max(1.0 - in.k / lenK, 0.0), 0.6) * (0.7 + 0.6 * hash12(ic + 3.1));
+  let d = length(p - c);
+  let fw = length(fwidth(p));
+  let sharp = here * (1.0 - smoothstep(rad - fw * 0.5, rad + fw * 0.5, d));
+  // (the shell's mean cover, where the hairs are finer than a pixel: π r² of a cell, the share present and this long)
+  let kk = in.k;
+  let meanR = 0.2 * pow(max(1.0 - kk, 0.0), 0.6);
+  let mean = 3.14159 * meanR * meanR * 0.8 * (1.0 - kk) * 1.3;
+  var a = mix(sharp, mean, smoothstep(0.35, 1.2, fw));
+  // (none past the rim, where the hide laps over the shell)
+  let rr = length(in.uv - 0.5) * 2.0;
+  a *= 1.0 - smoothstep(0.96, 1.0, rr);
+  let V = normalize(frame.camPos - in.wpos);
+  var Nn = normalize(in.n);
+  let L = stageLight(in.wpos, Nn);
+  alb = mix(vec3f(luma(alb)) * vec3f(1.1, 0.95, 0.78), alb, 0.5);
+  // (dark at the root, pale and lit through at the tip)
+  let base = mix(alb * 0.55, alb * 1.25 + vec3f(0.07, 0.05, 0.03), kk);
+  let wk = sat((dot(Nn, L.keyL) + 0.6) / 1.6);
+  var col = base * (L.key * wk * 0.6 + L.drum * 0.12 + L.amb);
+  // (a hair's sheen along it, and its tip lit through by what's behind and round it)
+  let tip = kk * kk;
+  col += (vec3f(1.0, 0.8, 0.6) * L.key * 0.12 + L.rim * 0.5) * pow(1.0 - sat(dot(Nn, V)), 2.0) * (0.3 + tip);
+  let stretch = 1.0 - exp(-abs(in.curv) * 0.004);
+  let thru = D.look.y * (0.3 + 0.25 * D.look.w) * (1.0 + 0.6 * stretch + 0.15 * G.drumCol.w);
+  col += vec3f(1.0, 0.55, 0.22) * alb * thru * tip * 0.8;
+  col += vec3f(0.35, 0.85, 0.8) * shockAt(in.wpos) * 0.3 * tip;
+  if (a < 0.002) { discard; }
+  return vec4f(col, a * 0.85);
 }
 
 // ---------------------------------------------------------------- the drum's body and the dais
@@ -201,9 +339,10 @@ fn woodGrain(p: vec3f, s: f32) -> f32 { return 0.5 + 0.5 * sin(p.y * s + fbm(p *
     base = mix(base, base * thinFilm(sat(dot(N, V)), 380.0 + 300.0 * vnoise(P * 30.0)) * 1.6, inlay * 0.7);
     emit += (vec3f(0.2, 1.0, 0.85) * inlay * 0.08 + vec3f(1.0, 0.65, 0.2) * goldL * 0.15) * (1.0 + 2.0 * G.drumCol.w);
   } else if (m == 1u) {
-    // the shell's inside and its edges: dark wood
+    // the shell's inside and its edges: dark wood (lit warm from within as the hide thins to a veil and it's seen)
     base = in.col.rgb * (0.7 + 0.5 * woodGrain(P * 8.0, 30.0));
     rough = 0.45;
+    emit += vec3f(1.0, 0.5, 0.2) * base * D.glass.x * 2.5 * (1.0 + 0.5 * G.drumCol.w);
   } else if (m == 2u) {
     // the root stand: polished living wood, grain along it, a line of glowing dots down it
     base = in.col.rgb * (0.65 + 0.6 * woodGrain(P * 3.0, 50.0));

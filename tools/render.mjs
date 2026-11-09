@@ -29,7 +29,7 @@ const browser = await chromium.launch({
     '--disable-background-timer-throttling', '--disable-renderer-backgrounding'],
 });
 const page = await browser.newPage({ viewport: { width: size, height: size }, deviceScaleFactor: ss });
-page.on('pageerror', (e) => console.error('page:', e.message));
+page.on('pageerror', (e) => console.error('page:', e.stack ?? e.message));
 page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') console.error(`page ${m.type()}:`, m.text()); });
 const q = new URLSearchParams({ render: '', size: String(size), ss: String(ss), fps: String(fps), name });
 if (stills) q.set('stills', stills);

@@ -28,6 +28,9 @@ export const MEMBRANE_PACE = 0.08, MEMBRANE_DEEP = 0.4;
 export const membranePace = (rate: number) => Math.min(MEMBRANE_PACE, MEMBRANE_DEEP * rate);
 
 const H = (2 * DRUM.r) / N;
+/** the hide's down: its hairs' length (m; 0, none — ?fuzz=0) and its shells (drum.wgsl's FUZZ_SHELLS) */
+const FUZZ_LEN = Number(new URLSearchParams(globalThis.location?.search ?? '').get('fuzz') ?? 0.0055);
+const FUZZ_SHELLS = 12;
 const DT = (0.42 * H) / C_WAVE;
 
 /** the beater's head on the hide at a moment: its centre (world) and radius */
@@ -190,7 +193,8 @@ export class Drum {
     this.propU = kit.uniforms(drumShader.structs.PropU, 'drum.prop');
     this.propU.set({ model: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] as never });
     this.U = kit.uniforms(drumShader.structs.DrumU, 'drum');
-    this.U.set({ sim: [R, H, lam2, mu2] as never, sim2: [0, 0, 0, Number(new URLSearchParams(globalThis.location?.search ?? '').get('hidegain') ?? 1)] as never, center: [...DRUM.c, 0] as never, look: [3, 1, 0, 1] as never });
+    this.U.set({ sim: [R, H, lam2, mu2] as never, sim2: [0, 0, 0, Number(new URLSearchParams(globalThis.location?.search ?? '').get('hidegain') ?? 1)] as never, center: [...DRUM.c, 0] as never, look: [3, 1, 0, 1] as never,
+      glass: [0, 0.16, FUZZ_LEN, 0] as never });
   }
 
   async loadTextures() {
@@ -237,12 +241,25 @@ export class Drum {
   bindings() { return { D: this.U, simTex: this.sim.read, hideTex: this.hideTex, rimTex: this.rimTex, PM: this.propU }; }
   propU!: UniformBuffer<any>;
 
+  /** the shell, the stand, the dais: drawn with everything else behind the hide */
   draw(pass: RenderPass) {
     const bind = this.bindings();
     pass.draw(drumShader, { label: 'drum.body', vertex: 'vsBody', fragment: 'fsBody', cull: 'none', count: this.body.count,
       indices: { buffer: this.body.indices, format: 'uint32' }, bind: { ...bind, verts: this.body.vertices } as never });
+  }
+  /** the hide and its down: drawn after the rest, over a copy of it (`behind`, its depth `behindDepth`) that the hide
+   *  shows through when it thins */
+  drawHide(pass: RenderPass, behind: Texture, behindDepth: Texture) {
+    const bind = { ...this.bindings(), behindTex: behind, behindDepth };
     pass.draw(drumShader, { label: 'drum.hide', vertex: 'vsHide', fragment: 'fsHide', cull: 'none', count: this.hide.count,
       indices: { buffer: this.hide.indices, format: 'uint32' }, bind: { ...bind, verts: this.hide.vertices } as never });
+    if (FUZZ_LEN > 0) pass.draw(drumShader, { label: 'drum.fuzz', vertex: 'vsFuzz', fragment: 'fsFuzz', cull: 'none', count: this.hide.count,
+      instances: FUZZ_SHELLS, indices: { buffer: this.hide.indices, format: 'uint32' }, bind: { ...bind, verts: this.hide.vertices } as never,
+      blend: 'alpha', depthWrite: false, depthCompare: 'greater' });
+  }
+  /** how far the hide's seen through (0..1, the great stroke's), and the down's breeze clock */
+  glass(through: number, t: number) {
+    this.U.set({ glass: [through, 0.16, FUZZ_LEN, t] as never });
   }
   /** the drum's look this frame: the inner light's flicker, the time */
   look(t: number, glow: number, rock = 0) {

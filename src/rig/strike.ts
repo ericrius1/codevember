@@ -149,14 +149,17 @@ export class Stroke {
   /** the hand's speed at contact, and the head's (m/s) */
   readonly vHand: number; readonly vContact: number;
   /** the shaft's turn from the top through the downswing (0..1 of it → rad): s^p, laid further back early */
+  // (the lay is a bump 64·q³(1 − q)³ over the first 0.65 of the swing: 1 at its middle, and its value, rate and
+  // acceleration all 0 at both ends — a sin² there started the shaft's turn with an angular acceleration from nothing,
+  // a jolt at the head as the downswing began)
   turn(s: number): number {
-    const lay = this.s.lay ?? 0.22, q = Math.min(1, s / 0.65);
-    return this.s.cock * Math.pow(s, this.p) - lay * Math.sin(Math.PI * q) ** 2;
+    const lay = this.s.lay ?? 0.22, q = Math.min(1, s / 0.65), b = q * (1 - q);
+    return this.s.cock * Math.pow(s, this.p) - lay * 64 * b * b * b;
   }
   turnRate(s: number): number {
-    const lay = this.s.lay ?? 0.22, q = Math.min(1, s / 0.65);
+    const lay = this.s.lay ?? 0.22, q = Math.min(1, s / 0.65), b = q * (1 - q);
     const dq = s < 0.65 ? 1 / 0.65 : 0;
-    return this.s.cock * this.p * Math.pow(Math.max(s, 1e-6), this.p - 1) - lay * 2 * Math.sin(Math.PI * q) * Math.cos(Math.PI * q) * Math.PI * dq;
+    return this.s.cock * this.p * Math.pow(Math.max(s, 1e-6), this.p - 1) - lay * 64 * 3 * b * b * (1 - 2 * q) * dq;
   }
   /** when the lift starts (it's ready before), and when it's settled after (a sequence's flow may move both) */
   get begins() { return this.riseAt ?? this.s.t - this.s.down - this.s.hang - this.s.lift; }

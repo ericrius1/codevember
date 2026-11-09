@@ -34,7 +34,7 @@ globalThis.fetch = (async (u: RequestInfo | URL) => {
 }) as typeof fetch;
 
 HeroRig.bodyKit = solve;
-HeroRig.armContinuity = true;
+HeroRig.armContinuity = true; HeroRig.armSpring = 30;
 const asset = await loadHero(pathToFileURL('09/assets/shaman_hi.bin.gz').href);
 fitHands(asset);
 const rig = new HeroRig(asset);

@@ -666,6 +666,8 @@ export class HeroRig {
   readonly armStat = [{ roll: 0, want: 0, flex: 0, dev: 0, elbow: 0 }, { roll: 0, want: 0, flex: 0, dev: 0, elbow: 0 }];
   /** each arm's last fitted elbow pole (armFit), for its continuity */
   private swPrev: (V3 | null)[] = [null, null];
+  /** the swivel's angular speed (rad/s, armSpring) */
+  private swVel = [0, 0];
   /** the torso the elbows keep out of (armFit), against the shoulders' half-width: its half-width, how far in front
    *  and behind (a fuller figure's or a loose smock's further in front: TORSO in town/folk.ts) */
   torso: [number, number, number] = [0.78, 0.5, 0.85];
@@ -679,6 +681,11 @@ export class HeroRig {
   /** the arm fit follows its own minimum frame on frame (armFit): elbows that slide, never flip. Off by default (a
    *  change to how every arm with a goal settles); a day that wants it sets it */
   static armContinuity = false;
+  /** with armContinuity: the elbow's swivel follows the best one as a critically damped spring of this natural
+   *  frequency (rad/s; 0, off: it steps to the best within its swing each frame, hurrying when it's far behind — its
+   *  speed changing in a frame, a one-frame kick at the elbow). The swivel's speed then changes smoothly, and it
+   *  still can't jump: a spring travels the way between */
+  static armSpring = 0;
   /** a woman's body (the centre of mass's segments): Katara's */
   female: boolean;
   /** the body's suppleness (body/anatomy.ts FLEX: Iroh's an old man's, Aang's a supple airbender's): its forearm's turn
@@ -691,7 +698,7 @@ export class HeroRig {
   private bodyWas = 0;
   private bodyNormal: Float32Array | null = null;
   /** the arms' own state while the body poses them (their springs, swivels and turns kept apart from the rest's) */
-  private bodyArm: { tw: number[]; sw: (V3 | null)[]; psi: number[]; tips: number[][]; fd: V3[] } | null = null;
+  private bodyArm: { tw: number[]; sw: (V3 | null)[]; swv: number[]; psi: number[]; tips: number[][]; fd: V3[] } | null = null;
   /** each finger's curl toward its target (smoothed: a finger presses quickly and lifts a touch slower) */
   private tipsW: number[][] = [[0, 0, 0, 0, 0], [0, 0, 0, 0, 0]];
   /** a foot touched down (footsteps), and the pedal under the right foot (0..1, at an instrument) */
@@ -776,7 +783,7 @@ export class HeroRig {
   relaxArms() {
     this.seatW = 0; this.flowW = 0;
     for (let i = 0; i < 2; i++) {
-      this.gripV[i] = 0; this.curlV[i] = 0.2; this.palmV[i] = 0; this.elbAimW[i] = 0; this.twPrev[i] = 0; this.swPrev[i] = null; this.psi[i] = 0;
+      this.gripV[i] = 0; this.curlV[i] = 0.2; this.palmV[i] = 0; this.elbAimW[i] = 0; this.twPrev[i] = 0; this.swPrev[i] = null; this.swVel[i] = 0; this.psi[i] = 0;
       this.tipsW[i].fill(0);
       this.armSw[i]?.reset([0, 0, 0]);
     }
@@ -1707,9 +1714,10 @@ export class HeroRig {
     this.bodyS?.reset();
   }
   private swapArmState() {
-    const A = this.bodyArm ??= { tw: [0, 0], sw: [null, null], psi: [0, 0], tips: [[0, 0, 0, 0, 0], [0, 0, 0, 0, 0]], fd: [[0, 0, 1], [0, 0, 1]] };
+    const A = this.bodyArm ??= { tw: [0, 0], sw: [null, null], swv: [0, 0], psi: [0, 0], tips: [[0, 0, 0, 0, 0], [0, 0, 0, 0, 0]], fd: [[0, 0, 1], [0, 0, 1]] };
     [A.tw, this.twPrev] = [this.twPrev, A.tw];
     [A.sw, this.swPrev] = [this.swPrev, A.sw];
+    [A.swv, this.swVel] = [this.swVel, A.swv];
     [A.psi, this.psi] = [this.psi, A.psi];
     [A.tips, this.tipsW] = [this.tipsW, A.tips];
     [A.fd, this.fdPrev] = [this.fdPrev, A.fd];
@@ -1888,7 +1896,7 @@ export class HeroRig {
       const fit = this.armFit(side, ti, shoulder, target, lu, lf, soft, pole, G, CS, shoulderBind, dt);
       pole = norm(lerp3(pole, fit, goalW));
       if (G.turn) G = turnHand(G, this.psi[ti]);
-    } else { this.swPrev[ti] = null; this.psi[ti] = 0; }
+    } else { this.swPrev[ti] = null; this.swVel[ti] = 0; this.psi[ti] = 0; }
     const elbow = ik2(shoulder, target, lu, lf, pole, soft);
     const fd = norm(sub(target, elbow));
     this.fdPrev[ti] = fd;
@@ -2029,7 +2037,22 @@ export class HeroRig {
         local = golden(phi0 - w, phi0 + w);
       }
       best = local;
-    }
+      const wn = HeroRig.armSpring;
+      if (wn > 0) {
+        // (the spring: toward the best within reach, its speed carried frame to frame; semi-implicit, stable while
+        // wn·dt < 1, which a frame's dt keeps)
+        const phiB = Math.atan2(dot(best.pole, r1), dot(best.pole, r0));
+        let d = phiB - phi0;
+        d -= TAU * Math.round(d / TAU);
+        const h = Math.min(dt, 0.9 / wn);
+        let v = this.swVel[ti] + (wn * wn * d - 2 * wn * this.swVel[ti]) * h;
+        // (never faster than the hurry the window would allow)
+        const vmax = 3 * ARM_SWING;
+        v = Math.max(-vmax, Math.min(vmax, v));
+        this.swVel[ti] = v;
+        best = cost(phi0 + v * dt);
+      }
+    } else this.swVel[ti] = 0;
     if (turn > 0) {
       let pc = Infinity, ps = 0;
       for (let k = 0; k <= 8; k++) {

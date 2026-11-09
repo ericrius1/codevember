@@ -67,6 +67,7 @@ export interface DrumU {
   sim2: Vec4;
   center: Vec4;
   look: Vec4;
+  glass: Vec4;
 }
 export interface HideOut {
   pos: Vec4;
@@ -79,6 +80,15 @@ export interface HideOut {
 export interface PropU {
   model: Mat4;
 }
+export interface FuzzOut {
+  pos: Vec4;
+  wpos: Vec3;
+  uv: Vec2;
+  n: Vec3;
+  ab: Vec2;
+  k: number;
+  curv: number;
+}
 export interface BodyOut {
   pos: Vec4;
   wpos: Vec3;
@@ -88,5 +98,5 @@ export interface BodyOut {
   mat: number;
 }
 
-declare const shader: Shader<{ Frame: Frame; Globals: Globals; StageLight: StageLight; MeshVertex: MeshVertex; DrumU: DrumU; HideOut: HideOut; PropU: PropU; BodyOut: BodyOut }, 'frame' | 'G' | 'D' | 'PM' | 'verts' | 'simTex' | 'hideTex' | 'rimTex' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; Globals: Globals; StageLight: StageLight; MeshVertex: MeshVertex; DrumU: DrumU; HideOut: HideOut; PropU: PropU; FuzzOut: FuzzOut; BodyOut: BodyOut }, 'frame' | 'G' | 'D' | 'PM' | 'verts' | 'simTex' | 'hideTex' | 'rimTex' | 'behindTex' | 'behindDepth' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;

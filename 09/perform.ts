@@ -51,8 +51,9 @@ function specFor(i: number, shift: number): StrokeSpec {
       top: [-1.0, 2.04, STRIKE_A + 0.24],
       lift: S - down - hang - liftFrom, hang,
       dwell: 0.0055, depth: 0.09, restitution: 0.35, settle: 1.6,
-      // after: her arms open to the sky, the beater raised in her right hand
-      ready: { hand: [-1.05, 2.0, 0.92], shaft: norm([0.25, 0.85, 0.45]) },
+      // after: no flourish — the beater comes down by her side, its head low ahead of her (a hanging arm, the shaft square to it), and she stands
+      // and watches what the stroke has done
+      ready: { hand: [-0.74, 0.9, 0.38], shaft: norm([0.84, -0.32, 0.3]) },
       lag: 0.12, follow: 0.3, followDist: 0.14, topFlow: 0.3, lay: 0.35,
     };
   }
@@ -90,11 +91,12 @@ const key = (ch: string, t: number, v: number, vel: K['vel'] = 'auto') => keys[c
 const LH = {
   rest: { p: [-0.56, 1.2, -0.08] as V3, f: norm([0.35, 0.9, -0.2]), d: norm([0.9, -0.2, 0.3]), curl: 0.2 },
   lifted: { p: [-0.46, 1.3, -0.1] as V3, f: norm([0.45, 0.85, -0.2]), d: norm([0.92, -0.1, 0.3]), curl: 0.14 },
-  counter: { p: [-0.76, 1.08, -0.2] as V3, f: norm([0.1, 0.6, -0.5]), d: norm([0.5, -0.3, 0.8]), curl: 0.3 },
+  counter: { p: [-0.68, 1.1, -0.34] as V3, f: norm([0.1, 0.6, -0.5]), d: norm([0.5, -0.3, 0.8]), curl: 0.3 },
   recoil: { p: [-0.5, 1.24, -0.1] as V3, f: norm([0.45, 0.85, -0.15]), d: norm([0.92, -0.15, 0.3]), curl: 0.16 },
   reach: { p: [-0.3, 1.78, -0.14] as V3, f: norm([0.75, 0.6, -0.15]), d: norm([0.5, -0.8, 0.2]), curl: 0.08 },
   tuck: { p: [-0.64, 1.14, 0.0] as V3, f: norm([0.3, 0.9, -0.1]), d: norm([0.8, -0.3, 0.5]), curl: 0.35 },
-  open: { p: [-0.78, 2.0, -0.55] as V3, f: norm([0.1, 0.9, -0.4]), d: norm([0.3, 0.2, 0.9]), curl: 0.06 },
+  // (after the great stroke: low at her side, open, the palm toward the drum — still)
+  still: { p: [-0.68, 0.92, -0.24] as V3, f: norm([0.33, -0.93, -0.12]), d: norm([0.93, 0.34, 0.12]), curl: 0.28 },
 };
 const leftAt = (t: number, pose: typeof LH.rest, vel: K['vel'] = 'auto') => {
   key('lx', t, pose.p[0], vel); key('ly', t, pose.p[1], vel); key('lz', t, pose.p[2], vel);
@@ -109,32 +111,37 @@ for (const k of strokes.list) {
     // the pulse: a small coil (the hips turning away last, as the hand reaches the top, and turning back first),
     // the weight back then forward, the knees giving into the stroke, the trunk crunching a little over it
     // (each stroke its own: the harder ones bigger through the whole body)
+    // Each stroke is a bounce through her whole body, back to standing easy before the next: she rises a little as
+    // the beater goes up (the up-beat), drops into her knees on contact as the trunk crunches over the stroke and the
+    // head nods with it, and comes back up through the rebound.
     const a = 0.8 + 0.28 * (S.speed - 3);
-    key('hips', tT - 0.35 * D, -0.26 * a); key('hips', tC + 0.14, 0.12 * a);
-    key('trunk', tT - 0.08 * D, -0.22 * a); key('trunk', tC + 0.17, 0.1 * a);
-    key('flex', tT - 0.04, -0.08 * a); key('flex', tC + 0.1, 0.17 * a);
-    key('side', tT, 0.05 * a); key('side', tC + 0.12, -0.02 * a);
-    key('load', tT - 0.12, 0.3 * a); key('load', tC + 0.09, 0.62 * a);
-    key('shift', tT - 0.1, -0.06 * a); key('shift', tC + 0.12, 0.07 * a);
-    key('nod', tT - 0.05, -0.05 * a); key('nod', tC + 0.06, 0.1 * a);
+    key('hips', tT - 0.35 * D, -0.26 * a); key('hips', tC + 0.14, 0.12 * a); key('hips', tC + 0.75, 0);
+    key('trunk', tT - 0.08 * D, -0.22 * a); key('trunk', tC + 0.17, 0.1 * a); key('trunk', tC + 0.8, 0);
+    key('flex', tT - 0.04, -0.1 * a); key('flex', tC + 0.1, 0.26 * a); key('flex', tC + 0.8, 0.03 * a);
+    key('side', tT, 0.05 * a); key('side', tC + 0.12, -0.03 * a); key('side', tC + 0.8, 0);
+    key('load', tT - 0.15, -0.25 * a); key('load', tC + 0.1, 0.95 * a); key('load', tC + 0.62, 0.12 * a);
+    key('shift', tT - 0.1, -0.08 * a); key('shift', tC + 0.12, 0.09 * a); key('shift', tC + 0.8, 0);
+    key('nod', tT - 0.05, -0.07 * a); key('nod', tC + 0.06, 0.13 * a); key('nod', tC + 0.6, 0.01);
     // the free arm: out toward the hide as the beater goes up (her balance), swung back against the downswing (the
-    // counter-arm), and on contact back out toward the hide, a little past, settling
-    leftAt(tT - 0.04, LH.lifted); leftAt(tC + 0.01, LH.counter); leftAt(tC + 0.26, LH.recoil); leftAt(tC + 0.55, LH.rest);
+    // counter-arm), and on contact back out toward the hide, a little past, settling (each key well apart: a hand
+    // keyed close together ticked)
+    leftAt(tT - 0.12, LH.lifted); leftAt(tC + 0.04, LH.counter); leftAt(tC + 0.32, LH.recoil); leftAt(tC + 0.75, LH.rest);
     continue;
   }
   // the great stroke: the long wind-up — sinking, the weight going back, the trunk turning away and arching, the left
   // arm reaching up and out at the drum — then the drive: the hips first, the trunk crunching over the stroke, the
-  // weight thrown forward; then rising tall, arched to the sky, arms open, as the cosmos answers; and down again
+  // weight thrown forward; then stillness: she comes up out of the stroke into a deep, rooted stance, the beater
+  // lowered, both arms down, and watches — the hide, then the worlds opening beyond it — till the pulse comes back
   const tR = k.begins;
   key('hips', tR + 0.4, -0.05); key('hips', tT - 0.3 * D, -0.44); key('hips', tC + 0.3, 0.22); key('hips', OPEN.in1, 0.04); key('hips', OPEN.out1, 0);
   key('trunk', tR + 0.5, -0.04); key('trunk', tT - 0.04 * D, -0.42); key('trunk', tC + 0.36, 0.2); key('trunk', OPEN.in1, 0.0);
-  key('flex', tR + 0.6, -0.04); key('flex', tT - 0.08, -0.24); key('flex', tC + 0.09, 0.4); key('flex', OPEN.in1, -0.28); key('flex', OPEN.out0, -0.3); key('flex', OPEN.out1, 0.0);
+  key('flex', tR + 0.6, -0.04); key('flex', tT - 0.08, -0.24); key('flex', tC + 0.09, 0.4); key('flex', OPEN.in1, 0.03); key('flex', OPEN.out0, 0.02); key('flex', OPEN.out1, 0.0);
   key('side', tR + 0.6, 0.02); key('side', tT - 0.05, 0.12); key('side', tC + 0.1, -0.06); key('side', OPEN.in1, 0.0);
-  key('load', tR + 0.4, 0.2); key('load', tT - 0.25, 0.85); key('load', tC + 0.12, 1.0); key('load', OPEN.in1, -0.12); key('load', OPEN.out0, -0.1); key('load', OPEN.out1, 0.15);
+  key('load', tR + 0.4, 0.2); key('load', tT - 0.25, 0.85); key('load', tC + 0.12, 1.0); key('load', OPEN.in1, 0.4); key('load', OPEN.out0, 0.36); key('load', OPEN.out1, 0.15);
   key('shift', tR + 0.4, -0.02); key('shift', tT - 0.2, -0.16); key('shift', tC + 0.16, 0.2); key('shift', OPEN.in1, 0.0);
-  key('nod', tT - 0.1, -0.06); key('nod', tC + 0.08, 0.12); key('nod', OPEN.in1, -0.16); key('nod', OPEN.out0, -0.15); key('nod', OPEN.out1, 0.02);
+  key('nod', tT - 0.1, -0.06); key('nod', tC + 0.08, 0.12); key('nod', OPEN.in1, -0.07); key('nod', OPEN.out0, -0.06); key('nod', OPEN.out1, 0.02);
   key('sky', SB + 0.05, 0, 'hold'); key('sky', OPEN.in1, 1, 'hold'); key('sky', OPEN.out0, 1, 'hold'); key('sky', OPEN.out1, 0, 'hold');
-  leftAt(tR + 0.3, LH.rest); leftAt(tT - 0.35, LH.reach); leftAt(tC + 0.06, LH.tuck); leftAt(OPEN.in1, LH.open); leftAt(OPEN.out0, LH.open); leftAt(OPEN.out1 + 0.3, LH.rest);
+  leftAt(tR + 0.3, LH.rest); leftAt(tT - 0.35, LH.reach); leftAt(tC + 0.06, LH.tuck); leftAt(OPEN.in1, LH.still); leftAt(OPEN.out0, LH.still); leftAt(OPEN.out1 + 0.3, LH.rest);
 }
 // (the sky's weight is 0 everywhere but round the great stroke)
 key('sky', -STORY_LOOP, 0, 'hold'); key('sky', 2 * STORY_LOOP, 0, 'hold');
@@ -144,7 +151,7 @@ for (const [ch, ks] of Object.entries(keys)) T[ch] = new Track(ks, true);
 export interface Moment {
   goal: BodyGoal;
   beater: StrokeState;
-  /** how far she's opened to the sky after the great stroke (0..1) */
+  /** how far she's turned from the struck point to watching the worlds beyond, after the great stroke (0..1) */
   open: number;
   /** the stroke's flash (0..1, fading from each contact) */
   flash: number;
@@ -171,7 +178,9 @@ export function moment(s: number): Moment {
   const shoulderR = add(at, [0.02, 1.44, 0.2]);
   // (each elbow's way: down and out at her side, swinging out and up as its hand rises over the shoulder — never a
   // fixed way the arm can pass through, so the arm's fit never flips)
-  const high = (y: number) => { const u = Math.min(1, Math.max(0, (y - 1.3) / 0.55)); return u * u * (3 - 2 * u); };
+  // (a smootherstep: its acceleration 0 at both ends too — a smoothstep's jumped there, and the elbow with it every
+  // time a hand crossed the band's edge, as the left one did before every stroke)
+  const high = (y: number) => { const u = Math.min(1, Math.max(0, (y - 1.25) / 0.6)); return u * u * u * (u * (u * 6 - 15) + 10); };
   const hR = high(st.hand[1]);
   const elbowR = norm([-0.3 - 0.1 * hR, -0.6 + 0.75 * hR, 0.6 + 0.3 * hR]);
   const right: HandGoal = gripGoal(st, shoulderR, true, { curl: 0.95, elbow: elbowR, elbowW: 0.6, axis: stroke.axis });
@@ -179,16 +188,16 @@ export function moment(s: number): Moment {
   const lFwd = norm([T.lfx.at(s), T.lfy.at(s), T.lfz.at(s)]), lDown = norm([T.ldx.at(s), T.ldy.at(s), T.ldz.at(s)]);
   const hL = high(lp[1]);
   const elbowL = norm([-0.2 - 0.1 * hL, -0.7 + 0.8 * hL, -0.6 - 0.3 * hL]);
-  const left: HandGoal = { palm: lp, fwd: lFwd, down: lDown, tips: [null, null, null, null, null], curl: T.lcurl.at(s), elbow: elbowL, elbowW: 0.6 };
+  const left: HandGoal = { palm: lp, fwd: lFwd, down: lDown, tips: [null, null, null, null, null], curl: T.lcurl.at(s), elbow: elbowL, elbowW: 0.9 };
   // ---------------------------------------------------------------- where she looks: the struck point, the sky after
   const eye = add(at, [0.1, 1.62, 0]);
-  const toHit = norm(sub(stroke.s.at, eye)), toSky = norm([0.6, 0.75, -0.25]);
+  const toHit = norm(sub(stroke.s.at, eye)), toSky = norm([0.86, 0.4, -0.12]);
   const look = add(eye, scale(norm([toHit[0] * (1 - sky) + toSky[0] * sky, toHit[1] * (1 - sky) + toSky[1] * sky, toHit[2] * (1 - sky) + toSky[2] * sky]), 4));
   const breath = 0.5 + 0.5 * Math.sin(s * 1.3);
   const goal: BodyGoal = {
     at, yaw: YAW, feet,
     hands: [{ goal: left, w: 1 }, { goal: right, w: 1 }],
-    pelvis: { height: 0.9 - 0.075 * load, hw: 0.6, yaw: T.hips.at(s), rw: 0.8, pitch: 0.05 * load - 0.08 * sky },
+    pelvis: { height: 0.9 - 0.085 * load, hw: 2.5, yaw: T.hips.at(s), rw: 0.8, pitch: 0.05 * load },
     spine: { flex: T.flex.at(s), side: T.side.at(s), turn: T.trunk.at(s), w: 0.8 },
     look, nod: T.nod.at(s),
     balance: 0.8, ease: 0.06, breath,

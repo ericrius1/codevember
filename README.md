@@ -38,7 +38,12 @@ in the day's folder (09/character: `zsh 09/character/build.sh` → `09/assets/<w
 `loadHero` and posed each frame by a `BodyGoal`. Beside it, `src/rig/strike.ts` (a stroke planner for anything swung
 at a surface: the whip of a downswing, contact, the rebound, the kinetic chain's phases, a hammer grip's hand goal),
 `src/rig/strands.ts` (strands rooted on bones: locks, bead strings, cords) and `src/rig/track.ts` (quintic keyed
-tracks), all also in Boulder; `node 09/lab/run.mjs` measures a day's motion for jerk without the GPU. Skinning in
+tracks), all also in Boulder. `HeroRig.armContinuity` keeps an elbow from flipping frame to frame, and
+`HeroRig.armSpring` (rad/s) makes its swivel follow the best one as a critically damped spring, so its speed never
+changes in a frame. 09/grip.ts holds the beater in the hand the rig really posed (fixed in the hand bone, turned onto
+the stroke's plan only round contact), so it never floats off the fingers where an arm can't reach its goal.
+`node 09/lab/run.mjs` measures a day's motion for jerk without the GPU (and `09/lab/{arms,elbow,beat,grip}.ts`: reach
+and bend, one joint frame by frame, the beater's plan, the grip's error). Skinning in
 WGSL is weft's (`#include "weft/skin"`).
 
 A day with sound gives its meta an `audio` file one loop long: the HUD gets a Sound button, and while it plays the
