@@ -15,6 +15,8 @@ struct PostU {
   // x the source texel size (down/up), y the hue's drift, z under water (0..: the picture swaying after the great
   // stroke), w the flash (white-out)
   misc: vec4f,
+  // the style's grade: x how cool the depths go under water (×)
+  grade: vec4f,
 }
 @group(2) @binding(0) var<uniform> P: PostU;
 @group(2) @binding(1) var src: texture_2d<f32>;
@@ -102,7 +104,7 @@ fn hdrAt(uv: vec2f) -> vec3f { return sane(textureSampleLevel(src, samp_linear, 
   c = max(hueShift(c, P.misc.y), vec3f(0.0));
   c += vec3f(1.0, 0.92, 0.8) * P.misc.w;
   // (under water the light cools a little in the shadows, the depths taking the red)
-  c *= mix(vec3f(1.0), vec3f(0.86, 1.0, 1.06), sat(uw) * 0.6 * (1.0 - sat(luma(c))));
+  c *= mix(vec3f(1.0), vec3f(0.86, 1.0, 1.06), sat(uw * P.grade.x) * 0.6 * (1.0 - sat(luma(c))));
   // the grade: saturation, a warm-cool split
   let l = luma(c);
   c = mix(vec3f(l), c, P.look2.w);

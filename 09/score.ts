@@ -12,7 +12,12 @@
 // the great stroke — the last. After it nothing is struck again: the hide and our universe's membrane ripple on, the
 // hide thinned to a veil on the world inside the drum, deepening to the end, which fades to black (the loop's seam).
 
-export const LOOP = 22;
+import { STYLE } from './style.ts';
+
+/** seconds from the great stroke to the fade (the style's: 'a' 9.1) */
+const AFTER = STYLE.after;
+const GREAT = 10.9;
+export const LOOP = Math.round((GREAT + AFTER + 2.0) * 10) / 10;
 
 export interface Stroke {
   /** film time of contact */
@@ -29,7 +34,7 @@ export const STROKES: Stroke[] = [
   { t: 1.8, v: 3.0, at: [-0.26, 0.05] },
   { t: 4.2, v: 4.4, at: [-0.24, 0.07] },
   { t: 6.6, v: 6.0, at: [-0.27, 0.04] },
-  { t: 10.9, v: 12.5, at: [-0.2, 0.1], big: true },
+  { t: GREAT, v: 12.5, at: [-0.2, 0.1], big: true },
 ];
 export const BIG = STROKES.find((s) => s.big)!;
 
@@ -41,7 +46,7 @@ export const SLOWEST = 0.005, DREAM = 0.35;
  *  dark of the loop's seam) — film seconds. It snaps in late — a speed ramp: the downswing whips through at the
  *  world's own speed and time falls away under it in the last few tenths of a second before contact, so the beater
  *  is still visibly travelling as it meets the hide — holds deep for three seconds, and lifts slowly */
-export const DILATE = { from: 10.25, deep: 10.92, lift: 13.9, dream: 17.6, back: 20.4, home: 21.4 };
+export const DILATE = { from: GREAT - 0.65, deep: GREAT + 0.02, lift: GREAT + 0.33 * AFTER, dream: GREAT + 0.74 * AFTER, back: GREAT + AFTER + 0.4, home: GREAT + AFTER + 1.4 };
 
 /** the world's rate against film time: 1 normally, SLOWEST at the deepest, DREAM after. Falls and rises
  *  log-smoothly, so the slowing reads as an exponential settling, not a ramp */
@@ -87,11 +92,11 @@ export const ACT = {
   /** the downswing starts (story time from here to contact is a real downswing's ~0.2 s) */
   swing: 0,   // filled below
   /** the close look at the hide ends as time starts to lift: the camera draws back round her, the shock leaves the drum */
-  shock: 14.2,
+  shock: GREAT + 0.363 * AFTER,
   /** time at its dream pace, the veil wide open: the trip, deepening to the end */
-  trip: 16.5,
+  trip: GREAT + 0.615 * AFTER,
   /** the fade to black, and the black of the loop's seam */
-  fade: 20.0, black: 21.3,
+  fade: GREAT + AFTER, black: GREAT + AFTER + 1.3,
 };
 ACT.swing = film(story(BIG.t) - 0.19);
 

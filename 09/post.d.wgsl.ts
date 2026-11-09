@@ -59,6 +59,7 @@ export interface PostU {
   look2: Vec4;
   shock: Vec4;
   misc: Vec4;
+  grade: Vec4;
 }
 
 declare const shader: Shader<{ Frame: Frame; Globals: Globals; StageLight: StageLight; FullscreenOut: FullscreenOut; PostU: PostU }, 'frame' | 'G' | 'P' | 'src' | 'bloomTex' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;

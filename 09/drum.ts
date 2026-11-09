@@ -8,6 +8,7 @@
 import { MeshBuilder, type Kit, type RenderPass, type StorageBuffer, type Texture, type UniformBuffer, type RunEntry, type Compute, type PingPong, MipChain } from '@ericrius1/weft';
 import type { V3 } from '../src/rig/hero/math';
 import drumShader from './drum.wgsl';
+import { STYLE } from './style';
 import membraneShader from './membrane.wgsl';
 
 import { DRUM, DAIS } from './stage';
@@ -55,6 +56,14 @@ function teardrop(b: MeshBuilder, at: V3, len: number, rad: number, phase: numbe
   for (let i = 0; i < seg; i++) for (let k = 0; k < P - 1; k++) { const a = base + i * P + k, c = a + P; b.tri(a, c, a + 1).tri(a + 1, c, c + 1); }
 }
 
+/** the realm's three layers: style a's are in the build (assets/); another style's are found beside the sketch at run
+ *  time (its folder isn't looked into by the build: those are for its films, made on the dev server) */
+function realmUrls(): string[] {
+  if (STYLE.realm === 'assets') return [new URL('./assets/realm-far.webp', import.meta.url).href, new URL('./assets/realm-mid.webp', import.meta.url).href, new URL('./assets/realm-near.webp', import.meta.url).href];
+  const dir = './' + STYLE.realm + '/';
+  return ['far', 'mid', 'near'].map((k) => new URL(dir + 'realm-' + k + '.webp', import.meta.url).href);
+}
+
 export class Drum {
   private body: { vertices: StorageBuffer; indices: StorageBuffer; count: number };
   private hide: { vertices: StorageBuffer; indices: StorageBuffer; count: number };
@@ -66,6 +75,8 @@ export class Drum {
   private K = 0;
   private acc = 0;
   hideTex!: Texture; rimTex!: Texture;
+  /** the other realm's three layers, deep to near (inner.wgsl) */
+  realm!: Texture[];
 
   constructor(readonly kit: Kit) {
     // ---------------------------------------------------------------- the body
@@ -196,7 +207,8 @@ export class Drum {
     this.propU.set({ model: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] as never });
     this.U = kit.uniforms(drumShader.structs.DrumU, 'drum');
     this.U.set({ sim: [R, H, lam2, mu2] as never, sim2: [0, 0, 0, Number(new URLSearchParams(globalThis.location?.search ?? '').get('hidegain') ?? 1)] as never, center: [...DRUM.c, 0] as never, look: [3, 1, 0, 1] as never,
-      glass: [0, 0.16, FUZZ_LEN, 0] as never, trip: [0, 0, 0, 0] as never });
+      glass: [0, 0.16, FUZZ_LEN, 0] as never, trip: [0, 0, 0, 0] as never, front: [0, 0, 0, 0.12] as never,
+      realm: [...STYLE.realmMix, STYLE.realmFly] as never, realm2: [STYLE.realmTwist, 0, 0, 0] as never });
   }
 
   async loadTextures() {
@@ -212,7 +224,11 @@ export class Drum {
       this.kit.run([mips]);
       return t;
     };
-    [this.hideTex, this.rimTex] = await Promise.all([load(new URL('./assets/hide.jpg', import.meta.url).href), load(new URL('./assets/rim.jpg', import.meta.url).href)]);
+    const [hide, rim, ...realm] = await Promise.all([
+      load(new URL('./assets/hide.jpg', import.meta.url).href), load(new URL('./assets/rim.jpg', import.meta.url).href),
+      ...realmUrls().map(load),
+    ]);
+    this.hideTex = hide; this.rimTex = rim; this.realm = realm;
   }
 
   /** this frame's steps of the hide: as many as the membrane's clock moved (film dt × membranePace(rate)), each
@@ -252,17 +268,18 @@ export class Drum {
   /** the hide and its down: drawn after the rest (the down's shells blend over it); when it thins it shows the world
    *  inside the drum (inner.wgsl) */
   drawHide(pass: RenderPass) {
-    const bind = this.bindings();
+    const bind = { ...this.bindings(), realmFar: this.realm[0], realmMid: this.realm[1], realmNear: this.realm[2] };
     pass.draw(drumShader, { label: 'drum.hide', vertex: 'vsHide', fragment: 'fsHide', cull: 'none', count: this.hide.count,
       indices: { buffer: this.hide.indices, format: 'uint32' }, bind: { ...bind, verts: this.hide.vertices } as never });
     if (FUZZ_LEN > 0) pass.draw(drumShader, { label: 'drum.fuzz', vertex: 'vsFuzz', fragment: 'fsFuzz', cull: 'none', count: this.hide.count,
       instances: FUZZ_SHELLS, indices: { buffer: this.hide.indices, format: 'uint32' }, bind: { ...bind, verts: this.hide.vertices } as never,
       blend: 'alpha', depthWrite: false, depthCompare: 'greater' });
   }
-  /** how far the hide's seen through (0..1), the down's breeze clock; the trip: how deep (0..1), the world inside's
-   *  clock, how far the hide breathes on its own (m) */
-  glass(through: number, t: number, trip = 0, clock = t, breath = 0) {
-    this.U.set({ glass: [through, 0.16, FUZZ_LEN, t] as never, trip: [trip, clock, breath, INNER_ONLY] as never });
+  /** how far the hide's seen through behind its front (0..1), the down's breeze clock; the front: where it was struck
+   *  (the hide's frame, m) and how far out it's spread (m); the trip: how deep (0..1), the realm's clock, how far the
+   *  hide breathes on its own (m) */
+  glass(through: number, t: number, front: [number, number, number], trip = 0, clock = t, breath = 0) {
+    this.U.set({ glass: [through, 0.16, FUZZ_LEN, t] as never, front: [...front, 0.12] as never, trip: [trip, clock, breath, INNER_ONLY] as never });
   }
   /** the drum's look this frame: the inner light's flicker, the time */
   look(t: number, glow: number, rock = 0) {

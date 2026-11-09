@@ -63,6 +63,7 @@ export interface CosmosU {
 }
 export interface Facet {
   i: number;
+  j: number;
   seam: number;
   node: number;
 }

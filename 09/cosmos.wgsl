@@ -191,7 +191,7 @@ fn wallRipple(n: vec3f) -> f32 {
     for (var i = 0; i < 12; i++) {
       let s = ANSWERS[i];
       let reach = acos(clamp(dot(s, normalize(gw.xyz)), -1.0, 1.0)) * R / 52.0;
-      let ev = vec4f(s * 0.3, gw.w + reach + 0.9 + 0.8 * hash11(f32(i) * 3.1));
+      let ev = vec4f(s * 0.07, gw.w + reach + 0.9 + 0.8 * hash11(f32(i) * 3.1));
       h += ripple(n, R, ev, 46.0, 1.0, 0.09);
     }
   }
@@ -211,7 +211,7 @@ fn wallRipple(n: vec3f) -> f32 {
 
 /** which face a point of the wall is on, the next nearest, and how far it is (≈ rad) from the border between them and
  *  from the corner of three */
-struct Facet { i: i32, seam: f32, node: f32 };
+struct Facet { i: i32, j: i32, seam: f32, node: f32 };
 fn facetOf(n: vec3f) -> Facet {
   var b1 = -2.0; var b2 = -2.0; var b3 = -2.0; var i1 = 0; var i2 = 0; var i3 = 0;
   for (var i = 0; i < NF; i++) {
@@ -222,6 +222,7 @@ fn facetOf(n: vec3f) -> Facet {
   }
   var f: Facet;
   f.i = i1;
+  f.j = i2;
   f.seam = (b1 - b2) / length(facetSeed(i1) - facetSeed(i2));
   f.node = max(f.seam, (b1 - b3) / length(facetSeed(i1) - facetSeed(i3)));
   return f;
@@ -677,30 +678,48 @@ fn frontAt(q: vec3f, F: vec4f, fadeRate: f32) -> vec3f {
   var col = nebula(bent) + stars(bent) * 0.8;
   // the face it's on (its borders flexing with the ripples, a little wandering)
   // (its borders wandering at two scales, so the foam's faces are each their own shape, never a honeycomb)
-  let nw = normalize(n + dh * amp * 0.0003 + 0.024 * vec3f(dotNoise(n * 2.3), dotNoise(n * 2.3 + 4.1), dotNoise(n * 2.3 + 8.3))
-    + 0.008 * vec3f(dotNoise(n * 7.1 + 1.7), dotNoise(n * 7.1 + 5.9), dotNoise(n * 7.1 + 2.6)));
+  // (the worlds' places warped far — their edges curving like coastlines, so where a tear meets one it's never a straight
+  // cut)
+  let wq = n * 1.6;
+  let nw = normalize(n + dh * amp * 0.0003 + 0.13 * vec3f(fbm(wq) - 0.5, fbm(wq + 4.1) - 0.5, fbm(wq + 8.3) - 0.5)
+    + 0.03 * vec3f(dotNoise(n * 7.1 + 1.7), dotNoise(n * 7.1 + 5.9), dotNoise(n * 7.1 + 2.6)));
   let fc = facetOf(nw);
-  let seamW = 0.0021;
-  let inner = smoothstep(seamW * 1.2, seamW * 4.0, fc.seam);
+  // (the faces are the worlds' places only — no borders are drawn, and a tear closes softly well before one, so it
+  // opens on one world)
+  let inner = 1.0;
   // how far it's open on the world beyond: the troughs first, as the ripples come (each where its ripple's reached);
   // then the whole face (only behind the great front: the faces open as it passes them)
   let behind = select(smoothstep(0.0, 70.0, fr.z), 1.0, K.front.x < 0.0 && K.aux.y >= 0.0);
   let reveal = K.worlds.x * behind;
-  let open = sat(smoothstep(0.15, 0.85, -hr) * 0.75 * G.cosmos.y + reveal * (0.8 + 0.3 * clamp(-hr, -1.0, 1.0))) * inner;
+  // the tears: where the membrane's worn thin enough to open — a noise over it at three scales, the openings growing
+  // out of its thinnest places as the ripples' troughs pass and as the worlds are revealed
+  let tq = n * 1.15 + vec3f(0.0, 0.0, G.clock.x * 0.012);
+  let tn = fbm(tq + 0.35 * vec3f(vnoise(tq * 2.0), vnoise(tq * 2.0 + 5.3), vnoise(tq * 2.0 + 9.1)));
+  let th = mix(0.86, 0.5, reveal);
+  let tear = smoothstep(th - 0.015, th + 0.06, tn);
+  let open = sat(smoothstep(0.3, 1.0, -hr) * 0.25 * G.cosmos.y + reveal) * tear * inner;
   if (open > 0.002) {
-    let M = facetFrame(fc.i);
-    let ld = vec3f(dot(bentW, M[0]), dot(bentW, M[1]), dot(bentW, M[2]));
+    // (its world, and near the border with the next place that one's too, the two dissolving into each other — half
+    // and half at the border itself, so a tear across it shows no edge)
     let lw = (ro - W) / R * 3.0;
-    let lo = vec3f(dot(lw, M[0]), dot(lw, M[1]), dot(lw, M[2]));
+    let M = facetFrame(fc.i);
     let kind = select(facetKind(fc.i), i32(K.aux.y), K.aux.y >= 0.0);
-    let w = world(kind, lo, ld, K.worlds.z) * K.worlds.w;
-    col = col * (1.0 - open) + w * open;
+    var w = world(kind, vec3f(dot(lw, M[0]), dot(lw, M[1]), dot(lw, M[2])), vec3f(dot(bentW, M[0]), dot(bentW, M[1]), dot(bentW, M[2])), K.worlds.z);
+    let near = 0.5 * (1.0 - smoothstep(0.0, 0.05, fc.seam));
+    if (near > 0.01 && K.aux.y < 0.0) {
+      let M2 = facetFrame(fc.j);
+      let w2 = world(facetKind(fc.j), vec3f(dot(lw, M2[0]), dot(lw, M2[1]), dot(lw, M2[2])), vec3f(dot(bentW, M2[0]), dot(bentW, M2[1]), dot(bentW, M2[2])), K.worlds.z);
+      w = mix(w, w2, near);
+    }
+    col = col * (1.0 - open) + w * K.worlds.w * open;
   }
   // the film over it all: its colours, strongest where it's rippled and edge-on
   let c = abs(dot(n, rd));
   let lp = TAU * G.clock.w;
-  let nm = 380.0 + 260.0 * hr + 60.0 * fbm(n * 6.0 + vec3f(sin(lp), cos(lp), 0.0) * 0.4);
-  let filmCol = thinFilm(c, nm) * (0.03 + 0.5 * fresnel(0.04, c)) * (1.0 + 2.5 * abs(hr));
+  let nm = 380.0 + 130.0 * hr + 60.0 * fbm(n * 6.0 + vec3f(sin(lp), cos(lp), 0.0) * 0.4);
+  // (its colours softened: a film's interference fully saturated paints the ripples' crests as blots)
+  let tf = thinFilm(c, nm);
+  let filmCol = mix(vec3f(luma(tf)), tf, 0.55) * (0.03 + 0.5 * fresnel(0.04, c)) * (1.0 + 1.2 * abs(hr));
   col += filmCol * (0.06 + 0.22 * abs(hr)) * (1.0 - 0.6 * open);
   // the crests burn with the film's colours; a thin bright line where it turns over
   // (the crests: bands of the film's colours, wide and burning as the trip deepens — design/ref-cosmos.jpg)
@@ -708,16 +727,15 @@ fn frontAt(q: vec3f, F: vec4f, fadeRate: f32) -> vec3f {
   let crest = max(hr, 0.0) * max(hr, 0.0) * (1.0 - 0.6 * open);
   let band = smoothstep(0.1, 0.9, abs(hr)) * (1.0 - 0.5 * open);
   let edge = exp(-pow(hr / 0.08, 2.0)) * smoothstep(0.05, 0.3, length(dh) * 0.004) * amp;
-  col += pow(thinFilm(c, 280.0 + 240.0 * hr + 160.0 * fbm(n * 9.0)), vec3f(2.0)) * (min(crest, 1.0) * (0.1 + 0.08 * trip) + band * 0.05 * trip) + vec3f(0.8, 0.9, 1.0) * edge * 0.08;
+  let tf2 = pow(thinFilm(c, 280.0 + 240.0 * hr + 160.0 * fbm(n * 9.0)), vec3f(2.0));
+  col += mix(vec3f(luma(tf2)), tf2, 0.5) * (min(crest, 1.0) * (0.1 + 0.08 * trip) + band * 0.05 * trip) + vec3f(0.8, 0.9, 1.0) * edge * 0.08;
   // the front's crest: a band of the film bulged and burning with its colours as it sweeps the dome (the great
   // stroke's, and the pulse's fainter)
   let fcrest = max(fr.x, 0.0) + max(fr2.x, 0.0);
   col += (thinFilm(c, 320.0 + 300.0 * fcrest) * 0.3 + vec3f(0.62, 0.72, 0.85) * (0.25 + 0.6 * fcrest * fcrest)) * fcrest * 0.42;
-  // the faces' borders: where three films meet, a bright tube of film, brightest at the corners
-  let seam = exp(-pow(fc.seam / seamW, 2.0));
-  let node = exp(-pow(fc.node / (seamW * 2.2), 2.0));
-  let bl = K.worlds.y * (0.6 + 0.6 * abs(hr)) * (0.25 + 0.75 * behind) + fcrest * 0.6;
-  col += (thinFilm(c, 300.0 + 500.0 * fc.seam / seamW + 200.0 * hr) * 0.25 + vec3f(0.5, 0.55, 0.62)) * (seam * 0.32 + node * 0.6) * bl;
+  // the tears' rims: the film gathered thick at their edges, burning with its colours
+  let rimK = exp(-pow((tn - th) / 0.012, 2.0)) * sat(reveal * 1.5 + 0.8 * G.cosmos.y * max(-hr, 0.0)) * inner;
+  col += (thinFilm(c, 420.0 + 300.0 * hr) * 0.2 + vec3f(0.5, 0.55, 0.65) * 0.1) * rimK * 0.35;
   col = hueShift(col, G.cosmos.w);
   return vec4f(col, 1.0);
 }

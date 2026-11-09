@@ -21,6 +21,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { STROKES, BIG, LOOP, ACT, rate } from '../score.ts';
+import { STYLE } from '../style.ts';
 import { HIDE, COSMOS, type StrikeSpec, type UniverseSpec, type Drive } from './membrane.ts';
 import { run } from './sims.ts';
 import { voice } from './voice.ts';
@@ -34,7 +35,9 @@ import {
 const T0 = performance.now();
 const N = Math.round(LOOP * SR);
 const ROOT = new URL('../../', import.meta.url);
-const WAV = fileURLToPath(new URL('film/09.wav', ROOT)), M4A = fileURLToPath(new URL('09/assets/membrane.m4a', ROOT));
+// (another style's soundtrack goes beside its film, film/09-<style>.wav; only style a's is the live page's)
+const STYLED = STYLE.id !== 'a';
+const WAV = fileURLToPath(new URL(STYLED ? `film/09-${STYLE.id}.wav` : 'film/09.wav', ROOT)), M4A = fileURLToPath(new URL('09/assets/membrane.m4a', ROOT));
 const log = (s: string) => console.log(s);
 const secs = () => ((performance.now() - T0) / 1000).toFixed(1);
 
@@ -355,9 +358,9 @@ const ebu = (p: string) => {
 // again a little quieter
 const encode = (trim: number) => execFileSync('ffmpeg', ['-y', '-v', 'error', '-i', WAV, ...(trim ? ['-af', `volume=${trim.toFixed(2)}dB`] : []), '-c:a', 'aac', '-b:a', '160k', '-ar', '48000', '-movflags', '+faststart', M4A]);
 let trim = 0;
-for (; trim > -1.5; trim -= 0.15) { encode(trim); if (ebu(M4A).TP <= -1) break; }
+if (!STYLED) for (; trim > -1.5; trim -= 0.15) { encode(trim); if (ebu(M4A).TP <= -1) break; }
 const probe = (p: string) => execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration:stream=sample_rate,channels,bit_rate', '-of', 'compact', p]).toString().trim().replace(/\n/g, ' | ');
 log(`\nwrote ${WAV}: ${probe(WAV)}`);
-log(`wrote ${M4A}: ${probe(M4A)}${trim ? ` (${trim.toFixed(2)} dB, the encoder's overshoot taken back)` : ''}`);
-for (const p of [WAV, M4A]) { const m = ebu(p); log(`  ffmpeg ebur128 ${p.split('/').pop()}: ${m.I} LUFS, true peak ${m.TP} dBTP`); }
+if (!STYLED) log(`wrote ${M4A}: ${probe(M4A)}${trim ? ` (${trim.toFixed(2)} dB, the encoder's overshoot taken back)` : ''}`);
+for (const p of STYLED ? [WAV] : [WAV, M4A]) { const m = ebu(p); log(`  ffmpeg ebur128 ${p.split('/').pop()}: ${m.I} LUFS, true peak ${m.TP} dBTP`); }
 log(`rendered in ${secs()} s`);

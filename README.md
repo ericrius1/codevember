@@ -54,7 +54,9 @@ and `veil=0..1` / `trip=0..1` to hold the hide's thinning and the trip (the worl
 `inner=1` shows only that world wherever the hide's thinned). A
 stateful sketch's stills want `--q 'lead=3'`: each still's last 3 s stepped first, uncaptured, so its simulations (09's
 hide) are where the film would have them. 09/design holds its look references (`node 09/design/refs.mjs`: Codex's
-image generation, handed the concepts and a frame of the film).
+image generation, handed the concepts and a frame of the film); `refs.mjs realm,realm_mid,realm_near` paints the other
+realm's three layers (a deep scene, two of glowing things on black), saved as 09/assets/realm-*.webp and parallaxed
+inside the drum by 09/inner.wgsl.
 
 ## The films
 

@@ -1,81 +1,63 @@
-// The world inside the drum: what the hide shows when it thins to a veil — deep, bigger on the inside than the drum,
-// as if under water. A sea of membranes: sheets folding through the water, each a minimal surface's kind of curve,
-// with smaller sheets folding through those and smaller again (a gyroid noise at three scales, turned against each
-// other by the golden angle and warped by a slower noise, so nothing repeats), each catching the light in a soap
-// film's colours and veiling what's behind it; gold threads of light where two folds cross; motes drifting; the water
-// taking the light with depth, teal to indigo, to a gold source far down the middle where the sheets part. It flows
-// toward the hide, turning slowly, and as the trip deepens turns more and breathes.
-//
-// Marched as a volume: a ray from the hide (bent by the hide's ripples and its cells, drum.wgsl) through the field in
-// even steps (each pixel's start jittered, so the steps never show), the sheets' light and their veiling gathered
-// front to back. (Included by drum.wgsl, after common.)
+// The other realm, inside the drum: what the hide shows where it turns to glass — a world of its own, nothing like the
+// cosmos outside (design/realm-*.jpg, painted by Codex's image generation: 09/design/refs.mjs realm,realm_mid,
+// realm_near). Not modelled: a window into it, the way a building's rooms are shown through its windows — three
+// painted layers standing at their depths inside the drum, each met by the view's ray (bent by the hide's ripples) where
+// it crosses its plane, so they slide against each other as the eye moves: the deep scene far back, a layer of serpents
+// and unfolding flowers in front of it, a drift of threads and sparks nearest the hide (those two glowing things on
+// black, laid on by their light). The deep one flies on toward its source for ever (two zooms of it cross-faded, an
+// octave apart), turning slowly, its middle twisting; the others turn against it and breathe. (Included by drum.wgsl,
+// after common.)
 
-/** realm units a metre */
-const INNER_SCALE = 1.6;
-const INNER_STEPS = 44;
+@group(2) @binding(9) var realmFar: texture_2d<f32>;
+@group(2) @binding(10) var realmMid: texture_2d<f32>;
+@group(2) @binding(11) var realmNear: texture_2d<f32>;
 
-fn innerRot(a: f32) -> mat2x2f { let c = cos(a); let s = sin(a); return mat2x2f(c, s, -s, c); }
+fn realmRot(a: f32) -> mat2x2f { let c = cos(a); let s = sin(a); return mat2x2f(c, s, -s, c); }
 
-struct InnerCtx { T: f32, trip: f32, flow: f32 };
-var<private> IC: InnerCtx;
-
-/** the field at a point (realm frame): x the sheets' (0 on a sheet), y the threads' (0 where two folds cross), z a
- *  slow tint coordinate */
-fn innerField(p0: vec3f) -> vec3f {
-  var p = p0;
-  p.z += IC.flow;
-  let tw = p.z * (0.05 + 0.07 * IC.trip) + IC.T * 0.02;
-  p = vec3f(innerRot(tw) * p.xy, p.z);
-  // (the slow warp: the sheets bending, breathing)
-  let wq = p * 0.3 + vec3f(0.0, 0.0, IC.T * 0.04);
-  let w = vec3f(dotNoise(wq), dotNoise(wq + vec3f(5.2, 1.3, 2.8)), dotNoise(wq + vec3f(9.7, 4.1, 6.3))) * (0.35 + 0.2 * IC.trip);
-  let q = p * 1.05 + w;
-  let g1 = dotNoise(q);
-  let g2 = dotNoise(q * 2.37 + vec3f(3.1, 0.7, 1.9));
-  let g3 = dotNoise(q * 5.53 + vec3f(7.4, 2.2, 4.6));
-  return vec3f(g1 + 0.45 * g2 + 0.2 * g3, abs(g1) * 0.7 + abs(g2), w.x + 0.3 * g2);
+/** a plane inside the drum at `depth` (m behind the hide), met by the ray: where on it (its frame: across, up; m from
+ *  the drum's axis), and how far along the ray */
+fn realmHit(ro: vec3f, rd: vec3f, depth: f32) -> vec3f {
+  let C = D.center.xyz;
+  let t = (C.x + depth - ro.x) / max(rd.x, 0.02);
+  let p = ro + rd * t;
+  return vec3f(p.z - C.z, p.y - C.y, t);
+}
+/** a layer's colour at q (its own units: ±1 its picture's extent), mirrored past its edges so they never show; lod from
+ *  how many of its texels a pixel covers */
+fn realmTap(tex: texture_2d<f32>, q: vec2f, lod: f32) -> vec3f {
+  var uv = q * 0.5 + 0.5;
+  uv = 1.0 - abs(1.0 - (uv - 2.0 * floor(uv * 0.5)));
+  let c = textureSampleLevel(tex, samp_linear, vec2f(uv.x, 1.0 - uv.y), lod).rgb;
+  return c * c;
 }
 
-/** the realm seen along a ray: ro, rd in the world (ro on the hide), T its clock (s), trip 0..1, px the pixel's angle,
- *  jit 0..1 (the pixel's own start in the steps) */
-fn innerWorld(roW: vec3f, rdW: vec3f, T: f32, trip: f32, px: f32, jit: f32) -> vec3f {
-  let C = D.center.xyz;
-  // (the realm's frame: x across (world z), y up, z into the drum (world x))
-  let ro = vec3f(roW.z - C.z, roW.y - C.y, roW.x - C.x) * INNER_SCALE;
-  let rd = normalize(vec3f(rdW.z, rdW.y, rdW.x));
-  IC.T = T; IC.trip = trip; IC.flow = T * (0.2 + 0.22 * trip);
-  // the water: teal near, indigo deep; the source far down the middle, gold
-  let water = vec3f(0.012, 0.055, 0.07);
-  let deepW = vec3f(0.006, 0.005, 0.028);
-  let off = length(rd.xy) / max(rd.z, 0.05);
-  let source = vec3f(1.0, 0.78, 0.42) * (exp(-off * off * 50.0) * 2.4 + exp(-off * 3.5) * 0.35);
-  let dt = 0.17;
-  var t = 0.05 + dt * jit;
-  var col = vec3f(0.0);
-  var trans = 1.0;
-  for (var i = 0; i < INNER_STEPS; i++) {
-    let p = ro + rd * t;
-    let f = innerField(p);
-    // (the sheets part down the middle, the eye's road to the source; and there's a little water before them)
-    let road = smoothstep(0.25, 0.75, length(p.xy)) * smoothstep(0.1, 0.6, p.z);
-    // a sheet where the field crosses 0: its film's colours, by how it's turned (the field's own value standing in)
-    let sheet = exp(-f.x * f.x * 70.0) * road;
-    let film = thinFilm(0.5 + 0.5 * sin(f.z * 2.0 + T * 0.15), 360.0 + 300.0 * f.z + 120.0 * trip * sin(T * 0.4 + f.z));
-    let threads = exp(-f.y * f.y * 60.0) * road;
-    let depthK = exp(-t * 0.22);
-    // motes: plankton of light drifting through the water (a lattice of points, each jittered and pulsing)
-    let mp = p + vec3f(0.0, T * 0.03, IC.flow * 0.3);
-    let mc = floor(mp / 0.5);
-    let mr = hash33(mc + 11.0);
-    let md = length(mp - (mc + 0.2 + 0.6 * mr) * 0.5);
-    let mote = exp(-md * md / (0.0001 + t * t * px * px * 4.0)) * step(0.6, mr.x) * (0.6 + 0.4 * sin(T * 2.0 + mr.y * 20.0));
-    let em = (film * film * 0.22 + vec3f(0.01, 0.04, 0.05)) * sheet + vec3f(1.0, 0.62, 0.25) * threads * 0.3 + mix(vec3f(0.4, 1.0, 0.9), vec3f(1.0, 0.85, 0.5), mr.z) * mote * 0.35;
-    col += trans * em * depthK * dt * 5.0;
-    // (each sheet veils what's behind it, darkly; the water a little everywhere)
-    trans *= exp(-(0.08 + 2.4 * sheet) * dt);
-    t += dt;
-    if (trans < 0.03) { break; }
-  }
-  let back = mix(water, deepW, sat(t / (f32(INNER_STEPS) * dt))) + source;
-  return col + trans * back;
+/** the realm seen along a ray from the hide: ro, rd in the world, T its clock (s), trip 0..1, px the pixel's angle */
+fn innerWorld(ro: vec3f, rd: vec3f, T: f32, trip: f32, px: f32) -> vec3f {
+  let texN = f32(textureDimensions(realmFar).x);
+  // the deep scene, 2.6 m back, its picture 2.2 m across: flying on toward its source, turning, its middle twisting
+  let hf = realmHit(ro, rd, 2.6);
+  var qf = hf.xy / 1.1;
+  qf = realmRot(T * 0.025 + 0.3 * trip * sin(T * 0.13)) * qf;
+  let tw = (0.12 + 0.2 * trip) * D.realm2.x * sin(T * 0.21) * exp(-dot(qf, qf) * 1.5);
+  qf = realmRot(tw) * qf;
+  let lodF = log2(max(1.0, hf.z * px * texN / 2.2));
+  // (two copies an octave apart: the nearer swelling and fading as the farther swells into its place — at the end of
+  // each octave the farther is where the nearer began, so the flight never jumps)
+  // (and the hand-over only in the last stretch of each octave, so most of the time it's one picture, flying)
+  let z = fract(T * D.realm.w + 0.1);
+  let s0 = exp2(-z);
+  let s1 = exp2(1.0 - z);
+  let far = mix(realmTap(realmFar, qf * s0, lodF + log2(s0)), realmTap(realmFar, qf * s1, lodF + log2(s1)), smoothstep(0.75, 1.0, z));
+  // the serpents and flowers, 1.1 m back, turning the other way and breathing
+  let hm = realmHit(ro, rd, 1.1);
+  let qm = realmRot(-T * 0.04) * hm.xy / (0.95 * (1.0 + 0.04 * sin(T * 0.5)));
+  let mid = realmTap(realmMid, qm, log2(max(1.0, hm.z * px * texN / 1.9)));
+  // the threads and sparks, just behind the hide, drifting
+  let hn = realmHit(ro, rd, 0.32);
+  let qn = realmRot(T * 0.06) * (hn.xy / 0.8) + vec2f(0.03 * sin(T * 0.3), 0.02 * T);
+  let near = realmTap(realmNear, qn, log2(max(1.0, hn.z * px * texN / 1.6)));
+  // (the deep scene darkened away from its source — the realm deep, not a picture — and the layers laid on by their
+  // light, held so they don't wash it out)
+  let deep = 0.35 + 0.65 * exp(-dot(qf * s0, qf * s0) * 0.8);
+  return far * deep * D.realm.x + mid * D.realm.y + near * D.realm.z;
 }

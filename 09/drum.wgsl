@@ -19,12 +19,18 @@ struct DrumU {
   center: vec4f,
   // x the rim texture's repeats round the shell, y the hide's glow, z the time (s), w the inner light's flicker
   look: vec4f,
-  // x how far you see through the hide (0 opaque .. 1; the great stroke's), y the refraction's strength (screen uv
+  // x how far you see through the hide behind its front (0 opaque .. 1), y the refraction's strength (screen uv
   // per unit of the normal's tilt), z the fuzz's length (m), w its breeze's clock (s)
   glass: vec4f,
   // the trip (from the great stroke to the end): x how deep (0..1), y the world inside's clock (s), z how far the hide
   // breathes on its own (m), w 1: the world inside alone (a debug: ?inner=1)
   trip: vec4f,
+  // the glass's front: xy where the hide was struck (its frame: a across, b up; m), z how far out the front's got (m),
+  // w how soft its edge is (m)
+  front: vec4f,
+  // the realm's layers (inner.wgsl): xyz their gains (deep, middle, near), w the deep one's flight (octaves a second);
+  // realm2 x its twist (×)
+  realm: vec4f, realm2: vec4f,
 }
 @group(2) @binding(0) var<uniform> D: DrumU;
 // the drum rocked on its stand by a stroke: turned about the stand's foot (z through it)
@@ -75,21 +81,6 @@ fn breathe(uv: vec2f) -> f32 {
   let T = D.trip.y;
   let edge = max(1.0 - r * r, 0.0);
   return A * edge * (0.55 * sin(r * 9.0 - T * 0.9) + 0.35 * r * sin(3.0 * a + r * 4.0 + T * 0.35) + 0.22 * sin(r * 19.0 - T * 1.6 + a));
-}
-/** the hide's grain when it thins: a Voronoi of irregular cells at p — x the nearest seed's distance, y the next's
- *  (their difference 0 on a wall), zw the way from p to its cell's seed */
-fn veilCells(p: vec2f) -> vec4f {
-  let i = floor(p); let f = fract(p);
-  var d1 = 9.0; var d2 = 9.0; var to = vec2f(0.0);
-  for (var y = -1; y <= 1; y++) {
-    for (var x = -1; x <= 1; x++) {
-      let g = vec2f(f32(x), f32(y));
-      let r = g + 0.15 + 0.7 * hash33(vec3f(i + g, 5.0)).xy - f;
-      let d = dot(r, r);
-      if (d < d1) { d2 = d1; d1 = d; to = r; } else if (d < d2) { d2 = d; }
-    }
-  }
-  return vec4f(sqrt(d1), sqrt(d2), to);
 }
 /** the hide's displacement drawn: the simulation's, at its gain, and its breath */
 fn hideH(uv: vec2f) -> f32 { return simAt(uv) * D.sim2.w + breathe(uv); }
@@ -175,48 +166,35 @@ fn hideH(uv: vec2f) -> f32 { return simAt(uv) * D.sim2.w + breathe(uv); }
   // (the ripples catch the light: a sheen along their slopes)
   col += vec3f(1.0, 0.8, 0.5) * stretch * 0.18 * D.look.y;
   col += vec3f(0.35, 0.85, 0.8) * shockAt(in.wpos) * 0.3;
-  // the hide thins to a veil (a little for a moment at each stroke of the pulse, for good from the great one), and as
-  // it thins it shows its grain: a membrane of irregular cells, large and small, their walls wandering (a Voronoi of
-  // the hide warped by noise, and a finer one along its walls), faint, each cell a gentle lens. Through it, the world
-  // inside the drum (inner.wgsl), each cell showing it bent a little its own way, bent again by the ripples as through
-  // water; the walls catch the light in a soap film's colours, and the painted lines glow on over it all
-  // (the cells worked out here, in uniform control flow: their walls' antialiasing takes a derivative)
+  // the hide turns to glass behind each stroke's ripple as it spreads from where it was struck: a little for a moment
+  // at each stroke of the pulse, and from the great one almost wholly, for good — its front crawling out with the
+  // ripple through the slowed moment, leaving the hide clear behind it. Through the glass, the other realm (inner.wgsl),
+  // bent by the ripples as through water; the painted lines glow on over it; a soap film's colours run along the
+  // ripples' slopes and the front's seam
   let ab = (in.uv - 0.5) * 2.0 * D.sim.x;
-  let wv = vec2f(dotNoise(vec3f(ab * 5.0, 0.3)), dotNoise(vec3f(ab * 5.0 + 3.7, 1.9)));
-  let c1 = veilCells(ab / 0.11 + wv * 0.45);
-  let wv2 = vec2f(dotNoise(vec3f(ab * 17.0, 4.1)), dotNoise(vec3f(ab * 17.0 + 1.3, 7.7)));
-  let c2 = veilCells(ab / 0.037 + wv2 * 0.35 + 11.0);
-  let aw = fwidth(ab.x) / 0.11;
-  let edge1 = c1.y - c1.x;
-  let edge2 = c2.y - c2.x;
-  let wall1 = 1.0 - smoothstep(0.02, 0.05 + aw * 2.0, edge1);
-  // (the finer cells only near the great ones' walls: the grain growing finer toward each wall)
-  let wall2 = (1.0 - smoothstep(0.03, 0.08 + aw * 6.0, edge2)) * (1.0 - smoothstep(0.08, 0.35, edge1)) * (1.0 - smoothstep(0.1, 0.4, aw * 3.0));
-  if (D.glass.x > 0.001 && front) {
+  let dHit = length(ab - D.front.xy);
+  let veil = D.glass.x * (1.0 - smoothstep(D.front.z - D.front.w, D.front.z, dHit));
+  if (veil > 0.001 && front) {
     let tilt = N - rockDir(vec3f(-1.0, 0.0, 0.0));
     let slope = length(tilt.yz);
-    // (the membrane's thickness wandering, bending the view through it smoothly: the noise that warps its cells)
-    let lens = wv * 0.6 + wv2 * 0.2;
-    let lensK = D.glass.x * (0.04 + 0.08 * D.trip.x);
-    let rdIn = normalize(-V + tilt * D.glass.y * 6.0 + vec3f(0.0, lens.y, lens.x) * lensK);
+    // (the hide's thickness wandering a little, bending the view through it smoothly)
+    let wv = vec2f(dotNoise(vec3f(ab * 4.0, 0.3 + D.trip.y * 0.05)), dotNoise(vec3f(ab * 4.0 + 3.7, 1.9)));
+    let rdIn = normalize(-V + tilt * D.glass.y * 6.0 + vec3f(0.0, wv.y, wv.x) * 0.025 * veil);
     let px = frame.fovY / frame.res.y;
-    // (the march's start jittered by interleaved gradient noise, turning each frame by the golden ratio: an even grain
-    // that the film's supersampling and the eye average away)
-    let ign = fract(52.9829189 * fract(dot(in.pos.xy, vec2f(0.06711056, 0.00583715))) + fract(D.trip.y * 60.0) * 0.618034);
-    let inner = innerWorld(in.wpos, rdIn, D.trip.y, D.trip.x, px, ign);
+    let realm = innerWorld(in.wpos, rdIn, D.trip.y, D.trip.x, px);
     let nv = sat(dot(N, V));
-    let walls = max(wall1, wall2 * 0.6);
-    let tr = clamp(D.glass.x * (0.9 + 0.7 * stretch) * (1.0 - 0.4 * paint) * (1.0 - 0.5 * pow(1.0 - nv, 4.0)) * (1.0 - 0.55 * walls), 0.0, 0.96);
-    // (through parchment: the light warmed a little, the hide's own glow over it)
-    let through = inner * mix(vec3f(1.0, 0.85, 0.7), vec3f(1.0), 0.5 + 0.45 * D.glass.x) + backlit * 0.3 * (1.0 - 0.7 * D.glass.x);
-    // (the thinner the hide, the less light it scatters back of its own)
-    col = mix(col * (1.0 - 0.55 * D.glass.x), through, tr);
-    // the cells' walls: a soap film's colours, gold where the light's behind them
-    let wallC = thinFilm(nv, 300.0 + 600.0 * edge1 + 3000.0 * in.disp) * 0.5 + vec3f(1.0, 0.62, 0.25) * 0.25;
-    col += wallC * walls * sqrt(D.glass.x) * (0.05 + 0.1 * D.trip.x) * (0.5 + 0.5 * thru);
+    let tr = clamp(veil * (0.95 + 0.6 * stretch) * (1.0 - 0.35 * paint) * (1.0 - 0.4 * pow(1.0 - nv, 4.0)), 0.0, 0.97);
+    // (the thinner the hide, the less light it scatters back of its own; a breath of its warmth over the realm)
+    let through = realm * mix(vec3f(1.0, 0.86, 0.72), vec3f(1.0), 0.6 + 0.35 * veil) + backlit * 0.2 * (1.0 - veil);
+    col = mix(col * (1.0 - 0.55 * veil), through, tr);
+    if (D.trip.w > 0.5) { col = realm; }
     let irid = thinFilm(nv, 320.0 + 2600.0 * slope + 900.0 * in.disp) * sat(slope * 18.0) * (0.35 + 0.65 * D.trip.x);
-    col += irid * D.glass.x * (0.18 + 0.5 * stretch) * (0.6 + 0.4 * L.key.r);
-    if (D.trip.w > 0.5) { col = inner; }
+    col += irid * veil * (0.18 + 0.5 * stretch) * (0.6 + 0.4 * L.key.r);
+  }
+  // the front's seam: where the glass is spreading, a fine line of the film's colours
+  if (D.glass.x > 0.001 && front) {
+    let seam = exp(-pow((dHit - (D.front.z - D.front.w * 0.5)) / (D.front.w * 0.3), 2.0)) * D.glass.x * step(dHit, D.sim.x * 1.9);
+    col += thinFilm(sat(dot(N, V)), 380.0 + 900.0 * dHit) * seam * 0.35;
   }
   return vec4f(col, 1.0);
 }
@@ -314,7 +292,8 @@ struct FuzzOut {
   col += vec3f(1.0, 0.55, 0.22) * alb * thru * tip * 0.8;
   col += vec3f(0.35, 0.85, 0.8) * shockAt(in.wpos) * 0.3 * tip;
   // (the down thins with the hide as it turns to a veil)
-  a *= 1.0 - 0.75 * D.glass.x;
+  let abF = (in.uv - 0.5) * 2.0 * D.sim.x;
+  a *= 1.0 - 0.8 * D.glass.x * (1.0 - smoothstep(D.front.z - D.front.w, D.front.z, length(abF - D.front.xy)));
   if (a < 0.002) { discard; }
   return vec4f(col, a * 0.85);
 }

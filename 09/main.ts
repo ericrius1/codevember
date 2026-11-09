@@ -16,8 +16,9 @@ import { day } from '../src/days';
 import { sketch } from '../src/sketch';
 import { LOOP, story, rate, BIG, ACT, STORY_LOOP, STROKES } from './score';
 import { Shaman } from './shaman';
+import { STYLE } from './style';
 import { Drum, Beater, DRUM, membranePace } from './drum';
-import { moment, BEATER, strokes, drive } from './perform';
+import { moment, BEATER, strokes, drive, struckAt } from './perform';
 import { GripHold, aimAt } from './grip';
 import { shot } from './camera';
 import { Regalia } from './regalia';
@@ -34,7 +35,7 @@ const norm3 = (a: V3): V3 => { const l = Math.hypot(a[0], a[1], a[2]) || 1; retu
 const scale3 = (a: V3, k: number): V3 => [a[0] * k, a[1] * k, a[2] * k];
 const smooth = (a: number, b: number, x: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
-sketch({ ...day(9), filmLoops: 1, warm: 1, hint: 'Sound on, for the drum · Space to pause · drag to turn', audio: new URL('./assets/membrane.m4a', import.meta.url).href }, async (ctx) => {
+sketch({ ...day(9), loop: LOOP, filmLoops: 1, warm: 1, hint: 'Sound on, for the drum · Space to pause · drag to turn', audio: new URL('./assets/membrane.m4a', import.meta.url).href }, async (ctx) => {
   const { kit } = ctx;
   const G = kit.uniforms(cosmosShader.structs.Globals, 'globals');
   kit.setGlobals(G);
@@ -118,11 +119,21 @@ sketch({ ...day(9), filmLoops: 1, warm: 1, hint: 'Sound on, for the drum · Spac
   const worldOnly = ctx.params.has('world') ? Number(ctx.params.get('world')) : null;
   const WR = 140;
   const FRONT_NEAR = WR - Math.hypot(W[0] - DRUM.c[0], W[1] - DRUM.c[1], W[2] - DRUM.c[2]);
-  // the veil: each stroke of the pulse thins the hide a little for a moment (more each time), the great stroke for good
-  const veilAt = (t: number) => {
-    let v = 0;
-    pulses.forEach((k, i) => { if (t > k.t - 0.05) v = Math.max(v, (0.16 + 0.1 * i) * smooth(k.t - 0.03, k.t + 0.1, t) * Math.exp(-Math.max(0, t - k.t - 0.1) / 1.3)); });
-    return Math.max(v, smooth(big + 0.01, big + 1.2, t) * (0.82 + 0.14 * smooth(big + 1.2, ACT.fade, t)));
+  // the glass: the hide turns clear behind each stroke's ripple as it spreads from where it was struck, at the hide's
+  // own wave speed on its own clock (drum.ts membranePace, tabulated here) — a little for a moment at each stroke of the
+  // pulse (more each time), almost wholly from the great one, for good
+  const MEM_STEP = 1 / 240, mem = new Float64Array(Math.ceil(LOOP / MEM_STEP) + 2);
+  for (let i = 1; i < mem.length; i++) mem[i] = mem[i - 1] + membranePace(rate((i - 0.5) * MEM_STEP)) * MEM_STEP;
+  const memAt = (x: number) => { const f = Math.max(0, x) / MEM_STEP, i = Math.min(mem.length - 2, Math.floor(f)); return mem[i] + (mem[i + 1] - mem[i]) * (f - i); };
+  const glassAt = (t: number) => {
+    let k: typeof STROKES[number] | null = null;
+    for (const s of STROKES) if (t >= s.t) k = s;
+    if (!k) return { amount: 0, front: [0, 0, 0] as [number, number, number] };
+    const [a, b] = struckAt(k);
+    const R = 100 * 0.92 * (memAt(t) - memAt(k.t));
+    const i = pulses.indexOf(k);
+    const amount = k.big ? STYLE.glass : (0.24 + 0.12 * i) * Math.exp(-Math.max(0, t - k.t - 0.2) / 1.3);
+    return { amount, front: [a, b, R] as [number, number, number] };
   };
   // the trip: 0 till the great stroke, deepening to the end
   const tripAt = (t: number) => Math.pow(smooth(big, ACT.fade, t), 0.75);
@@ -174,7 +185,8 @@ sketch({ ...day(9), filmLoops: 1, warm: 1, hint: 'Sound on, for the drum · Spac
     });
     drum.look(s, 1, M.rock);
     const trip = tripQ ?? tripAt(t);
-    drum.glass(veilQ ?? veilAt(t), t, trip, t, 0.0045 * trip * trip);
+    const gl = glassAt(t);
+    drum.glass(veilQ ?? gl.amount, t, veilQ !== null ? [0, 0, 9] : gl.front, trip, t, 0.0045 * trip * trip);
     // ---------------------------------------------------------------- the light, the shock, the cosmos
     // the shock's front: barely moving through the dilated moment, then racing out as time lifts
     const shockR = t > big ? 0.5 * Math.pow(t - big, 1.5) + 40 * Math.pow(Math.max(0, t - ACT.shock), 2) : 0;
@@ -186,11 +198,11 @@ sketch({ ...day(9), filmLoops: 1, warm: 1, hint: 'Sound on, for the drum · Spac
     const rip = rippleAt(t);
     // the worlds beyond: the faces opening behind the great stroke's front as it sweeps the dome, and staying open
     // (wide open at first, then held part way: the membrane's own film and its rings over the worlds through the trip)
-    const reveal = smooth(big + 0.3, big + 3.5, t) * (1 - 0.38 * smooth(big + 3.5, ACT.trip, t));
+    const reveal = smooth(big + 0.3, big + 3.5, t) * (1 - 0.38 * smooth(big + 3.5, ACT.trip, t)) * STYLE.sky.reveal;
     // (the sky's colour drifting while time's out of joint, wandering further as the trip deepens — the sky's alone: the
     // stage keeps its own)
     // (never far: past ±0.45 rad the violets go olive)
-    const drift = 0.2 * deepK * Math.sin(t * 0.7) + 0.32 * Math.sin((t - big) * 0.4) * smooth(big, big + 4, t);
+    const drift = (0.2 * deepK * Math.sin(t * 0.7) + 0.32 * Math.sin((t - big) * 0.4) * smooth(big, big + 4, t)) * STYLE.grade.drift;
     // (their light on her and the drum: the rim and the ambient take the opened worlds' colours)
     const mixc = (a: number[], b: number[], k: number) => a.map((x, i) => x + (b[i] - x) * k);
     // the latest stroke of the pulse, for its front
@@ -204,7 +216,7 @@ sketch({ ...day(9), filmLoops: 1, warm: 1, hint: 'Sound on, for the drum · Spac
       ambient: [...mixc([0.09, 0.06, 0.15], [0.07, 0.11, 0.16], 0.6 * reveal), 0.7 + 0.08 * reveal] as never,
       drum: [...DRUM.c, DRUM.r] as never, hit: [...M.hit, M.press] as never,
       shock: [...M.hit, shockR] as never, shock2: [t > big ? Math.exp(-(t - big) * 0.15) * 0.7 * smooth(big + 0.5, big + 1.3, t) : 0, 0.04 + shockR * 0.04, deepK, t > big ? Math.exp(-(t - big) * 0.2) : 0] as never,
-      cosmos: [1, 0.3 + 0.7 * rip, trip, drift] as never,
+      cosmos: [1, 0.3 + 0.7 * rip, trip * STYLE.sky.heave, drift] as never,
       wall: [...W, WR] as never,
       waves: WAVES as never,
       glow: [M.flash, 0, 0, 0] as never,
@@ -212,7 +224,7 @@ sketch({ ...day(9), filmLoops: 1, warm: 1, hint: 'Sound on, for the drum · Spac
     // (?world=k: every face opens on world k, for looking at it)
     const only = worldOnly ?? -1;
     const seams = Math.max(0.35 * rip, reveal) * (1 + 0.4 * trip);
-    K.set({ worlds: [only >= 0 ? 1 : reveal, seams, t * 0.6, 1.0] as never, aux: [0.0009 * (1 + 0.8 * trip), only, domeAt(t), 0] as never,
+    K.set({ worlds: [only >= 0 ? 1 : reveal, seams, t * 0.6, 1.0] as never, aux: [0.0003 * (1 + 0.5 * trip), only, domeAt(t), 0] as never,
       front: [only >= 0 ? -1 : big + 0.02, FRONT_NEAR, 30 + 50 * smooth(big + 2, ACT.shock, t), 1.0] as never,
       front2: [lastPulse < 0 ? -1 : lastPulse + 0.02, FRONT_NEAR, 70, 0.45 + 0.2 * pulses.findIndex((k) => k.t === lastPulse)] as never,
       trip: [0.16, 0.9, trip, 0] as never });
@@ -229,11 +241,13 @@ sketch({ ...day(9), filmLoops: 1, warm: 1, hint: 'Sound on, for the drum · Spac
     const sx = 0.5 + (dot3(toH, rt) / Math.max(zf, 1e-3)) / (th * asp) * 0.5, sy = 0.5 - (dot3(toH, upv) / Math.max(zf, 1e-3)) / th * 0.5;
     const ringA = shockR > 0 && shockR < dH ? Math.atan(shockR / dH) / th * 0.5 : 0;
     const ringK = t > big && zf > 0 && ringA > 0 ? Math.exp(-(t - big) * 0.35) * (1 - Math.min(1, shockR / dH) ** 4) : 0;
-    P.set({ look: [fadeAt(t), 0.9 + 0.35 * trip, 1.2, 0.02] as never,
-      look2: [0.2 + 1.2 * deepK * deepK + 0.8 * trip, 0.015 * deepK * deepK * deepK, 0.55 + 0.1 * trip, 1.0 + 0.2 * deepK + 0.12 * trip] as never,
+    const gr = STYLE.grade;
+    P.set({ look: [fadeAt(t) * gr.exp, (0.9 + 0.35 * trip) * gr.bloom, 1.2, 0.02] as never,
+      look2: [0.2 + 1.2 * deepK * deepK + 0.8 * trip, 0.015 * deepK * deepK * deepK, 0.55 + 0.1 * trip, (1.0 + 0.2 * deepK + 0.12 * trip) * gr.sat] as never,
+      grade: [gr.cool, 0, 0, 0] as never,
       shock: [sx, sy, ringA, ringK * 0.9] as never,
-      misc: [0, 0.1 * trip * trip * Math.sin(t * 0.23), smooth(big - 0.05, big + 1.5, t) * (0.8 + 0.5 * trip), 0] as never });
-    PF.set({ look: [1.0, 0.9, 1.2, 0.035] as never, look2: [0, 0, 0, 1] as never, shock: [0.5, 0.5, 0, 0] as never, misc: [1, 0, 0, 0] as never });
+      misc: [0, 0.1 * trip * trip * Math.sin(t * 0.23) * gr.drift, smooth(big - 0.05, big + 1.5, t) * (0.8 + 0.5 * trip), 0] as never });
+    PF.set({ look: [1.0, 0.9, 1.2, 0.035] as never, look2: [0, 0, 0, 1] as never, shock: [0.5, 0.5, 0, 0] as never, misc: [1, 0, 0, 0] as never, grade: [1, 0, 0, 0] as never });
     return [...drum.run, scene, front, ...post, out];
   };
 });

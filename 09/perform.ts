@@ -26,6 +26,8 @@ const onHide = (a: number, b: number): V3 => [C[0], C[1] + b, C[2] + a];
 // where she stands: her right shoulder in line with the struck point, a stride back from the hide, turned a little
 // toward the drum's middle; her feet wide (the left forward toward the drum, the right back), knees soft
 const STRIKE_A = 0.4, STRIKE_B = 0.36;
+/** where on the hide a stroke of the score lands (its frame: a across, b up; m from its centre) */
+export const struckAt = (k: { at: [number, number] }): [number, number] => [STRIKE_A + k.at[0] * 0.15, STRIKE_B + k.at[1] * 0.4];
 const BODY: V3 = [-0.84, 0, STRIKE_A - 0.2];
 const YAW = Math.atan2(-0.988, 0.152);
 const FEET = { l: [-0.55, 0, -0.04] as V3, r: [-1.13, 0, 0.44] as V3 };
@@ -38,7 +40,7 @@ const SHAFT = norm([0.6, 0.8, 0.0]);
 function specFor(i: number, shift: number): StrokeSpec {
   const k = STROKES[i];
   const t = story(k.t) + shift;
-  const at = onHide(STRIKE_A + k.at[0] * 0.15, STRIKE_B + k.at[1] * 0.4);
+  const at = onHide(...struckAt(k));
   const v = k.v;
   if (k.big) {
     const S = story(k.t);

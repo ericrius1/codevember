@@ -69,6 +69,9 @@ export interface DrumU {
   look: Vec4;
   glass: Vec4;
   trip: Vec4;
+  front: Vec4;
+  realm: Vec4;
+  realm2: Vec4;
 }
 export interface HideOut {
   pos: Vec4;
@@ -80,11 +83,6 @@ export interface HideOut {
 }
 export interface PropU {
   model: Mat4;
-}
-export interface InnerCtx {
-  T: number;
-  trip: number;
-  flow: number;
 }
 export interface FuzzOut {
   pos: Vec4;
@@ -104,5 +102,5 @@ export interface BodyOut {
   mat: number;
 }
 
-declare const shader: Shader<{ Frame: Frame; Globals: Globals; StageLight: StageLight; MeshVertex: MeshVertex; DrumU: DrumU; HideOut: HideOut; PropU: PropU; InnerCtx: InnerCtx; FuzzOut: FuzzOut; BodyOut: BodyOut }, 'frame' | 'G' | 'D' | 'PM' | 'verts' | 'simTex' | 'hideTex' | 'rimTex' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; Globals: Globals; StageLight: StageLight; MeshVertex: MeshVertex; DrumU: DrumU; HideOut: HideOut; PropU: PropU; FuzzOut: FuzzOut; BodyOut: BodyOut }, 'frame' | 'G' | 'D' | 'PM' | 'verts' | 'simTex' | 'hideTex' | 'rimTex' | 'realmFar' | 'realmMid' | 'realmNear' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;
