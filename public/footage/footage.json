@@ -1,5 +1,35 @@
 [
  {
+  "id": "09-vision",
+  "title": "09 / Membrane: Vision",
+  "sub": "Another telling of 09 / Membrane: the serpent realm of the first, with its light now spilling out over her and pouring through the glass, the moment after the great stroke held a little longer and the sky heaving harder as it tears open on other worlds. 24 seconds, WebGPU, the drum's sound simulated from its own physics.",
+  "date": "2026-11-09",
+  "created": "2026-11-09T04:48-08:00",
+  "seconds": 24,
+  "width": 1080,
+  "height": 1080,
+  "mb": 54.4,
+  "video": "https://footage.ericrius1.workers.dev/codevember/3c78036cd08d5e32/09-vision.mp4",
+  "small": "https://footage.ericrius1.workers.dev/codevember/e118d66a8e51ef36/09-vision-720.mp4",
+  "poster": "https://footage.ericrius1.workers.dev/codevember/3b42cfd450b76d2c/09-vision-poster.jpg",
+  "card": "https://footage.ericrius1.workers.dev/codevember/b87acbd2fd22a1e1/09-vision-card.jpg"
+ },
+ {
+  "id": "09-lumen",
+  "title": "09 / Membrane: Lumen",
+  "sub": "Another telling of 09 / Membrane, nearly without colour: after the great stroke the hide turns to glass behind its ripple onto a vast flower of light unfolding in the dark, and the light pours out through it in rays round her as she stands and watches. 25 seconds, WebGPU, the drum's sound simulated from its own physics.",
+  "date": "2026-11-09",
+  "created": "2026-11-09T04:44-08:00",
+  "seconds": 25,
+  "width": 1080,
+  "height": 1080,
+  "mb": 56.4,
+  "video": "https://footage.ericrius1.workers.dev/codevember/39881b36eecf89d2/09-lumen.mp4",
+  "small": "https://footage.ericrius1.workers.dev/codevember/26c1edd1559a9f3e/09-lumen-720.mp4",
+  "poster": "https://footage.ericrius1.workers.dev/codevember/7b740c1462b1c7d6/09-lumen-poster.jpg",
+  "card": "https://footage.ericrius1.workers.dev/codevember/c0111f56d9b1e17a/09-lumen-card.jpg"
+ },
+ {
   "id": "09-mycelium",
   "title": "09 / Membrane: Mycelium",
   "sub": "Another telling of 09 / Membrane, the longest breath after the great stroke: the hide turns to glass behind its ripple onto an inner forest of golden threads running to a slow heart of light, its glow over her, while the universe's membrane heaves green and deep all round. 29 seconds, WebGPU, the drum's sound simulated from its own physics.",

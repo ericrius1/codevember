@@ -23,6 +23,8 @@ export interface Style {
   light: [number, number, number]; spill: number;
   /** the light pouring out of the glass toward us (post.wgsl's rays): how strong (× the trip) */
   rays: number;
+  /** the end: how far the light swallows everything before the dark (0: a plain fade to black) */
+  whiteout?: number;
 }
 
 const STYLES: Record<string, Style> = {
@@ -38,6 +40,9 @@ const STYLES: Record<string, Style> = {
   // a cathedral of gold light in mist: warm, bright, reverent; the sky opening wide
   cathedral: { id: 'cathedral', after: 10, realm: 'design/realms/cathedral', realmMix: [0.42, 0.6, 1.3], realmFly: 0.018, realmTwist: 0.5,
     grade: { sat: 0.9, exp: 1.0, bloom: 1.15, drift: 0.3, cool: 0.4 }, sky: { reveal: 0.85, heave: 0.8, hue: 1.9, kinds: [3, 0, 2] }, glass: 0.96, light: [1.0, 0.72, 0.38], spill: 2.2, rays: 1.2 },
+  // first light over an endless sea of cloud inside the drum: lumen's pouring light, warm, ending in a whiteout
+  dawn: { id: 'dawn', after: 11, realm: 'design/realms/dawn', realmMix: [1.0, 0.45, 1.2], realmFly: 0.012, realmTwist: 0.15,
+    grade: { sat: 0.85, exp: 1.0, bloom: 1.3, drift: 0.2, cool: 0.3 }, sky: { reveal: 0.5, heave: 0.9, hue: 0.9, kinds: [3, 0, 4] }, glass: 0.97, light: [1.0, 0.8, 0.6], spill: 2.2, rays: 2.0, whiteout: 1 },
   // a flower of light unfolding in the dark: nearly monochrome after the stroke, the sky barely torn, white light
   lumen: { id: 'lumen', after: 12, realm: 'design/realms/lumen', realmMix: [1.05, 1.2, 1.5], realmFly: 0.016, realmTwist: 0.5,
     grade: { sat: 0.4, exp: 1.0, bloom: 1.35, drift: 0.2, cool: 0.5 }, sky: { reveal: 0.4, heave: 0.9, hue: 0, kinds: [4, 6, 5] }, glass: 0.97, light: [1.0, 0.93, 0.82], spill: 2.0, rays: 1.8 },

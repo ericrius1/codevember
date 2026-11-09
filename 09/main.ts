@@ -252,7 +252,9 @@ sketch({ ...day(9), loop: LOOP, filmLoops: 1, warm: 1, hint: 'Sound on, for the 
       grade: [gr.cool, 0, 0, 0] as never,
       rays: [px, py, pz > 0 ? STYLE.rays * trip : 0, 0.55] as never,
       shock: [sx, sy, ringA, ringK * 0.9] as never,
-      misc: [0, 0.1 * trip * trip * Math.sin(t * 0.23) * gr.drift, smooth(big - 0.05, big + 1.5, t) * (0.8 + 0.5 * trip), 0] as never });
+      // (a style's end swallowed by its light before the dark)
+      misc: [0, 0.1 * trip * trip * Math.sin(t * 0.23) * gr.drift, smooth(big - 0.05, big + 1.5, t) * (0.8 + 0.5 * trip),
+        (STYLE.whiteout ?? 0) * 1.6 * smooth(ACT.fade - 2.2, ACT.fade + 0.2, t) * (1 - smooth(ACT.fade + 0.25, ACT.black - 0.1, t))] as never });
     PF.set({ look: [1.0, 0.9, 1.2, 0.035] as never, look2: [0, 0, 0, 1] as never, shock: [0.5, 0.5, 0, 0] as never, misc: [1, 0, 0, 0] as never, grade: [1, 0, 0, 0] as never, rays: [0, 0, 0, 0] as never });
     return [...drum.run, scene, front, ...post, out];
   };
