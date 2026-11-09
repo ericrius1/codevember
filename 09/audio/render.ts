@@ -133,7 +133,7 @@ const both = (s: Stereo, fn: (x: Buf) => Buf): Stereo => ({ l: fn(s.l), r: fn(s.
 log('the strokes');
 const voices: Stereo[] = STROKES.map((s, i) => voice(sims[i], { seed: 11 + i, slap: s.big ? 1.3 : 1 }));
 // (each of the pulse louder than the last: the harder stroke's own louder ring, and a little more on top)
-const PULSE_GAIN = [0.8, 1.0, 1.18];
+const PULSE_GAIN = STROKES.filter((k) => !k.big).length === 2 ? [0.9, 1.18] : [0.8, 1.0, 1.18];
 STROKES.forEach((s, i) => {
   if (s.big) return;
   const g = PULSE_GAIN[i] ?? 1;

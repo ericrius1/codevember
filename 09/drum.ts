@@ -215,7 +215,7 @@ export class Drum {
     this.U = kit.uniforms(drumShader.structs.DrumU, 'drum');
     this.U.set({ sim: [R, H, lam2, mu2] as never, sim2: [0, 0, 0, Number(new URLSearchParams(globalThis.location?.search ?? '').get('hidegain') ?? 1)] as never, center: [...DRUM.c, 0] as never, look: [3, 1, 0, 1] as never,
       glass: [0, 0.16, FUZZ_LEN, 0] as never, trip: [0, 0, 0, 0] as never, front: [0, 0, 0, 0.12] as never,
-      realm: [...STYLE.realmMix, STYLE.realmFly] as never, realm2: [STYLE.realmTwist, 0, 0, 0] as never });
+      realm: [...STYLE.realmMix, STYLE.realmFly] as never, realm2: [STYLE.realmTwist, STYLE.inner === 'infinite' ? 1 : 0, 0, 0] as never });
   }
 
   async loadTextures() {

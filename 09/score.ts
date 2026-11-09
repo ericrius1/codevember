@@ -30,7 +30,12 @@ export interface Stroke {
   big?: boolean;
 }
 
-export const STROKES: Stroke[] = [
+// (a style may strike the pulse twice instead of three times: the first a little later, harder, the gap longer)
+export const STROKES: Stroke[] = STYLE.pulses === 2 ? [
+  { t: 2.4, v: 4.0, at: [-0.25, 0.06] },
+  { t: 6.6, v: 6.0, at: [-0.27, 0.04] },
+  { t: GREAT, v: 12.5, at: [-0.2, 0.1], big: true },
+] : [
   { t: 1.8, v: 3.0, at: [-0.26, 0.05] },
   { t: 4.2, v: 4.4, at: [-0.24, 0.07] },
   { t: 6.6, v: 6.0, at: [-0.27, 0.04] },

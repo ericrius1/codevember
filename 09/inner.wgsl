@@ -33,6 +33,7 @@ fn realmTap(tex: texture_2d<f32>, q: vec2f, lod: f32) -> vec3f {
 
 /** the realm seen along a ray from the hide: ro, rd in the world, T its clock (s), trip 0..1, px the pixel's angle */
 fn innerWorld(ro: vec3f, rd: vec3f, T: f32, trip: f32, px: f32) -> vec3f {
+  if (D.realm2.y > 0.5) { return innerInfinite(ro, rd, T, trip, px); }
   let texN = f32(textureDimensions(realmFar).x);
   // the deep scene, 2.6 m back, its picture 2.2 m across: flying on toward its source, turning, its middle twisting
   let hf = realmHit(ro, rd, 2.6);
@@ -60,4 +61,66 @@ fn innerWorld(ro: vec3f, rd: vec3f, T: f32, trip: f32, px: f32) -> vec3f {
   // light, held so they don't wash it out)
   let deep = 0.35 + 0.65 * exp(-dot(qf * s0, qf * s0) * 0.8);
   return far * deep * D.realm.x + mid * D.realm.y + near * D.realm.z;
+}
+
+// ---------------------------------------------------------------- the endless deep (style inner 'infinite')
+// Where the glass opens, depth without end: the view's ray marched on through a shaft of folded light that runs away
+// from the hide for ever and is flown down for ever — space folded on itself at finer and finer scales by a sum of
+// turned cosines (turbulence, as fragcoord.xyz's volumetric shaders do it), the light gathered along the ray from every
+// fold it passes near, so nothing is ever a surface to stop at; its walls breathe and turn, a thread of light runs down
+// its middle, motes stream past toward the hide, and at its far end, at infinity, the painted realm glows. Its colours
+// are the realm painting's own, flowing along the shaft; tone-mapped softly (tanh) so it never clips.
+var<private> INNER_JIT: f32;
+fn innerInfinite(roW: vec3f, rdW: vec3f, T: f32, trip: f32, px: f32) -> vec3f {
+  let C = D.center.xyz;
+  let rd = normalize(vec3f(rdW.z, rdW.y, rdW.x));
+  // (from the hide's plane; the hide's radius about 2.6 units)
+  let ro = vec3f(roW.z - C.z, roW.y - C.y, 0.0) * 3.0;
+  let fly = T * (0.9 + 0.9 * trip);
+  var z = 0.3 * INNER_JIT;
+  var acc = vec3f(0.0);
+  for (var i = 0; i < 72; i++) {
+    var p = ro + rd * z;
+    p.z += fly;
+    // (the shaft turning as it goes)
+    let a = p.z * 0.035 + T * 0.03;
+    let cs = cos(a); let sn = sin(a);
+    p = vec3f(p.x * cs - p.y * sn, p.x * sn + p.y * cs, p.z);
+    // space folded on itself, finer and finer
+    var q = p;
+    var f = 0.35;
+    for (var k = 0; k < 6; k++) {
+      q += cos(q.yzx * f + vec3f(T * 0.23, T * 0.17, T * 0.13) + f) * (0.9 / f) * 0.16;
+      f *= 1.6;
+    }
+    // its walls: a shell of folded light round the axis (breathing), and a thread of light down the middle
+    let r = length(q.xy);
+    let shell = abs(r - 5.0 - 1.2 * sin(q.z * 0.07 + T * 0.2));
+    // (thin folded sheets, only within the shaft's wall; open dark space inside it; a thread of light down the axis)
+    let lace = abs(dot(cos(q * 0.8), sin(q.yzx * 0.8)));
+    let walls = max(lace * 0.7, shell * 0.9 - 0.45);
+    let thread = length(p.xy) * 0.9 + 0.12;
+    let d = 0.035 + 0.5 * min(walls, thread);
+    // (its colours the painting's, flowing down the shaft; the thread gold-white)
+    var uv = vec2f(atan2(q.y, q.x) / TAU * 2.0, q.z * 0.012 + r * 0.03);
+    uv = 1.0 - abs(1.0 - (uv - 2.0 * floor(uv * 0.5)));
+    let paint = realmTap(realmFar, uv * 2.0 - 1.0, 2.0);
+    let c = mix(paint * 1.6 + vec3f(0.02, 0.01, 0.04), vec3f(1.0, 0.85, 0.6), exp(-thread * 1.5) * 0.7);
+    acc += c / d * exp(-z * 0.01);
+    // (the deep's own haze, thickening with distance: violet near, gold toward the far light — depth you can feel)
+    acc += mix(vec3f(0.5, 0.2, 0.9), vec3f(1.0, 0.65, 0.3), smoothstep(10.0, 120.0, z)) * d * 0.9 * exp(-z * 0.012);
+    // motes streaming past (a lattice of points, each its own; the nearer the brighter)
+    let mc = floor(p / 1.6);
+    let mr = hash33(mc + 3.0);
+    let md = length(p - (mc + 0.2 + 0.6 * mr) * 1.6);
+    acc += mix(vec3f(0.6, 1.0, 0.9), vec3f(1.0, 0.8, 0.55), mr.z) * step(0.72, mr.x) * exp(-md * md / (0.0016 + z * z * px * px * 2.0)) * 40.0;
+    z += d;
+    if (z > 220.0) { break; }
+  }
+  // at its end, at infinity: the painted realm, small, glowing
+  let off = rd.xy / max(rd.z, 0.05);
+  let far = realmTap(realmFar, realmRot(T * 0.02) * off * 5.0, 1.0) * exp(-dot(off, off) * 30.0) * 0.8;
+  // (the deep between: indigo, darkening to the end; the light on it soft-clipped, its darks kept dark)
+  let g = tanh(acc / 620.0);
+  return 1.6 * g * g * (3.0 - 2.0 * g) / max(1.0, 1.0) + far + vec3f(0.01, 0.005, 0.03);
 }

@@ -8,6 +8,7 @@ npm install
 npm run dev                      # http://localhost:5190/codevember/  (a day: /codevember/04/)
 npm run typecheck
 node tools/render.mjs 04         # the film: film/04.mp4, 1080×1080, 60 fps, 2× supersampled
+node tools/render.mjs 04 --aspect 16:9   # 1920×1080 instead (height = --size; the camera's fit keeps the fov vertical)
 node tools/render.mjs 04 --stills 0,0.25,0.5,0.75   # stills at those phases + film/04-sheet.png, for a look
 npm run deploy                   # build and deploy (tools/deploy.sh)
 ```
@@ -72,6 +73,13 @@ curve, never stopping; the world holds at 1/200 through the turn. The universe's
 its own (design/beyond, painted by `refs.mjs beyond_far,beyond_mid,beyond_near`): three wide layers on spheres round the
 dais at their own distances (so they slide against each other as the camera goes round), refracted through the
 ripples with a colour split, through the tears and a little through the whole membrane. 29.4 s.
+
+Infinite (`style=infinite`, filmed 16:9) strikes the pulse twice, then the great stroke; the camera holds on the struck
+point as its ripple spreads and the glass opens behind it, then draws back (no circling) to the drum, her and the whole
+torn membrane. Its glass opens on depth without end (inner.wgsl `innerInfinite`): a volumetric march down an endless
+shaft of folded light, flown down for ever — turbulence as fragcoord.xyz's shaders do it, glow gathered from every fold
+the ray passes near, a haze that thickens with distance, motes streaming past, the realm painting at its far end and
+colouring it — so it never reads as a back wall. 24.4 s.
 
 ```bash
 STYLE=orbit node --experimental-strip-types 09/audio/render.ts  # matching WAV + browser M4A

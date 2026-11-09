@@ -136,8 +136,18 @@ const FOV = new Channel(ts, keys.map((k) => Math.log(k.fov)), LOOP);
 // the point it looks at, the lens) a smooth curve through its keys, monotone between them (no overshoot) and eased by
 // a Gaussian (no corners anywhere), its speed never stopping; and over it a slow breath, a sway too slow to read as a
 // hand. The keys in seconds after the stroke, stretched to the style's moment. Film time, never story.
-const TAU_END = 17.8;
-const OK: { tau: number; az: number; el: number; r: number; at: V3; fov: number }[] = [
+type OKey = { tau: number; az: number; el: number; r: number; at: V3; fov: number };
+// (the pull: held on the struck point as the glass opens from it, then drawn back and a little round toward the hide's
+// face, rising a little, to the drum, her and the whole torn membrane round them — still drifting at the end)
+const PULL: OKey[] = [
+  { tau: 0.0, az: -126.9, el: 25.7, r: 0.83, at: [0.0, 1.42, 0.36], fov: 46 },
+  { tau: 1.3, az: -127.3, el: 25.0, r: 0.93, at: [0.0, 1.41, 0.35], fov: 47 },
+  { tau: 3.4, az: -128.5, el: 22, r: 1.75, at: [0.0, 1.38, 0.27], fov: 49 },
+  { tau: 6.0, az: -130.5, el: 18, r: 3.0, at: [0.0, 1.4, 0.16], fov: 51 },
+  { tau: 9.0, az: -133, el: 15.5, r: 4.0, at: [0.0, 1.47, 0.08], fov: 52 },
+  { tau: 12.8, az: -135.5, el: 14, r: 4.5, at: [0.0, 1.52, 0.04], fov: 51 },
+];
+const ORBIT_KEYS: OKey[] = [
   { tau: 0.0, az: -126.9, el: 25.7, r: 0.83, at: [0.0, 1.42, 0.36], fov: 46 },
   { tau: 0.9, az: -127.6, el: 24.0, r: 1.0, at: [0.0, 1.41, 0.34], fov: 47 },
   { tau: 2.6, az: -138, el: 15, r: 2.6, at: [0.0, 1.35, 0.15], fov: 50 },
@@ -149,6 +159,8 @@ const OK: { tau: number; az: number; el: number; r: number; at: V3; fov: number 
   { tau: 15.6, az: -537, el: 7, r: 4.0, at: [0.1, 1.4, 0.0], fov: 45 },
   { tau: 17.8, az: -540, el: 6, r: 3.4, at: [0.05, 1.3, 0.0], fov: 42 },
 ];
+const OK = STYLE.camera === 'pull' ? PULL : ORBIT_KEYS;
+const TAU_END = OK[OK.length - 1].tau;
 /** a channel through keys (seconds after the stroke): monotone cubic, held at its ends, eased by a Gaussian */
 class Smooth {
   private m: number[];

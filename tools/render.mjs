@@ -1,4 +1,4 @@
-// Films a day's loop: node tools/render.mjs 04 [--size 1080] [--ss 2] [--fps 60] [--stills 0,0.25,0.5] [--q 'k=v&…'] [--tag x]
+// Films a day's loop: node tools/render.mjs 04 [--size 1080] [--aspect 16:9] [--ss 2] [--fps 60] [--stills 0,0.25,0.5] [--q 'k=v&…'] [--tag x]
 // Headless Chrome (WebGPU on Metal, muted) opens the day in render mode on a dev server of its own, which steps the
 // loop exactly 1/fps a frame from u = 0, reads every frame back from the swapchain at size × ss and posts it raw to
 // the server's film sink (vite.config.ts): ffmpeg scales it down (lanczos), lays the HUD over and writes
@@ -28,7 +28,10 @@ const browser = await chromium.launch({
   args: ['--mute-audio', '--enable-unsafe-webgpu', '--enable-gpu', '--use-angle=metal', '--ignore-gpu-blocklist',
     '--disable-background-timer-throttling', '--disable-renderer-backgrounding'],
 });
-const page = await browser.newPage({ viewport: { width: size, height: size }, deviceScaleFactor: ss });
+// (--aspect w:h: the frame that shape, its height the size — 16:9 at 1080 is 1920×1080; square by default)
+const [aw, ah] = (flag('aspect', '1:1') ?? '1:1').split(':').map(Number);
+const width = Math.round((size * aw) / ah / 2) * 2;
+const page = await browser.newPage({ viewport: { width, height: size }, deviceScaleFactor: ss });
 await page.addInitScript(() => { let seed = 902026; Math.random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; }; });
 page.on('pageerror', (e) => console.error('page:', e.stack ?? e.message));
 page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') console.error(`page ${m.type()}:`, m.text()); });
@@ -68,8 +71,9 @@ if (!stills && existsSync(soundtrack)) {
 if (stills && stills.split(',').length > 1) {
   const n = stills.split(',').length, cols = Math.min(n, 4);
   const ins = Array.from({ length: n }, (_, i) => ['-i', `film/${name}-still-${i}.png`]).flat();
-  const tiles = Array.from({ length: n }, (_, i) => `[${i}:v]scale=540:540:flags=lanczos[s${i}]`).join(';');
-  const lay = Array.from({ length: n }, (_, i) => `${(i % cols) * 540}_${Math.floor(i / cols) * 540}`).join('|');
+  const tw = Math.round((540 * aw) / ah / 2) * 2;
+  const tiles = Array.from({ length: n }, (_, i) => `[${i}:v]scale=${tw}:540:flags=lanczos[s${i}]`).join(';');
+  const lay = Array.from({ length: n }, (_, i) => `${(i % cols) * tw}_${Math.floor(i / cols) * 540}`).join('|');
   execFileSync('ffmpeg', ['-y', '-loglevel', 'error', ...ins, '-filter_complex', `${tiles};${Array.from({ length: n }, (_, i) => `[s${i}]`).join('')}xstack=inputs=${n}:layout=${lay}`, `film/${name}-sheet.png`]);
   console.log(`film/${name}-sheet.png`);
 }

@@ -181,6 +181,7 @@ fn hideH(uv: vec2f) -> f32 { return simAt(uv) * D.sim2.w + breathe(uv); }
     let wv = vec2f(dotNoise(vec3f(ab * 4.0, 0.3 + D.trip.y * 0.05)), dotNoise(vec3f(ab * 4.0 + 3.7, 1.9)));
     let rdIn = normalize(-V + tilt * D.glass.y * 6.0 + vec3f(0.0, wv.y, wv.x) * 0.025 * veil);
     let px = frame.fovY / frame.res.y;
+    INNER_JIT = fract(52.9829189 * fract(dot(in.pos.xy, vec2f(0.06711056, 0.00583715))) + fract(D.trip.y * 60.0) * 0.618034);
     let realm = innerWorld(in.wpos, rdIn, D.trip.y, D.trip.x, px);
     let nv = sat(dot(N, V));
     let tr = clamp(veil * (0.95 + 0.6 * stretch) * (1.0 - 0.35 * paint) * (1.0 - 0.4 * pow(1.0 - nv, 4.0)), 0.0, 0.97);
@@ -189,7 +190,8 @@ fn hideH(uv: vec2f) -> f32 { return simAt(uv) * D.sim2.w + breathe(uv); }
     col = mix(col * (1.0 - 0.55 * veil), through, tr);
     if (D.trip.w > 0.5) { col = realm; }
     let irid = thinFilm(nv, 320.0 + 2600.0 * slope + 900.0 * in.disp) * sat(slope * 18.0) * (0.35 + 0.65 * D.trip.x);
-    col += irid * veil * (0.18 + 0.5 * stretch) * (0.6 + 0.4 * L.key.r);
+    // (thin over the endless deep: the depth is the thing, not the film on it)
+    col += irid * veil * (0.18 + 0.5 * stretch) * (0.6 + 0.4 * L.key.r) * (1.0 - 0.75 * D.realm2.y);
   }
   // the front's seam: where the glass is spreading, a fine line of the film's colours
   if (D.glass.x > 0.001 && front) {

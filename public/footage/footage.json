@@ -1,5 +1,20 @@
 [
  {
+  "id": "09-infinite",
+  "title": "09 / Membrane: Infinite",
+  "sub": "Another telling of 09 / Membrane, wide: two strokes, then the great one. Time all but stops as it lands; the ripple spreads from the struck point and the hide turns to glass behind it, onto a depth that never ends, and the camera draws back to the drum and the whole membrane of our universe torn open round it. 24 seconds at 1920×1080, WebGPU, the drum's sound simulated from its own physics.",
+  "date": "2026-11-09",
+  "created": "2026-11-09T08:30-08:00",
+  "seconds": 24,
+  "width": 1920,
+  "height": 1080,
+  "mb": 55.7,
+  "video": "https://footage.ericrius1.workers.dev/codevember/b79a2ba8c4489097/09-infinite.mp4",
+  "small": "https://footage.ericrius1.workers.dev/codevember/f50f21ae5b920a72/09-infinite-720.mp4",
+  "poster": "https://footage.ericrius1.workers.dev/codevember/c7912f51f2e25032/09-infinite-poster.jpg",
+  "card": "https://footage.ericrius1.workers.dev/codevember/538dbd10682a1446/09-infinite-card.jpg"
+ },
+ {
   "id": "09-orbit",
   "title": "09 / Membrane: Orbit",
   "sub": "Another telling of 09 / Membrane, in bullet time: as the great stroke lands time all but stops, the hide turns to glass behind its ripple, and the camera steps back and goes once all the way round her and the drum like a dancer, through a universe whose membrane has torn open on a dimension of liquid light, coming to rest behind her before the glass. 29 seconds, WebGPU, the drum's sound simulated from its own physics.",
