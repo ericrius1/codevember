@@ -24,8 +24,10 @@ struct CosmosU {
   front: vec4f,
   // the pulse's front: each stroke of the pulse's shock reaching the wall (as front, for the latest of them)
   front2: vec4f,
-  // x how fast the great front's crest fades (1/s), y the pulse's, z the trip (0..1), w spare
+  // x how fast the great front's crest fades (1/s), y the pulse's, z the trip (0..1), w the style's hue on our own sky (rad)
   trip: vec4f,
+  // the style's worlds: xyz the kinds its places open on (each place's own kind picks among them), w how many (0: all)
+  kinds: vec4f,
 }
 @group(2) @binding(0) var<uniform> K: CosmosU;
 
@@ -165,7 +167,13 @@ const SEEDS = array<vec3f, 110>(
   vec3f(-0.08941, -0.10052, 0.99091));
 const KINDS = array<i32, 110>(1, 2, 2, 4, 6, 3, 6, 5, 6, 4, 6, 0, 4, 0, 0, 0, 5, 3, 5, 3, 6, 3, 1, 2, 6, 5, 6, 1, 2, 4, 2, 4, 0, 2, 2, 3, 1, 0, 6, 0, 2, 1, 1, 4, 0, 3, 3, 3, 4, 0, 3, 3, 3, 4, 6, 5, 6, 3, 6, 4, 1, 3, 3, 0, 5, 5, 1, 5, 6, 5, 6, 5, 1, 2, 5, 0, 3, 1, 2, 0, 2, 4, 4, 5, 2, 4, 1, 2, 4, 1, 0, 0, 4, 0, 5, 5, 1, 5, 5, 4, 1, 6, 6, 6, 3, 2, 3, 2, 0, 1);
 fn facetSeed(i: i32) -> vec3f { return SEEDS[i]; }
-fn facetKind(i: i32) -> i32 { return KINDS[i]; }
+fn facetKind(i: i32) -> i32 {
+  let k = KINDS[i];
+  let n = i32(K.kinds.w);
+  if (n <= 0) { return k; }
+  let j = (k + i) % n;
+  return i32(select(select(K.kinds.z, K.kinds.y, j == 1), K.kinds.x, j == 0));
+}
 // where the neighbouring universes answer from (an icosahedron's twelve directions, turned)
 const ANSWERS = array<vec3f, 12>(
   vec3f(0.922602, 0.385753, 0.000000),
@@ -675,7 +683,8 @@ fn frontAt(q: vec3f, F: vec4f, fadeRate: f32) -> vec3f {
   let bendF = away * (fr.y + fr2.y) * 0.9;
   let bent = normalize(rd + dh * amp * K.aux.x + bendF);
   let bentW = normalize(rd + dh * amp * K.aux.x * 0.12 + bendF * 0.7);
-  var col = nebula(bent) + stars(bent) * 0.8;
+  // (the style's hue on our own sky only: the worlds beyond keep theirs)
+  var col = hueShift(nebula(bent), K.trip.w) + stars(bent) * 0.8;
   // the face it's on (its borders flexing with the ripples, a little wandering)
   // (its borders wandering at two scales, so the foam's faces are each their own shape, never a honeycomb)
   // (the worlds' places warped far — their edges curving like coastlines, so where a tear meets one it's never a straight

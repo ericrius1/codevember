@@ -211,7 +211,9 @@ sketch({ ...day(9), loop: LOOP, filmLoops: 1, warm: 1, hint: 'Sound on, for the 
     G.set({
       clock: [t, s, r, t / LOOP] as never,
       key: [-0.55, 0.62, -0.5, 1.9] as never, keyCol: [0.8, 0.74, 1.0, 0.3] as never,
-      drumLight: [-0.4, DRUM.c[1], DRUM.c[2], 1.2 + 0.45 * M.flash + 0.5 * trip] as never, drumCol: [1.0, 0.55, 0.22, M.flash] as never,
+      // (the drum's own light, and from the great stroke the realm's spilling out through the glass in its own colour)
+      drumLight: [-0.4, DRUM.c[1], DRUM.c[2], 1.2 + 0.45 * M.flash + STYLE.spill * trip] as never,
+      drumCol: [...mixc([1.0, 0.55, 0.22], STYLE.light, smooth(big, big + 3, t)), M.flash] as never,
       rimCol: [...mixc([0.45, 0.3, 0.9], [0.32, 0.78, 0.82], reveal), 0.35 + 0.6 * rip + 0.15 * reveal] as never,
       ambient: [...mixc([0.09, 0.06, 0.15], [0.07, 0.11, 0.16], 0.6 * reveal), 0.7 + 0.08 * reveal] as never,
       drum: [...DRUM.c, DRUM.r] as never, hit: [...M.hit, M.press] as never,
@@ -227,7 +229,7 @@ sketch({ ...day(9), loop: LOOP, filmLoops: 1, warm: 1, hint: 'Sound on, for the 
     K.set({ worlds: [only >= 0 ? 1 : reveal, seams, t * 0.6, 1.0] as never, aux: [0.0003 * (1 + 0.5 * trip), only, domeAt(t), 0] as never,
       front: [only >= 0 ? -1 : big + 0.02, FRONT_NEAR, 30 + 50 * smooth(big + 2, ACT.shock, t), 1.0] as never,
       front2: [lastPulse < 0 ? -1 : lastPulse + 0.02, FRONT_NEAR, 70, 0.45 + 0.2 * pulses.findIndex((k) => k.t === lastPulse)] as never,
-      trip: [0.16, 0.9, trip, 0] as never });
+      trip: [0.16, 0.9, trip, STYLE.sky.hue] as never, kinds: [STYLE.sky.kinds[0] ?? 0, STYLE.sky.kinds[1] ?? 0, STYLE.sky.kinds[2] ?? 0, STYLE.sky.kinds.length] as never });
     // the motes: the sparks' own clock (the membrane's pace: they spray slowly through the dilation, then fly)
     let burstAge = 0;
     if (t > big) { const n = 40; for (let k = 0; k < n; k++) { const tk = big + (t - big) * (k + 0.5) / n; burstAge += membranePace(rate(tk)) * 14 * (t - big) / n; } }
@@ -241,13 +243,17 @@ sketch({ ...day(9), loop: LOOP, filmLoops: 1, warm: 1, hint: 'Sound on, for the 
     const sx = 0.5 + (dot3(toH, rt) / Math.max(zf, 1e-3)) / (th * asp) * 0.5, sy = 0.5 - (dot3(toH, upv) / Math.max(zf, 1e-3)) / th * 0.5;
     const ringA = shockR > 0 && shockR < dH ? Math.atan(shockR / dH) / th * 0.5 : 0;
     const ringK = t > big && zf > 0 && ringA > 0 ? Math.exp(-(t - big) * 0.35) * (1 - Math.min(1, shockR / dH) ** 4) : 0;
+    // (the hide's middle on screen, for the light pouring out of the glass)
+    const toD = sub3(DRUM.c, ce), pz = dot3(toD, fw);
+    const px = 0.5 + (dot3(toD, rt) / Math.max(pz, 1e-3)) / (th * asp) * 0.5, py = 0.5 - (dot3(toD, upv) / Math.max(pz, 1e-3)) / th * 0.5;
     const gr = STYLE.grade;
     P.set({ look: [fadeAt(t) * gr.exp, (0.9 + 0.35 * trip) * gr.bloom, 1.2, 0.02] as never,
-      look2: [0.2 + 1.2 * deepK * deepK + 0.8 * trip, 0.015 * deepK * deepK * deepK, 0.55 + 0.1 * trip, (1.0 + 0.2 * deepK + 0.12 * trip) * gr.sat] as never,
+      look2: [0.2 + 1.2 * deepK * deepK + 0.8 * trip, 0.015 * deepK * deepK * deepK, 0.55 + 0.1 * trip, (1.0 + 0.2 * deepK + 0.12 * trip) * (1 + (gr.sat - 1) * smooth(big, big + 3, t))] as never,
       grade: [gr.cool, 0, 0, 0] as never,
+      rays: [px, py, pz > 0 ? STYLE.rays * trip : 0, 0.55] as never,
       shock: [sx, sy, ringA, ringK * 0.9] as never,
       misc: [0, 0.1 * trip * trip * Math.sin(t * 0.23) * gr.drift, smooth(big - 0.05, big + 1.5, t) * (0.8 + 0.5 * trip), 0] as never });
-    PF.set({ look: [1.0, 0.9, 1.2, 0.035] as never, look2: [0, 0, 0, 1] as never, shock: [0.5, 0.5, 0, 0] as never, misc: [1, 0, 0, 0] as never, grade: [1, 0, 0, 0] as never });
+    PF.set({ look: [1.0, 0.9, 1.2, 0.035] as never, look2: [0, 0, 0, 1] as never, shock: [0.5, 0.5, 0, 0] as never, misc: [1, 0, 0, 0] as never, grade: [1, 0, 0, 0] as never, rays: [0, 0, 0, 0] as never });
     return [...drum.run, scene, front, ...post, out];
   };
 });

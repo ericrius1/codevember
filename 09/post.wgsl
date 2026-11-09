@@ -17,6 +17,8 @@ struct PostU {
   misc: vec4f,
   // the style's grade: x how cool the depths go under water (×)
   grade: vec4f,
+  // the light pouring out of the glass: xy the hide's middle on screen (uv), z how strong, w how far it reaches
+  rays: vec4f,
 }
 @group(2) @binding(0) var<uniform> P: PostU;
 @group(2) @binding(1) var src: texture_2d<f32>;
@@ -98,6 +100,16 @@ fn hdrAt(uv: vec2f) -> vec3f { return sane(textureSampleLevel(src, samp_linear, 
     c = acc / wsum;
   }
   c += textureSampleLevel(bloomTex, samp_linear, uv, 0.0).rgb * P.look.y;
+  // the realm's light pouring out through the glass: its glow streaked out from the hide's middle across the picture
+  // (the bloom gathered along the way back toward it; whatever stands dark in front of it, her, cuts shadows in it)
+  if (P.rays.z > 0.001) {
+    let d = (P.rays.xy - uv) / 28.0 * P.rays.w;
+    var p = uv + d * hash12(i.pos.xy + 3.7);
+    var acc = vec3f(0.0);
+    var w = 1.0;
+    for (var k = 0; k < 28; k++) { acc += textureSampleLevel(bloomTex, samp_linear, p, 0.0).rgb * w; w *= 0.94; p += d; }
+    c += acc / 28.0 * P.rays.z;
+  }
   c += vec3f(0.45, 0.85, 0.8) * exp(-ring * ring) * P.shock.w * 0.25;
   c *= P.look.x;
   // (the whole universe's colour drifting while time's out of joint)

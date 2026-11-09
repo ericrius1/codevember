@@ -1,5 +1,20 @@
 [
  {
+  "id": "09-abyss",
+  "title": "09 / Membrane: Abyss",
+  "sub": "Another telling of 09 / Membrane. The great stroke's moment held longer and quieter: the ripple crawls out from the struck point and the hide turns to glass behind it, onto a dark inner sea where vast veiled beings of light drift, while the universe's membrane ripples cool and blue all round. 26 seconds, WebGPU, the drum's sound simulated from its own physics.",
+  "date": "2026-11-09",
+  "created": "2026-11-09T04:26-08:00",
+  "seconds": 26,
+  "width": 1080,
+  "height": 1080,
+  "mb": 58.9,
+  "video": "https://footage.ericrius1.workers.dev/codevember/2716a3f1ee8d29e7/09-abyss.mp4",
+  "small": "https://footage.ericrius1.workers.dev/codevember/3c14f0d29c56c3bf/09-abyss-720.mp4",
+  "poster": "https://footage.ericrius1.workers.dev/codevember/4b9c183bc7b6c276/09-abyss-poster.jpg",
+  "card": "https://footage.ericrius1.workers.dev/codevember/d76a71626ee017e7/09-abyss-card.jpg"
+ },
+ {
   "id": "09",
   "title": "09 / Membrane",
   "sub": "A shaman strikes a great drum three times, each harder than the last, and then once more. Time all but stops as the beater lands: the ripple crawls out from the struck point and the hide turns to glass behind it, onto a realm of serpents and flowers inside the drum, while our universe's membrane ripples and tears open all round. A seamless 22-second loop in WebGPU, the drum's sound simulated from its own physics.",
