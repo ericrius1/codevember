@@ -27,8 +27,7 @@ export interface SketchMeta {
   /** the loop's sound (a file exactly one loop long): a Sound button in the HUD, and while it plays the loop's clock
    *  is the sound's, so the picture keeps time with it; the film plays it too */
   audio?: string;
-  /** Filmed tellings share the harness but restart with their own score and assets. */
-  styles?: { selected: string; options: { id: string; label: string }[] };
+  /** the film's id on the footage page (public/footage/footage.json), if not the day's own number */
   filmId?: string;
 }
 
@@ -285,7 +284,6 @@ function buildHud(meta: SketchMeta) {
       <div class="hint">${meta.hint ?? 'Drag to turn · Space to pause'}</div>
     </div>
     <div class="tr">
-      ${meta.styles ? '<label class="style-picker">Style <select aria-label="Style"></select></label>' : ''}
       ${meta.audio ? '<button class="sound" aria-pressed="false" hidden>Sound</button>' : ''}
       <div class="seg" role="tablist">
         <button data-mode="live" class="on">Live</button><button data-mode="film" disabled>Film</button>
@@ -295,16 +293,6 @@ function buildHud(meta: SketchMeta) {
     <div class="br"><a href="../">All days</a></div>
     <div class="msg"></div>`;
   document.body.append(el);
-  const selector = el.querySelector<HTMLSelectElement>('.style-picker select');
-  if (selector && meta.styles) {
-    for (const option of meta.styles.options) selector.add(new Option(option.label, option.id));
-    selector.value = meta.styles.selected;
-    selector.addEventListener('change', () => {
-      const next = new URL(location.href); next.searchParams.set('style', selector.value);
-      next.searchParams.delete('u'); next.searchParams.delete('mode');
-      location.assign(next.href);
-    });
-  }
   // the way in: a day with sound waits at its threshold for a gesture (browsers won't play sound before one) — only the
   // day's name and a drum of a button rippling slowly; struck, it ripples out over the whole page and opens on the
   // piece, starting from its beginning with its sound

@@ -1,6 +1,7 @@
-// The orbit telling's camera, checked without the GPU: it goes once all the way round and on to behind her, never
-// jumps a frame, keeps clear of her, the drum and the dais, and the world stays slowed through the turn.
-//   STYLE=orbit node 09/lab/run.mjs 09/lab/orbit.ts
+// The camera after the great stroke, checked without the GPU: held on the struck point, then drawn back and round to
+// behind her (a third of a turn, a little to her left), never jumping a frame, never inside her, the drum or the
+// ground, while the world stays slowed to the end.
+//   node 09/lab/run.mjs 09/lab/camera.ts
 import assert from 'node:assert/strict';
 import { shot, ORBIT } from '../camera';
 import { rate, LOOP, ACT } from '../score';
@@ -22,18 +23,19 @@ for (let t = ORBIT.pull - 1; t <= ACT.black; t += 1 / 60) {
   }
   prev = e;
   if (t >= ORBIT.start) {
+    // (and from the turn's start on: the world never back up to its own pace)
+    maxRate = Math.max(maxRate, rate(t));
     minDrum = Math.min(minDrum, Math.hypot(e[0] - O[0], e[2] - O[2]));
     minHer = Math.min(minHer, Math.hypot(e[0] - HER[0], e[1] - HER[1], e[2] - HER[2]));
     minY = Math.min(minY, e[1]);
-    if (t <= ORBIT.start + 0.75 * (ORBIT.end - ORBIT.start)) maxRate = Math.max(maxRate, rate(t));
   }
 }
 const deg = (turned * 180) / Math.PI;
 const end = shot(ACT.black, drag).eye;
 console.log(JSON.stringify({ LOOP, ORBIT, degrees: deg, endEye: end.map((v) => +v.toFixed(2)), minDrum, minHer, minY, maxStep, maxJump, maxRate }, null, 2));
-assert(Math.abs(Math.abs(deg) - 413) < 4, 'once all the way round and on to behind her (~413°)');
+assert(deg < -20 && deg > -40, 'drawn round toward behind her, a little (~30°)');
 assert(end[0] < -2.5, 'ending behind her, the drum beyond her');
-assert(minDrum > 2.2 && minHer > 1.6, 'clear of her and the drum');
-assert(minY > 1.2, 'above the dais');
+assert(minDrum > 1.0 && minHer > 1.0, 'clear of her and the drum');
+assert(minY > 1.2, 'above the summit');
 assert(maxJump < 0.004, 'no frame jumps (a frame\'s step never far off the last)');
-assert(maxRate < 0.02, 'the world all but stopped through the turn (lifting only as it settles)');
+assert(maxRate <= 0.1601, 'the world slowed to the end: never back above its slowed pace');

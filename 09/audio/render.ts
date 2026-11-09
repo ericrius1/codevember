@@ -21,7 +21,6 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { STROKES, BIG, LOOP, ACT, rate } from '../score.ts';
-import { STYLE } from '../style.ts';
 import { HIDE, COSMOS, type StrikeSpec, type UniverseSpec, type Drive } from './membrane.ts';
 import { run } from './sims.ts';
 import { voice } from './voice.ts';
@@ -36,8 +35,7 @@ const T0 = performance.now();
 const N = Math.round(LOOP * SR);
 const ROOT = new URL('../../', import.meta.url);
 // Every style has its own picture-locked WAV and live AAC; style a keeps the original filenames.
-const STYLED = STYLE.id !== 'a';
-const WAV = fileURLToPath(new URL(STYLED ? `film/09-${STYLE.id}.wav` : 'film/09.wav', ROOT)), M4A = fileURLToPath(new URL(`09/assets/membrane${STYLED ? `-${STYLE.id}` : ''}.m4a`, ROOT));
+const WAV = fileURLToPath(new URL('film/09.wav', ROOT)), M4A = fileURLToPath(new URL('09/assets/membrane.m4a', ROOT));
 const log = (s: string) => console.log(s);
 const secs = () => ((performance.now() - T0) / 1000).toFixed(1);
 
@@ -133,7 +131,7 @@ const both = (s: Stereo, fn: (x: Buf) => Buf): Stereo => ({ l: fn(s.l), r: fn(s.
 log('the strokes');
 const voices: Stereo[] = STROKES.map((s, i) => voice(sims[i], { seed: 11 + i, slap: s.big ? 1.3 : 1 }));
 // (each of the pulse louder than the last: the harder stroke's own louder ring, and a little more on top)
-const PULSE_GAIN = STROKES.filter((k) => !k.big).length === 2 ? [0.9, 1.18] : [0.8, 1.0, 1.18];
+const PULSE_GAIN = [0.9, 1.18];
 STROKES.forEach((s, i) => {
   if (s.big) return;
   const g = PULSE_GAIN[i] ?? 1;
@@ -195,20 +193,13 @@ const IR_H = hall(), IR_C = cosmic();
 
 // ---------------------------------------------------------------- the universe's membrane
 log('the universe');
-// (from the first stroke to the fade: each stroke of the pulse rings it a little, the great one for good)
+// (from the first stroke to the fade: the great stroke rings it for good)
 const U0 = STROKES[0].t - 0.2, U1 = ACT.black;
 const dec = (x: Buf) => { const y = filt(x.slice(), new Biquad('lp', 4200, 0.7), new Biquad('lp', 4200, 0.7)), out = new Float32Array(Math.floor(y.length / 4)); for (let i = 0; i < out.length; i++) out[i] = y[i * 4]; return out; };
 const uSR = COSMOS.sr;
 const drives: Drive[] = [];
 {
-  // each stroke of the pulse: its ring, a touch (the picture's wall answers each with a ring of its own)
-  STROKES.forEach((k, i) => {
-    if (k.big || STYLE.quietPulse) return;
-    const lead = Math.round((k.t - U0) * uSR), ring = dec(mono(voices[i]));
-    const sig = new Float32Array(lead + ring.length);
-    for (let j = 0; j < ring.length; j++) sig[lead + j] = ring[j] * 90 * (PULSE_GAIN[i] ?? 1);
-    drives.push({ at: [0.05 - 0.04 * i, -0.08 + 0.05 * i], rad: 0.06, signal: sig });
-  });
+  // (the pulse's strokes are ordinary ones: the universe doesn't answer them, only the great stroke)
   // the great stroke's ring, feeding it from the moment it lands (the wall struck with the hide)
   {
     const lead = Math.round((BIG.t - U0) * uSR), ring = dec(bigMono);

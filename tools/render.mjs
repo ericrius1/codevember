@@ -59,8 +59,7 @@ for (;;) {
 await browser.close();
 server.kill();
 // the day's sound (film/<day>.wav, one loop long, made by the day's own tools): laid under the film, AAC
-const style = q.get('style');
-const soundtrack = flag('audio', `film/${day}${style && style !== 'a' ? `-${style}` : ''}.wav`);
+const soundtrack = flag('audio', `film/${day}.wav`);
 if (!stills && existsSync(soundtrack)) {
   const out = `film/${name}.mp4`, tmp = `film/${name}.av.mp4`;
   execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', out, '-stream_loop', '-1', '-i', soundtrack, '-map', '0:v', '-map', '1:a',

@@ -11,7 +11,7 @@ import { STYLE } from './style';
 import type { V3 } from '../src/rig/hero/math';
 
 interface Key { t: number; eye: V3; at: V3; fov: number }
-/** a key after the great stroke, from style a's time to this style's (its moment after the stroke stretched) */
+/** a key after the great stroke, from the first telling's moment after it (9.1 s) to this one's, stretched */
 const after = (t: number) => BIG.t + (t - BIG.t) * (STYLE.after / 9.1);
 // (the spline's pivot: the drum's middle)
 const O: V3 = [0, 1.06, 0];
@@ -49,7 +49,7 @@ const KEYS: Key[] = [
   // hide seen across, its rings crawling toward us
   { t: 10.9, eye: [-0.45, 1.42, -0.6], at: [0.0, 1.42, 0.36], fov: 46 },
   // a breath on the struck point as the glass starts to spread from it…
-  // (the keys after the great stroke at its own pace: a style with a longer moment after it stretches them)
+  // (the keys after the great stroke at its own pace: the moment after it stretched to this telling's)
   { t: after(11.6), eye: [-0.58, 1.47, -0.82], at: [0.0, 1.38, 0.3], fov: 48 },
   // …then drawn back and up, soon, while time's still slowed: the whole hide turning to glass from the struck point,
   // and the sky's membrane rippling all round it
@@ -128,14 +128,13 @@ const EYE = channels((k) => k.eye);
 const AT = channels((k) => k.at);
 const FOV = new Channel(ts, keys.map((k) => Math.log(k.fov)), LOOP);
 
-// The orbit telling (style.ts orbit): bullet time, the camera a dancer. From the instant of the stroke, close on the
-// struck point, it lingers a breath as the glass starts to spread, then steps back — and the stepping back is already
-// the start of the turn: it spirals out as it gathers speed, swings wide and high as it passes behind the drum (the
-// whole torn membrane over the dais), sweeps round her other side, slows as it comes round behind her, and drifts in
-// toward the glass beyond her into the dark. One gesture: every channel (azimuth, elevation, distance about the drum,
-// the point it looks at, the lens) a smooth curve through its keys, monotone between them (no overshoot) and eased by
-// a Gaussian (no corners anywhere), its speed never stopping; and over it a slow breath, a sway too slow to read as a
-// hand. The keys in seconds after the stroke, stretched to the style's moment. Film time, never story.
+// After the great stroke: bullet time, the camera a dancer. From the instant of the stroke, close on the struck point,
+// it lingers as the glass starts to spread from it, then draws back — and the drawing back is already a turn, round
+// toward behind her as it rises a little, to see the drum, her and the whole torn membrane round them, still drifting
+// at the end. Every channel (azimuth, elevation, distance about the drum, the point it looks at, the lens) a smooth
+// curve through its keys, monotone between them (no overshoot) and eased by a Gaussian (no corners anywhere); and over
+// it a slow breath, a sway too slow to read as a hand. The keys in seconds after the stroke, stretched to the moment
+// after it. Film time, never story.
 type OKey = { tau: number; az: number; el: number; r: number; at: V3; fov: number };
 // (the pull: held on the struck point as the glass opens from it, then drawn back and round to behind her, a little to
 // her left, rising a little, to the drum, her and the whole torn membrane round them — still drifting at the end)
@@ -148,19 +147,7 @@ const PULL: OKey[] = [
   { tau: 9.0, az: -150, el: 13, r: 3.9, at: [0.0, 1.4, 0.06], fov: 50 },
   { tau: 12.8, az: -157, el: 11, r: 4.4, at: [0.0, 1.42, 0.0], fov: 49 },
 ];
-const ORBIT_KEYS: OKey[] = [
-  { tau: 0.0, az: -126.9, el: 25.7, r: 0.83, at: [0.0, 1.42, 0.36], fov: 46 },
-  { tau: 0.9, az: -127.6, el: 24.0, r: 1.0, at: [0.0, 1.41, 0.34], fov: 47 },
-  { tau: 2.6, az: -138, el: 15, r: 2.6, at: [0.0, 1.35, 0.15], fov: 50 },
-  { tau: 4.2, az: -180, el: 10, r: 3.6, at: [-0.2, 1.4, 0.1], fov: 52 },
-  { tau: 6.4, az: -270, el: 12, r: 4.4, at: [-0.3, 1.5, 0.1], fov: 54 },
-  { tau: 8.8, az: -360, el: 20, r: 5.4, at: [-0.2, 1.85, 0.1], fov: 58 },
-  { tau: 11.2, az: -450, el: 14, r: 4.8, at: [-0.1, 1.6, 0.05], fov: 54 },
-  { tau: 13.6, az: -525, el: 9, r: 4.4, at: [0.1, 1.45, 0.05], fov: 48 },
-  { tau: 15.6, az: -537, el: 7, r: 4.0, at: [0.1, 1.4, 0.0], fov: 45 },
-  { tau: 17.8, az: -540, el: 6, r: 3.4, at: [0.05, 1.3, 0.0], fov: 42 },
-];
-const OK = STYLE.camera === 'pull' ? PULL : ORBIT_KEYS;
+const OK = PULL;
 const TAU_END = OK[OK.length - 1].tau;
 /** a channel through keys (seconds after the stroke): monotone cubic, held at its ends, eased by a Gaussian */
 class Smooth {
@@ -217,7 +204,7 @@ export function shot(t: number, orbit: { yaw: number; pitch: number }) {
   let e = EYE.map((s) => s.at(tt)) as Polar;
   let at = fromPolar(AT.map((s) => s.at(tt)) as Polar);
   let fov = Math.exp(FOV.at(tt));
-  if (STYLE.orbit && tt >= BIG.t - 0.4 && tt <= ACT.black) {
+  if (tt >= BIG.t - 0.4 && tt <= ACT.black) {
     // (the keys' swoop handing over to the dancer round the moment of the stroke, both moving: no stop between them)
     const o = orbitPose(tt);
     const k = ease((tt - (BIG.t - 0.4)) / 1.2);

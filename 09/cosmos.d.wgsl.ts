@@ -55,21 +55,10 @@ export interface FullscreenOut {
   uv: Vec2;
 }
 export interface CosmosU {
-  worlds: Vec4;
-  aux: Vec4;
+  open: Vec4;
   front: Vec4;
-  front2: Vec4;
-  trip: Vec4;
-  kinds: Vec4;
-  look: Vec4;
-  beyond: Vec4;
-}
-export interface Facet {
-  i: number;
-  j: number;
-  seam: number;
-  node: number;
+  deep: Vec4;
 }
 
-declare const shader: Shader<{ Frame: Frame; Globals: Globals; StageLight: StageLight; FullscreenOut: FullscreenOut; CosmosU: CosmosU; Facet: Facet }, 'frame' | 'G' | 'K' | 'beyondFar' | 'beyondMid' | 'beyondNear' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; Globals: Globals; StageLight: StageLight; FullscreenOut: FullscreenOut; CosmosU: CosmosU }, 'frame' | 'G' | 'K' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;

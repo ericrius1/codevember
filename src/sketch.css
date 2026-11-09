@@ -54,13 +54,6 @@ body.render #stage { transition: none; cursor: default; }
 .hud { z-index: 3; transition: opacity 0.9s ease 0.3s; }
 body.gated .hud { opacity: 0; pointer-events: none; transition: none; }
 .hud select { pointer-events: auto; }
-.style-picker { display: flex; align-items: center; }
-.style-picker select { appearance: none; -webkit-appearance: none; font: 500 11px var(--mono); letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--fg); cursor: pointer; border: 1px solid color-mix(in srgb, var(--fg) 25%, transparent); border-radius: 999px; padding: 6px 13px;
-  opacity: 0.75; max-width: 170px; background: color-mix(in srgb, var(--bg) 60%, transparent); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
-.style-picker select:hover { opacity: 1; }
-.style-picker select option { background: var(--bg); color: var(--fg); }
-
 .begin-gate { position: fixed; inset: 0; z-index: 4; display: grid; place-items: center; color: var(--fg);
   background: radial-gradient(110% 85% at 50% 52%, color-mix(in srgb, var(--bg) 58%, transparent) 0%, color-mix(in srgb, var(--bg) 82%, transparent) 58%, var(--bg) 100%);
   backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); transition: opacity 1.2s ease 0.15s; }
@@ -111,4 +104,4 @@ body.gated .hud { opacity: 0; pointer-events: none; transition: none; }
 @media (prefers-reduced-motion: reduce) { .begin-drum .ring, .eq b, .begin-card { animation: none !important; } }
 @media (max-width: 900px) { .tr { top: 68px; right: 16px; flex-wrap: wrap; max-width: calc(100vw - 32px); } .title { max-width: 90vw; } }
 @media (max-width: 600px) { .begin-foot { left: 16px; right: 16px; } .begin-keys { display: none; } .begin-drum { width: 120px; height: 120px; } }
-@media (max-width: 420px) { .style-picker select { max-width: 135px; } .tr { gap: 5px; } .seg button { padding: 5px 9px; } }
+@media (max-width: 420px) { .tr { gap: 5px; } .seg button { padding: 5px 9px; } }

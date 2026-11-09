@@ -13,7 +13,7 @@ struct PostU {
   // the shock's centre on screen (uv), z its ring's radius on screen (uv), w strength
   shock: vec4f,
   // x the source texel size (down/up), y the hue's drift, z under water (0..: the picture swaying after the great
-  // stroke), w the flash (white-out)
+  // stroke), w spare
   misc: vec4f,
   // the style's grade: x how cool the depths go under water (×)
   grade: vec4f,
@@ -114,7 +114,6 @@ fn hdrAt(uv: vec2f) -> vec3f { return sane(textureSampleLevel(src, samp_linear, 
   c *= P.look.x;
   // (the whole universe's colour drifting while time's out of joint)
   c = max(hueShift(c, P.misc.y), vec3f(0.0));
-  c += vec3f(1.0, 0.92, 0.8) * P.misc.w;
   // (under water the light cools a little in the shadows, the depths taking the red)
   c *= mix(vec3f(1.0), vec3f(0.86, 1.0, 1.06), sat(uw * P.grade.x) * 0.6 * (1.0 - sat(luma(c))));
   // the grade: saturation, a warm-cool split

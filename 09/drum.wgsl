@@ -28,9 +28,8 @@ struct DrumU {
   // the glass's front: xy where the hide was struck (its frame: a across, b up; m), z how far out the front's got (m),
   // w how soft its edge is (m)
   front: vec4f,
-  // the realm's layers (inner.wgsl): xyz their gains (deep, middle, near), w the deep one's flight (octaves a second);
-  // realm2 x its twist (×), y which world's inside (drum.ts INNER_KIND), z the hide's breath's clock (s)
-  realm: vec4f, realm2: vec4f,
+  // x the hide's breath's own clock (s: slow and steady, to the end), yzw spare
+  breath: vec4f,
 }
 @group(2) @binding(0) var<uniform> D: DrumU;
 // the drum rocked on its stand by a stroke: turned about the stand's foot (z through it)
@@ -81,7 +80,7 @@ fn breathe(uv: vec2f) -> f32 {
   let p = (uv - 0.5) * 2.0;
   let r = length(p);
   let a = atan2(p.y, p.x);
-  let T = D.realm2.z;
+  let T = D.breath.x;
   let edge = max(1.0 - r * r, 0.0);
   return A * edge * (0.55 * sin(r * 9.0 - T * 0.9) + 0.35 * r * sin(3.0 * a + r * 4.0 + T * 0.35) + 0.22 * sin(r * 19.0 - T * 1.6 + a));
 }
@@ -194,7 +193,7 @@ fn hideH(uv: vec2f) -> f32 { return simAt(uv) * D.sim2.w + breathe(uv); }
     if (D.trip.w > 0.5) { col = realm; }
     let irid = thinFilm(nv, 320.0 + 2600.0 * slope + 900.0 * in.disp) * sat(slope * 18.0) * (0.35 + 0.65 * D.trip.x);
     // (thin over the endless deep: the depth is the thing, not the film on it)
-    col += irid * veil * (0.18 + 0.5 * stretch) * (0.6 + 0.4 * L.key.r) * (1.0 - 0.75 * min(D.realm2.y, 1.0));
+    col += irid * veil * (0.18 + 0.5 * stretch) * (0.6 + 0.4 * L.key.r) * 0.25;
   }
   // the front's seam: where the glass is spreading, a fine line of the film's colours
   if (D.glass.x > 0.001 && front) {
@@ -326,7 +325,7 @@ struct BodyOut {
     p.x += a * (top - p.y);
   }
   // (the drum and its stand rock with the strokes; the dais and the rock under it don't)
-  let rocks = m != 5u && m != 7u && m < 12u;
+  let rocks = m < 12u;
   if (rocks) { p = rock(p); }
   var nrm = meshNormal(v);
   o.rest = p;
@@ -428,23 +427,6 @@ fn woodGrain(p: vec3f, s: f32) -> f32 { return 0.5 + 0.5 * sin(p.y * s + fbm(p *
     base = in.col.rgb * (0.7 + 0.4 * vnoise(P * 60.0));
     rough = 0.3; spec = 0.06;
     emit += vec3f(1.0, 0.6, 0.2) * hole * (0.4 + 1.5 * G.drumCol.w);
-  } else if (m == 5u) {
-    // the dais: dark stone, glowing rings and glyphs inlaid
-    let r = length(P.xz - vec2f(-0.3, 0.2));
-    let a = atan2(P.z - 0.2, P.x + 0.3);
-    base = in.col.rgb * (0.6 + 0.6 * fbm(P * 4.0));
-    rough = 0.7;
-    var g = 0.0;
-    for (var k = 0; k < 3; k++) {
-      let rk = 1.1 + f32(k) * 0.55;
-      g = max(g, 1.0 - smoothstep(0.004, 0.012, abs(r - rk)));
-    }
-    let tick = step(0.94, fract(a * 24.0 / TAU)) * step(abs(r - 1.92), 0.1);
-    g = max(g, tick);
-    let top = step(0.5, N.y);
-    // (a ring of the light runs out from the drum with each stroke)
-    let wave = exp(-pow((r - G.shock2.w * 6.0) * 3.0, 2.0)) * G.shock2.w;
-    emit += mix(vec3f(0.2, 1.0, 0.85), vec3f(1.0, 0.6, 0.2), 0.5 + 0.5 * sin(a * 3.0 + G.clock.y * 0.3)) * g * top * (0.5 + 1.5 * G.drumCol.w + 3.0 * wave);
   } else if (m == 6u) {
     // the hide's lapped edge and the lacing loops: the hide, darker
     base = vec3f(0.5, 0.3, 0.12);
@@ -502,11 +484,6 @@ fn woodGrain(p: vec3f, s: f32) -> f32 { return 0.5 + 0.5 * sin(p.y * s + fbm(p *
     rough = 0.85;
     emit += vec3f(0.2, 0.9, 0.8) * step(0.88, fbm(P * 9.0)) * 0.25;
     fogK = sat(-(P.y + 0.6) / 7.0);
-  } else if (m == 7u) {
-    // the dais's roots and the rock under it, fading into the dark
-    base = in.col.rgb * (0.5 + 0.5 * fbm(P * 2.0));
-    rough = 0.9;
-    emit += vec3f(0.2, 0.9, 0.8) * step(0.86, fbm(P * 6.0)) * 0.3;
   }
   let nk = dot(N, L.keyL);
   let nd = dot(N, L.drumL);

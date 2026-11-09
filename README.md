@@ -57,51 +57,33 @@ and `veil=0..1` / `trip=0..1` to hold the hide's thinning and the trip (the worl
 `inner=1` shows only that world wherever the hide's thinned). A
 stateful sketch's stills want `--q 'lead=3'`: each still's last 3 s stepped first, uncaptured, so its simulations (09's
 hide) are where the film would have them. 09/design holds its look references (`node 09/design/refs.mjs`: Codex's
-image generation, handed the concepts and a frame of the film); `refs.mjs realm,realm_mid,realm_near` paints the other
-realm's three layers (a deep scene, two of glowing things on black), saved as 09/assets/realm-*.webp and parallaxed
-inside the drum by 09/inner.wgsl.
+image generation, handed the concepts and a frame of the film); `refs.mjs ocean_ring,ocean_wall,ocean_core` paints the
+realm inside the drum (design/realms/ocean, its three layers), and `dais,dais_top,dais_rock` the summit she stands on.
 
-09's tellings (the threshold's chips, the HUD's Style menu) are Orbit · 360°, Original, Vision, Abyss, Cathedral,
-Nocturne, Dawn, Lumen and Mycelium. Choosing one reloads at the threshold with its own timing, realm, grade, light and
-sound. Direct links use `?style=<id>`.
-All realm layers and browser soundtracks are bundled for production by `09/media.ts`.
-
-Orbit is bullet time with the camera as a dancer (09/camera.ts `orbitPose`): from the instant of the great stroke,
-close on the struck point, it steps back into a spiral, goes once all the way round her and the drum (wide and high
-behind the drum) and on to behind her, about 413° in all, and drifts in toward the glass, every channel one smooth
-curve, never stopping; the world holds at 1/200 through the turn. The universe's membrane there opens on a dimension of
-its own (design/beyond, painted by `refs.mjs beyond_far,beyond_mid,beyond_near`): three wide layers on spheres round the
-dais at their own distances (so they slide against each other as the camera goes round), refracted through the
-ripples with a colour split, through the tears and a little through the whole membrane. 29.4 s.
-
-Infinite (`style=infinite`, filmed 16:9) strikes the pulse twice — ordinary strokes: the universe's membrane doesn't
-answer them and the hide doesn't open (`quietPulse`), no motes in the air (`noMotes`) — then the great stroke, her arm
-carrying its momentum on down past the hide's face (strike.ts `followWay`), whose slowed moment eases after two
-seconds (`slow`) and holds slowed to the very end: the hide's own breath, the flight down inside the glass and the
-wall's ripples all on steady slow clocks. The camera holds on
-the struck point as the glass opens, then draws back and round to behind her, a little to her left, seeing into the
-glass past her. Our universe's membrane opens on the deep (`deepSky`, cosmos.wgsl): not a painting but shells out to
-forever, each a third again as far and its strands a third again as large, long strands of light (sea-teal, deep blue,
-leaf-green) flowing each shell its own way and strands of dark that hide all behind them, a cold light far down past
-the drum. Its glass opens on a deep ocean without end (inner.wgsl `deepWay`, design/realms/ocean, painted by
-Codex): a way down ribbed with rings of bioluminescent veils and coral, flown down for ever, and between the rings a
-volume marched through front to back (`wayMedium`) — torn veils of glowing dust from ridged spiral noise, darker where
-they thicken, lit by a light deep down the axis — its feeling of glowing depth after the volumetric nebulae of
-fragcoord.xyz and Duke's "Dusty nebula 4" (shadertoy.com/view/MsVXWW, CC BY-NC-SA 3.0; a straight port of it is kept
-as `inner: 'nebula'`). She stands on a summit (`summit`, summit.ts): a mountain's top torn up and floating, its
-top a carved stone circle (assets/dais-top.webp), ragged cliffs in strata to an inverted spire (assets/dais-rock.webp),
-roots hanging into the void, standing stones on its far side, shards drifting round it — painted by Codex
-(refs.mjs dais, dais_top, dais_rock; design/summit-concept.jpg). 24.4 s.
+09 is one telling, filmed 16:9 (its numbers in `09/style.ts`). The pulse is struck twice — ordinary strokes: the
+universe's membrane doesn't answer them and the hide doesn't open — then the great stroke, her arm carrying its
+momentum on down past the hide's face (strike.ts `followWay`), whose slowed moment eases after two seconds and holds
+slowed to the very end: the hide's own breath, the flight down inside the glass and the wall's ripples all on steady
+slow clocks. The camera holds on the struck point as the glass opens, then draws back and round to behind her, a little
+to her left, seeing into the glass past her (09/camera.ts). Our universe's membrane tears open on the deep (cosmos.wgsl
+`deepSky`): not a painting but shells out to forever, each a third again as far and its strands a third again as large,
+long strands of light (sea-teal, deep blue, leaf-green) flowing each shell its own way and strands of dark that hide all
+behind them, a cold light far down past the drum. The glass opens on a deep ocean without end (inner.wgsl `deepWay`,
+design/realms/ocean, painted by Codex): a way down ribbed with rings of bioluminescent veils and coral, flown down for
+ever, and between the rings a volume marched through front to back (`wayMedium`) — torn veils of glowing dust from
+ridged spiral noise, darker where they thicken, lit by a light deep down the axis — its feeling of glowing depth after
+the volumetric nebulae of fragcoord.xyz and Duke's "Dusty nebula 4" (shadertoy.com/view/MsVXWW, CC BY-NC-SA 3.0). She
+stands on a summit (summit.ts): a mountain's top torn up and floating, its top a carved stone circle
+(assets/dais-top.webp), ragged cliffs in strata to an inverted spire (assets/dais-rock.webp), roots hanging into the
+void, standing stones on its far side, shards drifting round it — painted by Codex (design/summit-concept.jpg). 24.4 s.
 
 ```bash
-STYLE=orbit node --experimental-strip-types 09/audio/render.ts  # matching WAV + browser M4A
-STYLE=orbit node 09/lab/run.mjs 09/lab/orbit.ts                 # closure, clearance, continuity and slow-motion checks
-node tools/render.mjs 09 --tag -orbit --q style=orbit          # 1080 square, 60fps, 2× supersampled
+node --experimental-strip-types 09/audio/render.ts   # the soundtrack: film/09.wav + 09/assets/membrane.m4a
+node 09/lab/run.mjs 09/lab/camera.ts                 # the camera's clearance, continuity, and time slowed to the end
+node 09/lab/run.mjs 09/lab/motion.ts                 # her motion's jerks, ranked
+node tools/render.mjs 09 --aspect 16:9               # film/09.mp4, 1920×1080, 60fps, 2× supersampled
+node ~/codeprojects/footage/publish.mjs film/09.mp4 --id 09-infinite …   # its footage id stays 09-infinite
 ```
-
-Render another style with the same commands and its ID. `09/audio/render.ts` writes `film/09-<style>.wav` and
-`09/assets/membrane-<style>.m4a` (`a` uses the original unsuffixed names). The renderer picks the soundtrack from
-`--q style=<id>`, independently of the output tag; `--audio <path>` can override it.
 
 ## The films
 

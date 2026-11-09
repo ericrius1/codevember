@@ -8,7 +8,6 @@
 import { MeshBuilder, type Kit, type RenderPass, type StorageBuffer, type Texture, type UniformBuffer, type RunEntry, type Compute, type PingPong, MipChain } from '@ericrius1/weft';
 import type { V3 } from '../src/rig/hero/math';
 import drumShader from './drum.wgsl';
-import { STYLE } from './style';
 import { realmUrls } from './media';
 import membraneShader from './membrane.wgsl';
 import { buildSummit } from './summit';
@@ -37,8 +36,6 @@ const FUZZ_SHELLS = 12;
 /** ?inner=1: the hide shows only the world inside it, wherever it's thinned (for looking at that world) */
 const INNER_ONLY = new URLSearchParams(globalThis.location?.search ?? '').has('inner') ? 1 : 0;
 const DT = (0.42 * H) / C_WAVE;
-/** the world inside the glass (inner.wgsl's innerWorld): 0 the realm's layers, 1 the endless way down, 2 the nebula */
-const INNER_KIND = STYLE.inner === 'nebula' ? 2 : STYLE.inner === 'infinite' ? 1 : 0;
 
 /** the beater's head on the hide at a moment: its centre (world) and radius */
 export type HeadAt = (story: number) => { c: V3; r: number } | null;
@@ -162,26 +159,8 @@ export class Drum {
       b.setColor([0.42, 0.3, 0.16], 3).tube([p, [p[0], p[1] - hang, p[2]]], 0.003, 4);
       teardrop(b, [p[0], p[1] - hang, p[2]], 0.08, 0.026, k * 2.3, 4, [0.3, 0.16, 0.06]);
     }
-    // ---------------------------------------------------------------- the dais (or the summit: summit.ts)
-    if (STYLE.summit) buildSummit(b);
-    else {
-      const [dx, , dz] = DAIS.c, DR = DAIS.r;
-      b.push().translate(dx, 0, dz);
-      b.setColor([0.07, 0.06, 0.075], 5).lathe([[0.001, 0], [DR - 0.1, 0], [DR - 0.02, -0.02], [DR + 0.02, -0.08], [DR + 0.02, -0.16]], 128);
-      b.setColor([0.05, 0.045, 0.05], 7).lathe([[DR + 0.02, -0.16], [DR - 0.1, -0.34], [DR * 0.8, -0.6], [DR * 0.5, -1.1], [DR * 0.25, -1.6], [0.05, -2.1], [0.001, -2.2]], 64);
-      b.pop();
-      // roots hanging from under it into the void
-      b.setColor([0.06, 0.04, 0.035], 7);
-      for (let k = 0; k < 22; k++) {
-        const a = k * 2.399, r0 = DR * (0.35 + 0.6 * ((k * 7) % 11) / 11);
-        const x = dx + Math.cos(a) * r0, z = dz + Math.sin(a) * r0;
-        const y0 = -0.3 - (1 - r0 / DR) * 1.2;
-        const L = 1.2 + 2.5 * ((k * 5) % 9) / 9;
-        const path: V3[] = [];
-        for (let i = 0; i <= 8; i++) { const t = i / 8; path.push([x + Math.sin(t * 3 + k) * 0.15 * t, y0 - L * t, z + Math.cos(t * 2.5 + k) * 0.15 * t]); }
-        b.tube(path, (t) => 0.05 * (1 - t) + 0.004, 7);
-      }
-    }
+    // ---------------------------------------------------------------- the summit she stands on (summit.ts)
+    buildSummit(b);
     const mb = b.upload(kit, 'drum.body');
     this.body = { vertices: mb.vertices, indices: mb.indices, count: mb.count };
     // ---------------------------------------------------------------- the hide: a polar grid at rest (a, b), uv on the sim
@@ -220,8 +199,7 @@ export class Drum {
     this.propU.set({ model: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] as never });
     this.U = kit.uniforms(drumShader.structs.DrumU, 'drum');
     this.U.set({ sim: [R, H, lam2, mu2] as never, sim2: [0, 0, 0, Number(new URLSearchParams(globalThis.location?.search ?? '').get('hidegain') ?? 1)] as never, center: [...DRUM.c, 0] as never, look: [3, 1, 0, 1] as never,
-      glass: [0, 0.16, FUZZ_LEN, 0] as never, trip: [0, 0, 0, 0] as never, front: [0, 0, 0, 0.12] as never,
-      realm: [...STYLE.realmMix, STYLE.realmFly] as never, realm2: [STYLE.realmTwist, INNER_KIND, 0, 0] as never });
+      glass: [0, 0.16, FUZZ_LEN, 0] as never, trip: [0, 0, 0, 0] as never, front: [0, 0, 0, 0.12] as never, breath: [0, 0, 0, 0] as never });
   }
 
   async loadTextures() {
@@ -283,7 +261,7 @@ export class Drum {
    *  hide breathes on its own (m) and its breath's clock (s) */
   glass(through: number, t: number, front: [number, number, number], trip = 0, clock = t, breath = 0, breathClock = clock) {
     this.U.set({ glass: [through, 0.16, FUZZ_LEN, t] as never, front: [...front, 0.12] as never, trip: [trip, clock, breath, INNER_ONLY] as never,
-      realm2: [STYLE.realmTwist, INNER_KIND, breathClock, 0] as never });
+      breath: [breathClock, 0, 0, 0] as never });
   }
   /** the drum's look this frame: the inner light's flicker, the time */
   look(t: number, glow: number, rock = 0) {

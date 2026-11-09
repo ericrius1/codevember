@@ -70,8 +70,7 @@ export interface DrumU {
   glass: Vec4;
   trip: Vec4;
   front: Vec4;
-  realm: Vec4;
-  realm2: Vec4;
+  breath: Vec4;
 }
 export interface HideOut {
   pos: Vec4;

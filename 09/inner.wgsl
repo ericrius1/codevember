@@ -1,12 +1,6 @@
-// The other realm, inside the drum: what the hide shows where it turns to glass — a world of its own, nothing like the
-// cosmos outside (design/realm-*.jpg, painted by Codex's image generation: 09/design/refs.mjs realm,realm_mid,
-// realm_near). Not modelled: a window into it, the way a building's rooms are shown through its windows — three
-// painted layers standing at their depths inside the drum, each met by the view's ray (bent by the hide's ripples) where
-// it crosses its plane, so they slide against each other as the eye moves: the deep scene far back, a layer of serpents
-// and unfolding flowers in front of it, a drift of threads and sparks nearest the hide (those two glowing things on
-// black, laid on by their light). The deep one flies on toward its source for ever (two zooms of it cross-faded, an
-// octave apart), turning slowly, its middle twisting; the others turn against it and breathe. (Included by drum.wgsl,
-// after common.)
+// The other realm, inside the drum: what the hide shows where it turns to glass — a deep ocean without end (its three
+// painted layers: design/realms/ocean, painted by Codex's image generation, 09/design/refs.mjs ocean_ring, ocean_wall,
+// ocean_core). (Included by drum.wgsl, after common.)
 
 @group(2) @binding(9) var realmFar: texture_2d<f32>;
 @group(2) @binding(10) var realmMid: texture_2d<f32>;
@@ -14,14 +8,6 @@
 
 fn realmRot(a: f32) -> mat2x2f { let c = cos(a); let s = sin(a); return mat2x2f(c, s, -s, c); }
 
-/** a plane inside the drum at `depth` (m behind the hide), met by the ray: where on it (its frame: across, up; m from
- *  the drum's axis), and how far along the ray */
-fn realmHit(ro: vec3f, rd: vec3f, depth: f32) -> vec3f {
-  let C = D.center.xyz;
-  let t = (C.x + depth - ro.x) / max(rd.x, 0.02);
-  let p = ro + rd * t;
-  return vec3f(p.z - C.z, p.y - C.y, t);
-}
 /** a layer's colour at q (its own units: ±1 its picture's extent), mirrored past its edges so they never show; lod from
  *  how many of its texels a pixel covers */
 fn realmTap(tex: texture_2d<f32>, q: vec2f, lod: f32) -> vec3f {
@@ -32,41 +18,11 @@ fn realmTap(tex: texture_2d<f32>, q: vec2f, lod: f32) -> vec3f {
 }
 
 /** the realm seen along a ray from the hide: ro, rd in the world, T its clock (s), trip 0..1, px the pixel's angle */
-fn innerWorld(ro: vec3f, rd: vec3f, T: f32, trip: f32, px: f32) -> vec3f {
-  if (D.realm2.y > 1.5) { return innerNebula(ro, rd, T, trip); }
-  if (D.realm2.y > 0.5) { return innerInfinite(ro, rd, T, trip, px); }
-  let texN = f32(textureDimensions(realmFar).x);
-  // the deep scene, 2.6 m back, its picture 2.2 m across: flying on toward its source, turning, its middle twisting
-  let hf = realmHit(ro, rd, 2.6);
-  var qf = hf.xy / 1.1;
-  qf = realmRot(T * 0.025 + 0.3 * trip * sin(T * 0.13)) * qf;
-  let tw = (0.12 + 0.2 * trip) * D.realm2.x * sin(T * 0.21) * exp(-dot(qf, qf) * 1.5);
-  qf = realmRot(tw) * qf;
-  let lodF = log2(max(1.0, hf.z * px * texN / 2.2));
-  // (two copies an octave apart: the nearer swelling and fading as the farther swells into its place — at the end of
-  // each octave the farther is where the nearer began, so the flight never jumps)
-  // (and the hand-over only in the last stretch of each octave, so most of the time it's one picture, flying)
-  let z = fract(T * D.realm.w + 0.1);
-  let s0 = exp2(-z);
-  let s1 = exp2(1.0 - z);
-  let far = mix(realmTap(realmFar, qf * s0, lodF + log2(s0)), realmTap(realmFar, qf * s1, lodF + log2(s1)), smoothstep(0.75, 1.0, z));
-  // the serpents and flowers, 1.1 m back, turning the other way and breathing
-  let hm = realmHit(ro, rd, 1.1);
-  let qm = realmRot(-T * 0.04) * hm.xy / (0.95 * (1.0 + 0.04 * sin(T * 0.5)));
-  let mid = realmTap(realmMid, qm, log2(max(1.0, hm.z * px * texN / 1.9)));
-  // the threads and sparks, just behind the hide, drifting
-  let hn = realmHit(ro, rd, 0.32);
-  let qn = realmRot(T * 0.06) * (hn.xy / 0.8) + vec2f(0.03 * sin(T * 0.3), 0.02 * T);
-  let near = realmTap(realmNear, qn, log2(max(1.0, hn.z * px * texN / 1.6)));
-  // (the deep scene darkened away from its source — the realm deep, not a picture — and the layers laid on by their
-  // light, held so they don't wash it out)
-  let deep = 0.35 + 0.65 * exp(-dot(qf * s0, qf * s0) * 0.8);
-  return far * deep * D.realm.x + mid * D.realm.y + near * D.realm.z;
-}
+fn innerWorld(ro: vec3f, rd: vec3f, T: f32, trip: f32, px: f32) -> vec3f { return innerInfinite(ro, rd, T, trip, px); }
 
-// ---------------------------------------------------------------- the endless deep (style inner 'infinite')
+// ---------------------------------------------------------------- the endless deep
 // Where the glass opens: a deep ocean without end (design/realms/ocean, painted by Codex: refs.mjs ocean_ring,
-// ocean_wall, ocean_core; design/realms/deep is the first, warmer telling of it, deep_concept the whole picture). A way
+// ocean_wall, ocean_core;). A way
 // down whose wall starts just inside the rim, narrows over its first metres and then runs on for ever — so its far
 // reaches close only in perspective, to a point of cold light — ribbed with rings of bioluminescent veils and coral,
 // flown down for ever. The blue thickens with depth: the near wall dark, everything further down paler and brighter,
@@ -228,12 +184,9 @@ fn innerInfinite(roW: vec3f, rdW: vec3f, T: f32, trip: f32, px: f32) -> vec3f {
   return way;
 }
 
-// ---------------------------------------------------------------- the nebula (style inner 'nebula')
-// Where the glass opens: a dusty nebula far down inside the drum, a star at its heart, flown slowly toward — a true
-// volume, raymarched (the eye goes on through it, dust in front of the light and behind it). After "Dusty nebula 4" by
-// Duke (shadertoy.com/view/MsVXWW, CC BY-NC-SA 3.0), itself after otaviogood's spiral noise ("Alien Beacon"), "Dusty
-// nebula 3", "Protoplanetary disk" and Shane's "Cheap Cloud Flythrough"; its wiggling warp as Eric's fragcoord.xyz
-// variant ("Nebula Fun") has it. Units its own: the nebula a ball of radius √8 about its star.
+// ---------------------------------------------------------------- the dust's noise (wayMedium's)
+// After "Dusty nebula 4" by Duke (shadertoy.com/view/MsVXWW, CC BY-NC-SA 3.0), itself after otaviogood's spiral noise
+// ("Alien Beacon"); its wiggling warp as Eric's fragcoord.xyz variant ("Nebula Fun") has it.
 const NEB_NUDGE = 0.739513;
 const NEB_NORM = 0.80392; // 1/√(1 + NUDGE²)
 /** otaviogood's spiral noise: sines added while rotating and raising the frequency — ridged (abs) */
@@ -258,9 +211,6 @@ fn nebSpiral3(pIn: vec3f) -> f32 {
   }
   return n;
 }
-fn nebNoise(p: vec3f) -> f32 {
-  return p.y + 4.5 - nebSpiralC(p) + nebSpiralC(p.zxy * 0.5123 + 100.0) * 4.0 - nebSpiral3(p);
-}
 /** the slow wiggle through its strands */
 fn nebWiggle(pIn: vec3f, t: f32) -> vec3f {
   var p = pIn;
@@ -271,83 +221,4 @@ fn nebWiggle(pIn: vec3f, t: f32) -> vec3f {
   p += 0.08 * s * w;
   p += 0.04 * vec3f(sin(p.y * 6.0 + t * 1.7), sin(p.z * 6.5 - t * 1.9), sin(p.x * 5.5 + t * 1.8));
   return p;
-}
-fn nebMap(pIn: vec3f, t: f32) -> f32 {
-  var p = pIn;
-  p = vec3f(realmRot(t * 0.1) * p.xz, p.y).xzy;
-  let pw = nebWiggle(p, t);
-  return abs(nebNoise(pw / 0.5) * 0.5) + 0.03;
-}
-/** the dust's colour: by how dense it's got along the ray (occlusion within the medium), and how near the star */
-fn nebColor(density: f32, radius: f32) -> vec3f {
-  var c = mix(vec3f(1.0, 0.92, 1.0), vec3f(0.22, 0.08, 0.3), density);
-  let centre = 7.0 * vec3f(0.78, 0.7, 1.0);
-  let edge = 1.5 * vec3f(0.3, 0.22, 0.62);
-  return c * mix(centre, edge, min((radius + 0.05) / 0.9, 1.15));
-}
-fn innerNebula(roW: vec3f, rdW: vec3f, T: f32, trip: f32) -> vec3f {
-  let C = D.center.xyz;
-  // (the drum's frame: x across, y up, z down into the drum from the hide)
-  let ro = vec3f(roW.z - C.z, roW.y - C.y, roW.x - C.x);
-  let rd = normalize(vec3f(rdW.z, rdW.y, rdW.x));
-  // the star: down the drum, most of the way toward where the eye looks through the hide's middle (so it shows through
-  // the window from wherever we stand — the deep follows the eye a little, as the far does), drawing nearer as the
-  // trip deepens
-  let cam = frame.camPos;
-  let eye = vec3f(cam.z - C.z, cam.y - C.y, cam.x - C.x);
-  let look = normalize(-eye);
-  let depth = 6.2 - 1.6 * trip;
-  let onLook = look * (depth / max(look.z, 0.2));
-  let star = mix(vec3f(0.0, 0.0, depth), onLook, 0.8);
-  // (metres per nebula unit)
-  let S = 1.55;
-  let o = (ro - star) / S;
-  // (its own turn, so we look at it from a slant)
-  let tilt = realmRot(0.55);
-  let o2 = vec3f(o.x, tilt * o.yz);
-  let d2 = vec3f(rd.x, tilt * rd.yz);
-  let t0 = T * 0.35 + 3.0;
-  var sum = vec4f(0.0);
-  var td = 0.0; var ld = 0.0;
-  let b = dot(d2, o2);
-  let c = dot(o2, o2) - 8.0;
-  let disc = b * b - c;
-  if (disc > 0.0) {
-    let sq = sqrt(disc);
-    let tNear = max(0.0, -b - sq);
-    let tFar = -b + sq;
-    var t = tNear;
-    var dd = 1.0;
-    for (var i = 0; i < 64; i++) {
-      if (td > 0.9 || sum.a > 0.99 || t > tFar) { break; }
-      let pos = o2 + t * d2;
-      var d = max(nebMap(pos, t0), 0.08);
-      let lDist = max(length(pos), 0.001);
-      // the star itself, and its bloom
-      sum = vec4f(sum.rgb + vec3f(0.3, 0.22, 0.6) / (lDist * lDist) / 42.0, sum.a);
-      if (d < 0.1) {
-        ld = 0.1 - d;
-        let w = (1.0 - td) * ld;
-        td += w + 1.0 / 200.0;
-        var col = vec4f(nebColor(td, lDist), td * 0.185);
-        col = vec4f(col.rgb * col.a, col.a);
-        sum += col * (1.0 - sum.a);
-      }
-      td += 1.0 / 70.0;
-      d = max(d, 0.04);
-      // (a little jitter in the step: no banding, a fuzz in the dust)
-      d = abs(d) * (0.8 + 0.2 * hash12(vec2f(INNER_JIT * 97.0, f32(i))));
-      t += max(d * 0.1 * max(min(lDist, length(o2)), 1.0), 0.02);
-    }
-    sum *= exp(-ld * 0.2) * 0.6;
-    sum = clamp(sum, vec4f(0.0), vec4f(1.0));
-    sum = vec4f(sum.rgb * sum.rgb * (3.0 - 2.0 * sum.rgb), sum.a);
-  }
-  // beyond it: a deep violet dark, a few far stars
-  var bg = vec3f(0.006, 0.004, 0.018);
-  let sp = rd * 420.0;
-  let st = smoothstep(0.985, 1.0, vnoise(sp)) * (1.0 - td);
-  bg += vec3f(0.8, 0.85, 1.0) * st * 0.6;
-  // (in our light: a little hotter than the shader's own 0..1, so its core blooms)
-  return sum.rgb * 1.25 + bg * (1.0 - sum.a);
 }
