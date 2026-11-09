@@ -3,9 +3,9 @@
 // faces all round the dais) answers each with a ring of its own — the wind-up, and the great stroke, the last: the
 // downswing whips through and time falls away under it to a two-hundredth as it lands, the hide takes it and its
 // rings crawl out across it, the universe's membrane ripples with it at once and opens on the worlds beyond, and the
-// hide thins to a veil on the vision inside the drum (inner.wgsl). Time lifts only to a dream's pace; she comes up out
-// of the stroke into stillness and watches, and everything deepens to the end, which fades to black. The camera never
-// leaves the dais's realm.
+// hide thins to a veil of hexagons, lenses on the deep world inside the drum (inner.wgsl), everything swaying as if
+// under water. Time lifts only to a dream's pace; she comes up out of the stroke into stillness and watches, and ten
+// seconds after the stroke it all fades to black. The camera never leaves the dais's realm.
 //
 // Her: Boulder's town pipeline built her (09/character), Boulder's rig poses her (src/rig: the body solver, the arm
 // fit, the fingers), the strokes are src/rig/strike.ts's. The hide: a membrane simulated on the GPU (membrane.wgsl),
@@ -108,11 +108,11 @@ sketch({ ...day(9), filmLoops: 1, warm: 1, hint: 'Sound on, for the drum · Spac
   const PULSE_DIRS: V3[] = [[0.99, -0.1, 0.05], [0.97, 0.02, -0.12], [0.98, -0.16, 0.09]];
   const WAVES: number[][] = [
     ...pulses.map((k, i) => [...scale3(norm3(PULSE_DIRS[i % 3]), 0.35 + 0.22 * i), domeAt(k.t + 0.04)]),
-    [...scale3(norm3([0.99, -0.12, 0]), 1.5), domeAt(big + 0.02)],
-    [...scale3(norm3([0.95, 0.15, 0.12]), 1.15), domeAt(big + 2.2)],
-    [...scale3(norm3([0.9, -0.3, -0.2]), 1.0), domeAt(big + 5.5)],
-    [...scale3(norm3([-0.55, 0.55, 0.62]), 0.9), domeAt(ACT.trip + 1.5)],
-    [...scale3(norm3([0.25, 0.85, -0.45]), 0.95), domeAt(ACT.trip + 9)],
+    [...scale3(norm3([0.99, -0.12, 0]), 1.05), domeAt(big + 0.02)],
+    [...scale3(norm3([0.95, 0.15, 0.12]), 0.8), domeAt(big + 2.2)],
+    [...scale3(norm3([0.9, -0.3, -0.2]), 0.7), domeAt(big + 5.5)],
+    [...scale3(norm3([-0.55, 0.55, 0.62]), 0.6), domeAt(ACT.trip - 0.5)],
+    [...scale3(norm3([0.25, 0.85, -0.45]), 0.6), domeAt(ACT.trip + 2)],
   ];
   while (WAVES.length < 8) WAVES.push([1, 0, 0, -1]);
   const worldOnly = ctx.params.has('world') ? Number(ctx.params.get('world')) : null;
@@ -122,7 +122,7 @@ sketch({ ...day(9), filmLoops: 1, warm: 1, hint: 'Sound on, for the drum · Spac
   const veilAt = (t: number) => {
     let v = 0;
     pulses.forEach((k, i) => { if (t > k.t - 0.05) v = Math.max(v, (0.16 + 0.1 * i) * smooth(k.t - 0.03, k.t + 0.1, t) * Math.exp(-Math.max(0, t - k.t - 0.1) / 1.3)); });
-    return Math.max(v, smooth(big + 0.01, big + 2.2, t) * (0.72 + 0.2 * smooth(big + 4, ACT.fade, t)));
+    return Math.max(v, smooth(big + 0.01, big + 1.2, t) * (0.82 + 0.14 * smooth(big + 1.2, ACT.fade, t)));
   };
   // the trip: 0 till the great stroke, deepening to the end
   const tripAt = (t: number) => Math.pow(smooth(big, ACT.fade, t), 0.75);
@@ -186,7 +186,7 @@ sketch({ ...day(9), filmLoops: 1, warm: 1, hint: 'Sound on, for the drum · Spac
     const rip = rippleAt(t);
     // the worlds beyond: the faces opening behind the great stroke's front as it sweeps the dome, and staying open
     // (wide open at first, then held part way: the membrane's own film and its rings over the worlds through the trip)
-    const reveal = smooth(big + 0.3, big + 4.5, t) * (1 - 0.38 * smooth(big + 6, ACT.trip, t));
+    const reveal = smooth(big + 0.3, big + 3.5, t) * (1 - 0.38 * smooth(big + 3.5, ACT.trip, t));
     // (the sky's colour drifting while time's out of joint, wandering further as the trip deepens — the sky's alone: the
     // stage keeps its own)
     // (never far: past ±0.45 rad the violets go olive)
@@ -232,7 +232,7 @@ sketch({ ...day(9), filmLoops: 1, warm: 1, hint: 'Sound on, for the drum · Spac
     P.set({ look: [fadeAt(t), 0.9 + 0.35 * trip, 1.2, 0.02] as never,
       look2: [0.2 + 1.2 * deepK * deepK + 0.8 * trip, 0.015 * deepK * deepK * deepK, 0.55 + 0.1 * trip, 1.0 + 0.2 * deepK + 0.12 * trip] as never,
       shock: [sx, sy, ringA, ringK * 0.9] as never,
-      misc: [0, 0.1 * trip * trip * Math.sin(t * 0.23), 0, 0] as never });
+      misc: [0, 0.1 * trip * trip * Math.sin(t * 0.23), smooth(big - 0.05, big + 1.5, t) * (0.8 + 0.5 * trip), 0] as never });
     PF.set({ look: [1.0, 0.9, 1.2, 0.035] as never, look2: [0, 0, 0, 1] as never, shock: [0.5, 0.5, 0, 0] as never, misc: [1, 0, 0, 0] as never });
     return [...drum.run, scene, front, ...post, out];
   };

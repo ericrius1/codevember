@@ -31,6 +31,8 @@ const H = (2 * DRUM.r) / N;
 /** the hide's down: its hairs' length (m; 0, none — ?fuzz=0) and its shells (drum.wgsl's FUZZ_SHELLS) */
 const FUZZ_LEN = Number(new URLSearchParams(globalThis.location?.search ?? '').get('fuzz') ?? 0.0055);
 const FUZZ_SHELLS = 12;
+/** ?inner=1: the hide shows only the world inside it, wherever it's thinned (for looking at that world) */
+const INNER_ONLY = new URLSearchParams(globalThis.location?.search ?? '').has('inner') ? 1 : 0;
 const DT = (0.42 * H) / C_WAVE;
 
 /** the beater's head on the hide at a moment: its centre (world) and radius */
@@ -260,7 +262,7 @@ export class Drum {
   /** how far the hide's seen through (0..1), the down's breeze clock; the trip: how deep (0..1), the world inside's
    *  clock, how far the hide breathes on its own (m) */
   glass(through: number, t: number, trip = 0, clock = t, breath = 0) {
-    this.U.set({ glass: [through, 0.16, FUZZ_LEN, t] as never, trip: [trip, clock, breath, 0] as never });
+    this.U.set({ glass: [through, 0.16, FUZZ_LEN, t] as never, trip: [trip, clock, breath, INNER_ONLY] as never });
   }
   /** the drum's look this frame: the inner light's flicker, the time */
   look(t: number, glow: number, rock = 0) {

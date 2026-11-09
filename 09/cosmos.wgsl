@@ -198,13 +198,13 @@ fn wallRipple(n: vec3f) -> f32 {
   // (a faint breath on it always: the cosmos never quite still)
   let tc = G.clock.x;
   h += 0.03 * sin(dot(n, vec3f(3.0, 1.0, 2.0)) * 23.0 + tc * 0.4) * sin(dot(n, vec3f(-1.0, 4.0, 1.0)) * 19.0 - tc * 0.3);
-  // the trip: the whole membrane heaving more and more in great slow swells, crossing, turning
+  // the trip: the whole membrane heaving more and more in great slow rings
   let tr = G.cosmos.z;
   if (tr > 0.0) {
-    let sw = 0.5 * sin(dot(n, vec3f(2.0, 3.0, -1.0)) * 4.0 - tc * 0.55) * sin(dot(n, vec3f(-3.0, 1.0, 2.0)) * 3.0 + tc * 0.42)
-      + 0.35 * sin(acos(clamp(dot(n, vec3f(0.99, -0.12, 0.0)), -1.0, 1.0)) * 14.0 - tc * 0.9)
-      + 0.2 * dotNoise(n * 5.0 + vec3f(0.0, tc * 0.05, 0.0));
-    h += tr * sw * 0.9;
+    // (great rings rolling out from behind the drum, their spacing wandering a little — never a grid of blots)
+    let arc = acos(clamp(dot(n, vec3f(0.99, -0.12, 0.0)), -1.0, 1.0));
+    let sw = sin(arc * (11.0 + 1.5 * sin(arc * 2.0 + tc * 0.2)) - tc * 0.9) * smoothstep(0.05, 0.4, arc);
+    h += tr * sw * 0.5;
   }
   return h;
 }
@@ -676,7 +676,9 @@ fn frontAt(q: vec3f, F: vec4f, fadeRate: f32) -> vec3f {
   let bentW = normalize(rd + dh * amp * K.aux.x * 0.12 + bendF * 0.7);
   var col = nebula(bent) + stars(bent) * 0.8;
   // the face it's on (its borders flexing with the ripples, a little wandering)
-  let nw = normalize(n + dh * amp * 0.0003 + 0.006 * vec3f(dotNoise(n * 4.0), dotNoise(n * 4.0 + 4.1), dotNoise(n * 4.0 + 8.3)));
+  // (its borders wandering at two scales, so the foam's faces are each their own shape, never a honeycomb)
+  let nw = normalize(n + dh * amp * 0.0003 + 0.024 * vec3f(dotNoise(n * 2.3), dotNoise(n * 2.3 + 4.1), dotNoise(n * 2.3 + 8.3))
+    + 0.008 * vec3f(dotNoise(n * 7.1 + 1.7), dotNoise(n * 7.1 + 5.9), dotNoise(n * 7.1 + 2.6)));
   let fc = facetOf(nw);
   let seamW = 0.0021;
   let inner = smoothstep(seamW * 1.2, seamW * 4.0, fc.seam);
@@ -706,7 +708,7 @@ fn frontAt(q: vec3f, F: vec4f, fadeRate: f32) -> vec3f {
   let crest = max(hr, 0.0) * max(hr, 0.0) * (1.0 - 0.6 * open);
   let band = smoothstep(0.1, 0.9, abs(hr)) * (1.0 - 0.5 * open);
   let edge = exp(-pow(hr / 0.08, 2.0)) * smoothstep(0.05, 0.3, length(dh) * 0.004) * amp;
-  col += pow(thinFilm(c, 280.0 + 240.0 * hr + 160.0 * fbm(n * 9.0)), vec3f(2.0)) * (crest * (0.2 + 0.45 * trip) + band * 0.3 * trip) + vec3f(0.8, 0.9, 1.0) * edge * 0.08;
+  col += pow(thinFilm(c, 280.0 + 240.0 * hr + 160.0 * fbm(n * 9.0)), vec3f(2.0)) * (min(crest, 1.0) * (0.1 + 0.08 * trip) + band * 0.05 * trip) + vec3f(0.8, 0.9, 1.0) * edge * 0.08;
   // the front's crest: a band of the film bulged and burning with its colours as it sweeps the dome (the great
   // stroke's, and the pulse's fainter)
   let fcrest = max(fr.x, 0.0) + max(fr2.x, 0.0);

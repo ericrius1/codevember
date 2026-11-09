@@ -1,11 +1,9 @@
 // The camera's path through the loop (film time). The pulse on her left side: wide, a slow arc in, nearly still as
 // each stroke lands; back out to see her whole body coil as she winds up, pushing in slowly; then, as the downswing
-// whips and time falls away, the swoop down to the struck point, arriving with the contact — and held on the hide for
-// the long slowed moment, creeping back along it as its rings crawl out and it thins to a veil on the world inside,
-// till the whole veil's seen with the sky rippling round the drum. As time lifts: up past the drum to the sky's rings,
-// round and low behind her — her against the worlds — to straight behind her, the veil beyond her a portal; and then
-// slowly in over her shoulder toward it, the world inside filling the frame, into the dark. It never leaves the
-// dais's realm.
+// whips and time falls away, the swoop down to the struck point, arriving with the contact — and held on the hide
+// through the slowed moment, creeping back along it as its rings crawl out and it thins to a veil of hexagons on the
+// world inside; then, as time lifts, round behind her, the veil beyond her a portal, and slowly in over her shoulder
+// toward it, into the dark. It never leaves the dais's realm.
 //
 import { LOOP } from './score';
 import type { V3 } from '../src/rig/hero/math';
@@ -32,37 +30,29 @@ const KEYS: Key[] = [
   // the pulse: wide behind her left shoulder, the hide's face beyond her; drifting in, nearly still through each stroke
   // (behind her plane the hide is seen at 50–60° from its normal and the line to the struck point clears her by half a
   // metre; from her front-left we'd be in the hide's plane, the drum edge-on, the strokes landing on nothing)
-  { t: 0.0, eye: her(-125, 11, 4.8), at: [-0.4, 1.25, 0.15], fov: 36 },
-  { t: 2.05, eye: her(-120, 10, 4.3), at: [-0.38, 1.28, 0.18], fov: 36 },
-  { t: 2.5, eye: her(-119, 10, 4.22), at: [-0.38, 1.28, 0.18], fov: 36 },
-  { t: 5.25, eye: her(-110, 9, 3.4), at: [-0.36, 1.36, 0.24], fov: 36 },
-  { t: 5.7, eye: her(-109, 9, 3.33), at: [-0.36, 1.36, 0.24], fov: 36 },
-  { t: 8.45, eye: her(-101, 10, 2.6), at: [-0.36, 1.42, 0.26], fov: 37 },
-  { t: 8.9, eye: her(-100, 10, 2.55), at: [-0.36, 1.42, 0.26], fov: 37 },
+  { t: 0.0, eye: her(-124, 11, 4.6), at: [-0.4, 1.25, 0.15], fov: 36 },
+  { t: 1.65, eye: her(-119, 10, 4.2), at: [-0.38, 1.28, 0.18], fov: 36 },
+  { t: 2.1, eye: her(-118, 10, 4.12), at: [-0.38, 1.28, 0.18], fov: 36 },
+  { t: 4.05, eye: her(-110, 9, 3.4), at: [-0.36, 1.36, 0.24], fov: 36 },
+  { t: 4.5, eye: her(-109, 9, 3.33), at: [-0.36, 1.36, 0.24], fov: 36 },
+  { t: 6.45, eye: her(-101, 10, 2.6), at: [-0.36, 1.42, 0.26], fov: 37 },
+  { t: 6.9, eye: her(-100, 10, 2.55), at: [-0.36, 1.42, 0.26], fov: 37 },
   // the wind-up: out a little to her whole body, the beater rising high over her, her left arm reaching at the drum —
   // then one slow push in toward her and the hide as she coils
-  { t: 10.4, eye: her(-96, 8, 3.25), at: [-0.5, 1.48, 0.22], fov: 42 },
-  { t: 12.6, eye: her(-92, 9, 2.45), at: [-0.42, 1.52, 0.26], fov: 42 },
+  { t: 8.1, eye: her(-96, 8, 3.25), at: [-0.5, 1.48, 0.22], fov: 42 },
+  { t: 10.1, eye: her(-92, 9, 2.45), at: [-0.42, 1.52, 0.26], fov: 42 },
   // the swoop: down to the struck point as the downswing whips and time falls away, arriving with the contact; the
   // hide seen across, its rings crawling toward us
-  { t: 13.4, eye: [-0.45, 1.42, -0.6], at: [0.0, 1.42, 0.36], fov: 46 },
+  { t: 10.9, eye: [-0.45, 1.42, -0.6], at: [0.0, 1.42, 0.36], fov: 46 },
   // held on the hide while its rings crawl and it thins to the veil, creeping back along it
-  { t: 15.8, eye: [-0.53, 1.46, -0.8], at: [0.0, 1.38, 0.3], fov: 47 },
-  { t: 18.2, eye: [-0.78, 1.52, -1.18], at: [0.0, 1.3, 0.16], fov: 48 },
-  // back off it till the whole veil's seen, the sky rippling round the drum
-  { t: 20.4, eye: [-1.5, 1.55, -1.8], at: [0.0, 1.25, 0.0], fov: 50 },
-  // up past the drum as time starts to lift: the sky's rings
-  { t: 22.8, eye: [-1.55, 1.35, -2.65], at: [2.0, 3.0, 0.5], fov: 52 },
-  // round behind her, low: her against the worlds beyond, then the veil beyond her
-  { t: 25.6, eye: her(-118, 5, 3.0), at: [0.3, 2.0, 0.15], fov: 48 },
-  { t: 29.0, eye: her(-150, 2, 4.6), at: [1.0, 2.2, 0.15], fov: 48 },
-  { t: 32.5, eye: her(-178, 3, 5.4), at: [0.5, 1.75, 0.1], fov: 46 },
-  // the trip: from straight behind her, the veil beyond her a portal, the sky round it; drifting round
-  { t: 37.5, eye: her(-191, 6, 5.2), at: [0.2, 1.55, 0.1], fov: 44 },
+  { t: 12.7, eye: [-0.55, 1.46, -0.82], at: [0.0, 1.38, 0.3], fov: 47 },
+  { t: 14.4, eye: [-0.85, 1.5, -1.25], at: [0.0, 1.3, 0.14], fov: 48 },
+  // as time lifts, round behind her, low: the veil beyond her a portal in the rippling sky
+  { t: 16.6, eye: her(-150, 4, 4.3), at: [0.5, 1.75, 0.1], fov: 46 },
+  { t: 18.6, eye: her(-177, 5, 4.4), at: [0.2, 1.5, 0.05], fov: 44 },
   // and in, over her shoulder, toward the veil, the world inside filling the frame — into the dark
-  { t: 43.0, eye: her(-172, 6, 3.5), at: [0.0, 1.35, 0.05], fov: 42 },
-  { t: 48.9, eye: her(-161, 5, 2.05), at: [0.0, 1.2, 0.0], fov: 38 },
-  { t: 50.0, eye: her(-125, 11, 4.8), at: [-0.4, 1.25, 0.15], fov: 36 },
+  { t: 21.4, eye: her(-166, 5, 2.5), at: [0.0, 1.25, 0.0], fov: 40 },
+  { t: 22.0, eye: her(-124, 11, 4.6), at: [-0.4, 1.25, 0.15], fov: 36 },
 ];
 
 type Polar = [number, number, number];

@@ -51,7 +51,7 @@ function specFor(i: number, shift: number): StrokeSpec {
       // the top: her hand high over her head and back, the beater pointing back and up behind her
       top: [-1.0, 2.04, STRIKE_A + 0.24],
       lift: S - down - hang - liftFrom, hang,
-      dwell: 0.0055, depth: 0.13, restitution: 0.35, settle: 1.6,
+      dwell: 0.0055, depth: 0.13, restitution: 0.35, settle: 1.3,
       // after: no flourish — the beater comes down by her side, its head low ahead of her (a hanging arm, the shaft square to it), and she stands
       // and watches what the stroke has done
       ready: { hand: [-0.74, 0.9, 0.38], shaft: norm([0.84, -0.32, 0.3]) },
@@ -85,7 +85,7 @@ export const strokes = new Strokes(specs, BEATER, specs[0].ready!);
 // the great stroke's story times: contact, her coming up out of it into stillness (and only in the dark at the loop's
 // end back to where the pulse starts)
 const SB = story(BIG.t);
-const OPEN = { in0: SB + 0.02, in1: SB + 1.4, out0: story(ACT.fade + 0.7), out1: story(ACT.black + 0.42) };
+const OPEN = { in0: SB + 0.02, in1: SB + 0.85, out0: story(ACT.fade + 0.7), out1: story(ACT.black + 0.42) };
 
 // ---------------------------------------------------------------- her body's channels, keyed from the strokes
 type K = Key<number>;
@@ -148,10 +148,9 @@ for (const k of strokes.list) {
   key('load', tR + 0.4, 0.2); key('load', tT - 0.25, 0.85); key('load', tC + 0.12, 1.0); key('load', O.in1, 0.4); key('load', O.out0, 0.36); key('load', O.out1, 0.15);
   key('shift', tR + 0.4, -0.02); key('shift', tT - 0.2, -0.16); key('shift', tC + 0.16, 0.2); key('shift', O.in1, 0.0);
   key('nod', tT - 0.1, -0.06); key('nod', tC + 0.08, 0.12); key('nod', O.in1, -0.07); key('nod', O.out0, -0.06); key('nod', O.out1, 0.02);
-  // (her gaze: up to the rippling sky as she comes up out of the stroke, down a while to the veil and the world in the
-  // drum, and up again)
-  key('sky', tC + 0.05, 0, 'hold'); key('sky', O.in1, 0.9); key('sky', story(37) + sh, 0.45); key('sky', story(43.5) + sh, 0.95);
-  key('sky', O.out0, 0.95, 'hold'); key('sky', O.out1, 0, 'hold');
+  // (her gaze: lifting from the struck point as she comes up out of the stroke, between the veil and the rippling sky)
+  key('sky', tC + 0.05, 0, 'hold'); key('sky', O.in1, 0.6);
+  key('sky', O.out0, 0.7, 'hold'); key('sky', O.out1, 0, 'hold');
   leftAt(tR + 0.3, LH.rest); leftAt(tT - 0.35, LH.reach); leftAt(tC + 0.06, LH.tuck); leftAt(O.in1, LH.still); leftAt(O.out0, LH.still); leftAt(O.out1 + 0.3, LH.rest);
 }
 // (the sky's weight is 0 everywhere but round the great stroke)

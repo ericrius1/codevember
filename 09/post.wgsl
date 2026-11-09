@@ -12,7 +12,8 @@ struct PostU {
   look2: vec4f,
   // the shock's centre on screen (uv), z its ring's radius on screen (uv), w strength
   shock: vec4f,
-  // x the source texel size (down/up), y, z, w the flash (white-out)
+  // x the source texel size (down/up), y the hue's drift, z under water (0..: the picture swaying after the great
+  // stroke), w the flash (white-out)
   misc: vec4f,
 }
 @group(2) @binding(0) var<uniform> P: PostU;
@@ -62,6 +63,13 @@ fn hdrAt(uv: vec2f) -> vec3f { return sane(textureSampleLevel(src, samp_linear, 
 @fragment fn fs_final(i: FullscreenOut) -> @location(0) vec4f {
   var uv = i.uv;
   let asp = frame.res.x / frame.res.y;
+  // under water: the picture swaying, slow and layered, as through moving water
+  let uw = P.misc.z;
+  if (uw > 0.0) {
+    let tt = G.clock.x;
+    uv += uw * 0.0022 * vec2f(sin(uv.y * 11.0 + tt * 1.1) + 0.5 * sin(uv.y * 23.0 - tt * 1.7 + uv.x * 5.0),
+      cos(uv.x * 9.0 - tt * 0.9) + 0.5 * cos(uv.x * 19.0 + tt * 1.4 + uv.y * 4.0));
+  }
   // the shock's ring: the picture bent outward across it, a bright edge
   let sc = P.shock.xy;
   var dv = (uv - sc) * vec2f(asp, 1.0);
@@ -93,6 +101,8 @@ fn hdrAt(uv: vec2f) -> vec3f { return sane(textureSampleLevel(src, samp_linear, 
   // (the whole universe's colour drifting while time's out of joint)
   c = max(hueShift(c, P.misc.y), vec3f(0.0));
   c += vec3f(1.0, 0.92, 0.8) * P.misc.w;
+  // (under water the light cools a little in the shadows, the depths taking the red)
+  c *= mix(vec3f(1.0), vec3f(0.86, 1.0, 1.06), sat(uw) * 0.6 * (1.0 - sat(luma(c))));
   // the grade: saturation, a warm-cool split
   let l = luma(c);
   c = mix(vec3f(l), c, P.look2.w);
