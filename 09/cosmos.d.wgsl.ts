@@ -59,6 +59,10 @@ export interface CosmosU {
   front: Vec4;
   deep: Vec4;
 }
+export interface DeepFields {
+  a: Vec4;
+  b: Vec4;
+}
 
-declare const shader: Shader<{ Frame: Frame; Globals: Globals; StageLight: StageLight; FullscreenOut: FullscreenOut; CosmosU: CosmosU }, 'frame' | 'G' | 'K' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; Globals: Globals; StageLight: StageLight; FullscreenOut: FullscreenOut; CosmosU: CosmosU; DeepFields: DeepFields }, 'frame' | 'G' | 'K' | 'skyTex' | 'deepA' | 'deepB' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;

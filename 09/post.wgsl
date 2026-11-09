@@ -25,6 +25,9 @@ struct PostU {
 @group(2) @binding(2) var bloomTex: texture_2d<f32>;
 
 override HDR: bool = false;
+// (the zoom blur's and the light's rays' taps: fewer live on a laptop's GPU, each pixel's start jittered either way)
+override ZOOM_TAPS: i32 = 16;
+override RAY_TAPS: i32 = 28;
 override P3: bool = false;
 
 // (a pixel gone infinite or NaN somewhere in the scene — a degenerate normal, a specular singularity — must never
@@ -92,8 +95,8 @@ fn hdrAt(uv: vec2f) -> vec3f { return sane(textureSampleLevel(src, samp_linear, 
     var acc = c; var wsum = 1.0;
     let j = hash12(i.pos.xy);
     let amt = P.look2.y * smoothstep(0.0, 0.25, r2);
-    for (var k = 1; k < 16; k++) {
-      let f = (f32(k) - j) / 16.0;
+    for (var k = 1; k < ZOOM_TAPS; k++) {
+      let f = (f32(k) - j) / f32(ZOOM_TAPS);
       let w = 1.0 - f;
       acc += hdrAt(uv - toC * amt * f) * w; wsum += w;
     }
@@ -103,12 +106,14 @@ fn hdrAt(uv: vec2f) -> vec3f { return sane(textureSampleLevel(src, samp_linear, 
   // the realm's light pouring out through the glass: its glow streaked out from the hide's middle across the picture
   // (the bloom gathered along the way back toward it; whatever stands dark in front of it, her, cuts shadows in it)
   if (P.rays.z > 0.001) {
-    let d = (P.rays.xy - uv) / 28.0 * P.rays.w;
+    let d = (P.rays.xy - uv) / f32(RAY_TAPS) * P.rays.w;
     var p = uv + d * hash12(i.pos.xy + 3.7);
     var acc = vec3f(0.0);
     var w = 1.0;
-    for (var k = 0; k < 28; k++) { acc += textureSampleLevel(bloomTex, samp_linear, p, 0.0).rgb * w; w *= 0.94; p += d; }
-    c += acc / 28.0 * P.rays.z;
+    // (the falloff per tap matched to the count, so the rays reach as far whatever it is)
+    let fall = pow(0.94, 28.0 / f32(RAY_TAPS));
+    for (var k = 0; k < RAY_TAPS; k++) { acc += textureSampleLevel(bloomTex, samp_linear, p, 0.0).rgb * w; w *= fall; p += d; }
+    c += acc / f32(RAY_TAPS) * P.rays.z;
   }
   c += vec3f(0.45, 0.85, 0.8) * exp(-ring * ring) * P.shock.w * 0.25;
   c *= P.look.x;

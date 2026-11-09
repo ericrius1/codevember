@@ -246,15 +246,29 @@ export class Drum {
     pass.draw(drumShader, { label: 'drum.body', vertex: 'vsBody', fragment: 'fsBody', cull: 'none', count: this.body.count,
       indices: { buffer: this.body.indices, format: 'uint32' }, bind: { ...bind, verts: this.body.vertices } as never });
   }
+  /** live on a laptop's GPU: the world inside the glass marched at `scale` of the render's size in a pass of its own
+   *  (run it, `innerPass`, before the hide's), and the down drawn in `fuzzShells` shells (as opaque as twelve) */
+  live(scale: number, fuzzShells: number) {
+    this.innerTex = this.kit.texture({ label: 'drum.inner', format: 'rgba16float', size: 'render', scale, usage: ['render', 'sample'] });
+    this.innerPass = this.kit.pass({ label: 'drum.inner', color: [{ target: this.innerTex, clear: [0, 0, 0, 1] }] });
+    this.innerPass.fullscreen(drumShader, { label: 'drum.inner', fragment: 'fsInner', constants: { INNER_SCALE: scale } as never,
+      bind: { D: this.U, realmFar: this.realm[0], realmMid: this.realm[1], realmNear: this.realm[2] } as never });
+    this.fuzzShells = fuzzShells;
+  }
+  innerTex: Texture | null = null;
+  innerPass: RenderPass | null = null;
+  private fuzzShells = FUZZ_SHELLS;
   /** the hide and its down: drawn after the rest (the down's shells blend over it); when it thins it shows the world
    *  inside the drum (inner.wgsl) */
   drawHide(pass: RenderPass) {
-    const bind = { ...this.bindings(), realmFar: this.realm[0], realmMid: this.realm[1], realmNear: this.realm[2] };
+    const inner = this.innerTex ?? this.kit.texture({ label: 'drum.inner.none', format: 'rgba16float', size: [1, 1], usage: ['sample'] });
+    const bind = { ...this.bindings(), realmFar: this.realm[0], realmMid: this.realm[1], realmNear: this.realm[2], innerTex: inner };
     pass.draw(drumShader, { label: 'drum.hide', vertex: 'vsHide', fragment: 'fsHide', cull: 'none', count: this.hide.count,
-      indices: { buffer: this.hide.indices, format: 'uint32' }, bind: { ...bind, verts: this.hide.vertices } as never });
+      indices: { buffer: this.hide.indices, format: 'uint32' }, bind: { ...bind, verts: this.hide.vertices } as never,
+      constants: { INNER_DRAWN: this.innerTex ? 1 : 0 } as never });
     if (FUZZ_LEN > 0) pass.draw(drumShader, { label: 'drum.fuzz', vertex: 'vsFuzz', fragment: 'fsFuzz', cull: 'none', count: this.hide.count,
-      instances: FUZZ_SHELLS, indices: { buffer: this.hide.indices, format: 'uint32' }, bind: { ...bind, verts: this.hide.vertices } as never,
-      blend: 'alpha', depthWrite: false, depthCompare: 'greater' });
+      instances: this.fuzzShells, indices: { buffer: this.hide.indices, format: 'uint32' }, bind: { ...bind, verts: this.hide.vertices } as never,
+      blend: 'alpha', depthWrite: false, depthCompare: 'greater', constants: { FUZZ_SHELLS: this.fuzzShells } as never });
   }
   /** how far the hide's seen through behind its front (0..1), the down's breeze clock; the front: where it was struck
    *  (the hide's frame, m) and how far out it's spread (m); the trip: how deep (0..1), the realm's clock, how far the

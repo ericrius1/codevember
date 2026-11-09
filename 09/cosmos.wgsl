@@ -21,6 +21,12 @@ struct CosmosU {
   deep: vec4f,
 }
 @group(2) @binding(0) var<uniform> K: CosmosU;
+// (live, on a dense screen, the sky is drawn at half the size and lifted into the scene: fsSkyUp)
+@group(2) @binding(1) var skyTex: texture_2d<f32>;
+// the deep's slow fields, made once a frame for every shell (fsDeepFields): which contours are strands, their colours,
+// the haze's
+@group(2) @binding(2) var deepA: texture_2d<f32>;
+@group(2) @binding(3) var deepB: texture_2d<f32>;
 
 // ---------------------------------------------------------------- the deep
 // What the membrane opens on, marched through rather than painted: a living depth beyond our universe's wall, strands
@@ -41,6 +47,43 @@ fn gnoise(p: vec3f) -> f32 {
 fn turnAbout(p: vec3f, k: vec3f, a: f32) -> vec3f { let c = cos(a); let s = sin(a); return p * c + cross(k, p) * s + k * dot(k, p) * (1.0 - c); }
 /** the cold light far down beyond the wall (beyond the drum as the camera ends, up a little and to the right of it) */
 const DEEP_LIGHT = vec3f(0.82, 0.15, 0.56);
+/** the shells' centre */
+const DEEP_C = vec3f(0.0, 1.4, 0.0);
+/** a shell's point in its noise: d its direction from the shells' centre — its own place, its own slow turn round the
+ *  light (the next the other way), and a slow warp through it */
+fn shellQ(k: i32, d: vec3f, T: f32) -> vec3f {
+  let fk = f32(k);
+  let h3 = hash33(vec3f(fk * 3.1, fk * 1.7 + 2.0, 5.3));
+  let spin = T * 0.004 * (0.6 + 0.8 * h3.z) * select(-1.0, 1.0, (k & 1) == 0);
+  var q = turnAbout(d, normalize(DEEP_LIGHT), spin) / 0.16 + h3 * 97.0;
+  q += 0.09 * vec3f(dotNoise(q * 0.35 + vec3f(0.0, T * 0.01, 0.0)), dotNoise(q * 0.35 + 2.3), dotNoise(q * 0.35 + 5.1));
+  return q;
+}
+// The deep's slow fields — six noises far larger than a strand (which of its contours are strands, which dark ones, the
+// colours, the haze) — made once a frame for every shell into a strip of an atlas (each shell's all-round view,
+// longitude by colatitude) instead of on every pixel for every shell: read back, they're the same fields to a hair's
+// breadth, at a sixth of the work
+const DEEP_W = 256.0;
+const DEEP_H = 128.0;
+const DEEP_MAX = 18.0;
+struct DeepFields { @location(0) a: vec4f, @location(1) b: vec4f };
+@fragment fn fsDeepFields(i: FullscreenOut) -> DeepFields {
+  let k = floor(i.pos.y / DEEP_H);
+  let lon = i.pos.x / DEEP_W * TAU - PI;
+  let colat = (i.pos.y - k * DEEP_H) / DEEP_H * PI;
+  let d = vec3f(sin(colat) * cos(lon), cos(colat), sin(colat) * sin(lon));
+  let q = shellQ(i32(k), d, G.clock.x);
+  var o: DeepFields;
+  o.a = vec4f(gnoise(q * 0.31 + 3.0), gnoise(q * 0.09 + 5.0), gnoise(q * 0.13 + 9.0), gnoise(q * 0.27 + 17.0));
+  o.b = vec4f(gnoise(q * 0.05 + 23.0), gnoise(q * 0.04 + 51.0), 0.0, 1.0);
+  return o;
+}
+/** where shell k's fields are in the atlas, toward d (unit, from the shells' centre) */
+fn deepUV(k: i32, d: vec3f) -> vec2f {
+  let u = (atan2(d.z, d.x) + PI) / TAU;
+  let v = clamp(acos(clamp(d.y, -1.0, 1.0)) / PI * DEEP_H, 0.5, DEEP_H - 0.5);
+  return vec2f(u, (f32(k) * DEEP_H + v) / (DEEP_H * DEEP_MAX));
+}
 /** the deep along a ray: ro, rd the ray (bent by the membrane), d0 where it leaves the wall (m).
  *  Shells round the dais out from the wall, each a third again as far as the last, each with strands a third again as
  *  large (so the same size to the eye, out to forever): long strands of light flowing each shell its own way, strands
@@ -50,27 +93,32 @@ fn deepSky(ro: vec3f, rd: vec3f, d0: f32) -> vec3f {
   let T = G.clock.x;
   let Ld = normalize(DEEP_LIGHT);
   let toL = max(dot(rd, Ld), 0.0);
-  let C = vec3f(0.0, 1.4, 0.0);
-  let N = i32(K.deep.z);
+  let C = DEEP_C;
+  let N = i32(min(K.deep.z, DEEP_MAX));
   let G0 = 1.33;
   var col = vec3f(0.0);
   var tr = 1.0;
   var Rk = 70.0;
+  // (a shell wholly inside the wall from here adds nothing: passed over — on uniforms alone, so the screen-space widths
+  // stay in uniform control flow)
+  let inner = (G.wall.w - length(ro - G.wall.xyz)) * 0.98 - length(ro - C);
   for (var k = 0; k < N; k++) {
     let fk = f32(k);
     let Rn = Rk * G0;
+    if (Rk < inner) { Rk = Rn; continue; }
     // where the ray meets this shell (from inside it), and how far past the wall that is
     let hk = sphereHit(ro, rd, C, Rk).y;
     let p = ro + rd * hk;
     let wgt = smoothstep(d0 * 0.98, d0 * 1.25, hk);
-    let s = Rk * 0.16;
-    // (the shell's own place in the noise, its own slow turn round the light — the next the other way — and the way its
-    // strands flow)
+    // (the shell's own place in the noise, and the way its strands flow)
     let h3 = hash33(vec3f(fk * 3.1, fk * 1.7 + 2.0, 5.3));
-    let spin = T * 0.004 * (0.6 + 0.8 * h3.z) * select(-1.0, 1.0, (k & 1) == 0);
-    var q = turnAbout(p - C, Ld, spin) / s + h3 * 97.0;
+    let dk3 = normalize(p - C);
+    let q = shellQ(k, dk3, T);
     let F = normalize(vec3f(h3.x - 0.5, 1.4, h3.y - 0.5) + vec3f(0.0, 0.0, 0.6 * sin(fk * 2.4)));
-    q += 0.09 * vec3f(dotNoise(q * 0.35 + vec3f(0.0, T * 0.01, 0.0)), dotNoise(q * 0.35 + 2.3), dotNoise(q * 0.35 + 5.1));
+    // (its slow fields, made for the frame: fsDeepFields)
+    let duv = deepUV(k, dk3);
+    let fa = textureSampleLevel(deepA, samp_repeat, duv, 0.0);
+    let fb = textureSampleLevel(deepB, samp_repeat, duv, 0.0);
     let qf = q - F * dot(q, F) * 0.88;
     // light: the contours of a noise, long along the flow
     let a = gnoise(qf) + 0.12 * gnoise(qf * 2.3 + 11.0);
@@ -81,26 +129,35 @@ fn deepSky(ro: vec3f, rd: vec3f, d0: f32) -> vec3f {
     let lw = max(0.005 + 0.012 * far3, aw * 0.9);
     let core = exp(-(a / lw) * (a / lw)) * sqrt(0.008 / lw);
     let halo = exp(-(a / (lw * 6.0)) * (a / (lw * 6.0)));
-    // (only some of each shell's contours are strands: the rest of it open, so the shells behind show)
-    let keepL = smoothstep(-0.04, 0.26, gnoise(q * 0.31 + 3.0) + 0.12);
     // dark: another noise's contours, flowing across, thicker
     let qd = q - F.zxy * dot(q, F.zxy) * 0.93;
     let c = gnoise(qd * 0.5 + 41.0);
     let cw = max(0.013 + 0.03 * far3, max(fwidth(c), 1e-4) * 0.9);
-    let keepD = smoothstep(0.06, 0.3, gnoise(q * 0.27 + 17.0) + 0.05);
-    let dark = exp(-(c / cw) * (c / cw)) * keepD;
-    // its colour: sea-teal and deep blue, leaf-green in places; pale only at the brightest; dimmer and bluer far off
-    var lc = mix(vec3f(0.10, 0.50, 0.36), vec3f(0.12, 0.28, 0.70), sat(gnoise(q * 0.09 + 5.0) * 2.4 + 0.5));
-    lc = mix(lc, vec3f(0.30, 0.56, 0.20), 0.75 * smoothstep(-0.04, 0.2, gnoise(q * 0.13 + 9.0)));
-    lc = mix(lc, vec3f(luma(lc)), 0.2);
-    lc = mix(vec3f(0.10, 0.22, 0.42), lc, far);
-    let lit = (0.25 + 1.3 * pow(toL, 8.0)) * (0.35 + 0.65 * far);
-    let em = (lc * (core * 0.7 + halo * 0.008) + vec3f(0.55, 0.85, 0.8) * core * core * 0.12) * keepL * lit;
+    // (the widths taken, what only shades a strand is worked out only near one: far from any, it adds nothing)
+    var em = vec3f(0.0); var keepL = 0.0;
+    // (and none of it where this shell's hidden: behind the wall here, or past dark strands that have drunk the light)
+    let seen = tr * wgt > 1e-3;
+    if (seen && halo > 4e-4) {
+      // (only some of each shell's contours are strands: the rest of it open, so the shells behind show)
+      keepL = smoothstep(-0.04, 0.26, fa.x + 0.12);
+      // its colour: sea-teal and deep blue, leaf-green in places; pale only at the brightest; dimmer and bluer far off
+      var lc = mix(vec3f(0.10, 0.50, 0.36), vec3f(0.12, 0.28, 0.70), sat(fa.y * 2.4 + 0.5));
+      lc = mix(lc, vec3f(0.30, 0.56, 0.20), 0.75 * smoothstep(-0.04, 0.2, fa.z));
+      lc = mix(lc, vec3f(luma(lc)), 0.2);
+      lc = mix(vec3f(0.10, 0.22, 0.42), lc, far);
+      let lit = (0.25 + 1.3 * pow(toL, 8.0)) * (0.35 + 0.65 * far);
+      em = (lc * (core * 0.7 + halo * 0.008) + vec3f(0.55, 0.85, 0.8) * core * core * 0.12) * keepL * lit;
+    }
+    var dark = 0.0;
+    let dk = exp(-(c / cw) * (c / cw));
+    if (seen && dk > 1e-3) { dark = dk * smoothstep(0.06, 0.3, fa.w + 0.05); }
     // the haze from the last shell to this one, its glow wandering (softly, at the shells' own scale)
-    let hz = pow(sat(gnoise(q * 0.05 + 23.0) * 2.2 + 0.35), 2.0);
-    let hazeG = sat(gnoise(q * 0.04 + 51.0) * 2.0 + 0.5);
-    let hazeC = mix(vec3f(0.003, 0.009, 0.014), mix(vec3f(0.012, 0.04, 0.046), vec3f(0.02, 0.042, 0.02), hazeG), hz) * (1.0 + 2.0 * pow(toL, 6.0));
-    col += tr * wgt * (hazeC * 0.03 + em);
+    if (seen) {
+      let hz = pow(sat(fb.x * 2.2 + 0.35), 2.0);
+      let hazeG = sat(fb.y * 2.0 + 0.5);
+      let hazeC = mix(vec3f(0.003, 0.009, 0.014), mix(vec3f(0.012, 0.04, 0.046), vec3f(0.02, 0.042, 0.02), hazeG), hz) * (1.0 + 2.0 * pow(toL, 6.0));
+      col += tr * wgt * (hazeC * 0.03 + em);
+    }
     tr *= 1.0 - wgt * (dark * 0.92 + min(core, 1.0) * keepL * 0.35);
     Rk = Rn;
   }
@@ -309,4 +366,24 @@ fn frontAt(q: vec3f, F: vec4f, fadeRate: f32) -> vec3f {
   let rimK = exp(-pow((tn - th) / 0.012, 2.0)) * sat(reveal * 1.5 + 0.8 * G.cosmos.y * max(-hr, 0.0));
   col += (thinFilm(c, 420.0 + 300.0 * hr) * 0.05 + vec3f(0.3, 0.6, 0.55) * 0.1) * rimK * 0.35;
   return vec4f(col, 1.0);
+}
+
+// The sky drawn small (live, on a dense screen: a texel of it a point of the screen) and lifted into the scene, by a
+// Catmull-Rom filter in five bilinear taps: its stars and the deep's fine strands stay crisp, not smeared as a plain
+// bilinear lift would leave them.
+fn skyTap(uv: vec2f) -> vec3f { return textureSampleLevel(skyTex, samp_linear, uv, 0.0).rgb; }
+@fragment fn fsSkyUp(i: FullscreenOut) -> @location(0) vec4f {
+  let size = vec2f(textureDimensions(skyTex));
+  let sp = i.uv * size;
+  let tc = floor(sp - 0.5) + 0.5;
+  let f = sp - tc;
+  let w0 = f * (-0.5 + f * (1.0 - 0.5 * f));
+  let w1 = 1.0 + f * f * (-2.5 + 1.5 * f);
+  let w2 = f * (0.5 + f * (2.0 - 1.5 * f));
+  let w3 = f * f * (-0.5 + 0.5 * f);
+  let w12 = w1 + w2;
+  let a = (tc - 1.0) / size; let b = (tc + w2 / w12) / size; let c = (tc + 2.0) / size;
+  let k0 = w12.x * w0.y; let k1 = w0.x * w12.y; let k2 = w12.x * w12.y; let k3 = w3.x * w12.y; let k4 = w12.x * w3.y;
+  let col = skyTap(vec2f(b.x, a.y)) * k0 + skyTap(vec2f(a.x, b.y)) * k1 + skyTap(b) * k2 + skyTap(vec2f(c.x, b.y)) * k3 + skyTap(vec2f(b.x, c.y)) * k4;
+  return vec4f(max(col / (k0 + k1 + k2 + k3 + k4), vec3f(0.0)), 1.0);
 }

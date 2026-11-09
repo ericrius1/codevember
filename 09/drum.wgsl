@@ -7,6 +7,7 @@
 // frame), and once time dilates deep enough it runs exactly with the world, at a real hide's speed.
 #include "./common"
 #include "weft/mesh"
+#include "weft/fullscreen"
 
 const N = 256u;
 
@@ -59,6 +60,8 @@ struct PropU { model: mat4x4f }
 // the summit's paintings (summit.ts): its carved top seen from above, the rock of its cliffs (tiling)
 @group(2) @binding(12) var daisTop: texture_2d<f32>;
 @group(2) @binding(13) var daisRock: texture_2d<f32>;
+// (live: the realm inside marched at half the size by fsInner, read back here; filmed, a 1×1 stand-in, unread)
+@group(2) @binding(14) var innerTex: texture_2d<f32>;
 #include "./inner"
 
 /** the hide's displacement at uv (bilinear by hand: rg32float isn't filterable) */
@@ -108,6 +111,53 @@ fn hideH(uv: vec2f) -> f32 { return simAt(uv) * D.sim2.w + breathe(uv); }
   o.curv = lapv / (D.sim.y * D.sim.y);
   return o;
 }
+// ---------------------------------------------------------------- the realm inside, marched small (live)
+// Live, the world inside the glass is marched once a texel of a half-size target (fsInner), wherever the hide could be
+// seen from in front, and fsHide reads it back through a Catmull-Rom lift; filmed, fsHide marches it itself, a pixel at
+// a time (INNER_DRAWN false).
+override INNER_DRAWN: bool = false;
+override INNER_SCALE: f32 = 0.5;
+fn screenOf(p: vec3f) -> vec2f { let c = frame.viewProj * vec4f(p, 1.0); return vec2f(c.x / c.w * 0.5 + 0.5, 0.5 - c.y / c.w * 0.5); }
+fn innerTap(uv: vec2f) -> vec3f { return textureSampleLevel(innerTex, samp_linear, uv, 0.0).rgb; }
+fn innerRead(uvIn: vec2f) -> vec3f {
+  let size = vec2f(textureDimensions(innerTex));
+  let sp = clamp(uvIn, vec2f(0.0), vec2f(1.0)) * size;
+  let tc = floor(sp - 0.5) + 0.5;
+  let f = sp - tc;
+  let w0 = f * (-0.5 + f * (1.0 - 0.5 * f));
+  let w1 = 1.0 + f * f * (-2.5 + 1.5 * f);
+  let w2 = f * (0.5 + f * (2.0 - 1.5 * f));
+  let w3 = f * f * (-0.5 + 0.5 * f);
+  let w12 = w1 + w2;
+  let a = (tc - 1.0) / size; let b = (tc + w2 / w12) / size; let c = (tc + 2.0) / size;
+  let k0 = w12.x * w0.y; let k1 = w0.x * w12.y; let k2 = w12.x * w12.y; let k3 = w3.x * w12.y; let k4 = w12.x * w3.y;
+  let col = innerTap(vec2f(b.x, a.y)) * k0 + innerTap(vec2f(a.x, b.y)) * k1 + innerTap(b) * k2 + innerTap(vec2f(c.x, b.y)) * k3 + innerTap(vec2f(b.x, c.y)) * k4;
+  return max(col / (k0 + k1 + k2 + k3 + k4), vec3f(0.0));
+}
+@fragment fn fsInner(i: FullscreenOut) -> @location(0) vec4f {
+  if (D.glass.x <= 0.001) { return vec4f(0.0); }
+  let rd = viewRay(i.uv);
+  let ro = frame.camPos;
+  // (from in front only, as fsHide draws it: the hide's rocked plane met)
+  if (rd.x <= 0.0) { return vec4f(0.0); }
+  let n = rockDir(vec3f(-1.0, 0.0, 0.0));
+  let C = rock(D.center.xyz);
+  let dn = dot(rd, n);
+  if (dn >= -1e-4) { return vec4f(0.0); }
+  let t = dot(C - ro, n) / dn;
+  if (t <= 0.0) { return vec4f(0.0); }
+  let wp = ro + rd * t;
+  // (where on the hide, in its own frame: unrocked, a across, b up)
+  let a = -D.center.w; let ca = cos(a); let sa = sin(a);
+  let q = wp - ROCK_PIVOT;
+  let lw = ROCK_PIVOT + vec3f(q.x * ca - q.y * sa, q.x * sa + q.y * ca, q.z) - D.center.xyz;
+  let ab = vec2f(lw.z, lw.y);
+  // (a margin past the hide and the glass's front: the bent reads land a little off where they're drawn)
+  if (length(ab) > D.sim.x * 1.15 || length(ab - D.front.xy) > D.front.z + 0.15) { return vec4f(0.0); }
+  INNER_JIT = fract(52.9829189 * fract(dot(i.pos.xy, vec2f(0.06711056, 0.00583715))) + fract(D.trip.y * 60.0) * 0.618034);
+  return vec4f(innerWorld(wp, rd, D.trip.y, D.trip.x, frame.fovY / (frame.res.y * INNER_SCALE)), 1.0);
+}
+
 @fragment fn fsHide(in: HideOut, @builtin(front_facing) ff: bool) -> @location(0) vec4f {
   let V = normalize(frame.camPos - in.wpos);
   var N = normalize(in.n);
@@ -182,9 +232,17 @@ fn hideH(uv: vec2f) -> f32 { return simAt(uv) * D.sim2.w + breathe(uv); }
     // (the hide's thickness wandering a little, bending the view through it smoothly)
     let wv = vec2f(dotNoise(vec3f(ab * 4.0, 0.3 + D.trip.y * 0.05)), dotNoise(vec3f(ab * 4.0 + 3.7, 1.9)));
     let rdIn = normalize(-V + tilt * D.glass.y * 6.0 + vec3f(0.0, wv.y, wv.x) * 0.025 * veil);
-    let px = frame.fovY / frame.res.y;
-    INNER_JIT = fract(52.9829189 * fract(dot(in.pos.xy, vec2f(0.06711056, 0.00583715))) + fract(D.trip.y * 60.0) * 0.618034);
-    let realm = innerWorld(in.wpos, rdIn, D.trip.y, D.trip.x, px);
+    var realm: vec3f;
+    if (INNER_DRAWN) {
+      // (marched already, at half the size: read where the bent ray would have looked — the bend as a shift on screen,
+      // true for the realm's depths, near enough for its mouth)
+      let uv0 = in.pos.xy * frame.invRes;
+      realm = innerRead(uv0 + screenOf(in.wpos + rdIn * 4.0) - screenOf(in.wpos - V * 4.0));
+    } else {
+      let px = frame.fovY / frame.res.y;
+      INNER_JIT = fract(52.9829189 * fract(dot(in.pos.xy, vec2f(0.06711056, 0.00583715))) + fract(D.trip.y * 60.0) * 0.618034);
+      realm = innerWorld(in.wpos, rdIn, D.trip.y, D.trip.x, px);
+    }
     let nv = sat(dot(N, V));
     let tr = clamp(veil * (0.95 + 0.6 * stretch) * (1.0 - 0.35 * paint) * (1.0 - 0.4 * pow(1.0 - nv, 4.0)), 0.0, 0.97);
     // (the thinner the hide, the less light it scatters back of its own; a breath of its warmth over the realm)
@@ -209,7 +267,8 @@ fn hideH(uv: vec2f) -> f32 { return simAt(uv) * D.sim2.w + breathe(uv); }
 // close, a down of separate hairs catching the light, their tips lit through; further off, where a hair's thinner than
 // a pixel, each shell fades to its hairs' mean cover — a soft haze, a velvet edge. They sway on a slow breeze over
 // the hide and whip aside as a ripple passes under them.
-const FUZZ_SHELLS = 12u;
+// (live, fewer: each one as opaque as the twelve it stands for — fsFuzz)
+override FUZZ_SHELLS: u32 = 12u;
 const FUZZ_CELL = 0.0026;
 struct FuzzOut {
   @builtin(position) pos: vec4f,
@@ -299,7 +358,8 @@ struct FuzzOut {
   let abF = (in.uv - 0.5) * 2.0 * D.sim.x;
   a *= 1.0 - 0.8 * D.glass.x * (1.0 - smoothstep(D.front.z - D.front.w, D.front.z, length(abF - D.front.xy)));
   if (a < 0.002) { discard; }
-  return vec4f(col, a * 0.85);
+  // (as much cover as twelve shells would give, however many are drawn)
+  return vec4f(col, 1.0 - pow(1.0 - a * 0.85, 12.0 / f32(FUZZ_SHELLS)));
 }
 
 // ---------------------------------------------------------------- the drum's body and the dais

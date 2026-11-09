@@ -9,7 +9,7 @@
 // fit, the fingers), the strokes are src/rig/strike.ts's. The hide: a membrane simulated on the GPU (membrane.wgsl),
 // the beater's head pushing into it. Her headdress: ornaments.ts; her strands: hair.ts. The cosmos: cosmos.wgsl. The
 // sound: audio/ (a simulated hide, rendered offline). The motion's own measure: lab/ (node 09/lab/run.mjs).
-import { type RunEntry } from '@ericrius1/weft';
+import { FrameBudget, type RunEntry } from '@ericrius1/weft';
 import { day } from '../src/days';
 import { sketch } from '../src/sketch';
 import { LOOP, story, rate, BIG, ACT, STORY_LOOP } from './score';
@@ -54,12 +54,32 @@ sketch({ ...day(9), loop: LOOP, filmLoops: 1, warm: 1, hint: 'Space to pause · 
   const K = kit.uniforms(cosmosShader.structs.CosmosU, 'cosmos');
 
   // ---------------------------------------------------------------- passes
+  // the sky: by far the frame's costliest pass once the membrane's open (the deep's shells marched through on every
+  // pixel). Live on a dense screen (a Retina laptop's, two pixels a point) it's drawn at half the size, a texel of it a
+  // point, and lifted into the scene; filmed (supersampled anyway), or on a plain screen, at full size in the scene
+  const perf = ctx.params.has('perf');
+  // (the deep's slow fields, made once a frame for all its shells before the sky reads them: cosmos.wgsl fsDeepFields)
+  const deepA = kit.texture({ label: 'deep.fields.a', format: 'rgba16float', size: [256, 128 * 18], usage: ['render', 'sample'] });
+  const deepB = kit.texture({ label: 'deep.fields.b', format: 'rgba16float', size: [256, 128 * 18], usage: ['render', 'sample'] });
+  const deepPass = kit.pass({ label: 'deep.fields', color: [{ target: deepA, clear: [0, 0, 0, 0] }, { target: deepB, clear: [0, 0, 0, 0] }] });
+  deepPass.fullscreen(cosmosShader, { label: 'deep.fields', fragment: 'fsDeepFields' });
+  const skyScale = ctx.render ? 1 : Number(ctx.params.get('sky') ?? (Math.min(devicePixelRatio, 2) >= 1.5 ? 0.5 : 1));
+  const skyTex = skyScale < 1 ? kit.texture({ label: 'sky', format: 'rgba16float', size: 'render', scale: skyScale, usage: ['render', 'sample'] }) : null;
+  const skyPass = skyTex ? kit.pass({ label: 'sky', color: [{ target: skyTex, clear: [0, 0, 0, 1] }] }) : null;
+  skyPass?.fullscreen(cosmosShader, { label: 'sky', fragment: 'fsSky', bind: { K, deepA, deepB } as never });
   const scene = kit.pass({ label: 'scene', color: [{ target: hdr, clear: [0, 0, 0, 1] }], depth: { target: depth, clear: 0 } });
-  scene.fullscreen(cosmosShader, { label: 'sky', fragment: 'fsSky', bind: { K } as never });
+  if (skyTex) scene.fullscreen(cosmosShader, { label: 'sky.up', fragment: 'fsSkyUp', bind: { skyTex } as never });
+  else scene.fullscreen(cosmosShader, { label: 'sky', fragment: 'fsSky', bind: { K, deepA, deepB } as never });
+  // live, the resolution follows the frames (it steps down only when they run late: a fanless laptop warming, a big
+  // window), never when filming or timing (?perf), or held (?fixed)
+  if (!ctx.render && !perf && !ctx.params.has('fixed')) kit.autoRes = new FrameBudget(15, { min: 0.6, max: 1, step: 0.2, byPace: true });
   drum.draw(scene);
   beater.draw(scene, drum);
   shaman.draw(scene);
   regalia.draw(scene);
+  // (live on a dense screen, the world inside the glass marched at half the size too, and the hide's down in fewer
+  // shells — ?fuzzShells=n)
+  if (skyTex) drum.live(skyScale, Number(ctx.params.get('fuzzShells') ?? 6));
   const front = kit.pass({ label: 'scene.hide', color: [{ target: hdr, clear: false }], depth: { target: depth, clear: false } });
   drum.drawHide(front);
 
@@ -78,7 +98,7 @@ sketch({ ...day(9), loop: LOOP, filmLoops: 1, warm: 1, hint: 'Space to pause · 
   }
   const out = kit.pass({ label: 'final', color: [{ target: 'screen', clear: [0, 0, 0, 1] }] });
   out.fullscreen(postShader, { fragment: 'fs_final', bind: { P, src: hdr, bloomTex: bloom.mip(0) } as never,
-    constants: { HDR: 0, P3: 0 } as never });
+    constants: { HDR: 0, P3: 0, ...(skyTex ? { ZOOM_TAPS: 10, RAY_TAPS: 16 } : {}) } as never });
 
   // ---------------------------------------------------------------- the world, each frame
   // (?cam=x,y,z,tx,ty,tz,fov: a fixed camera, for looking at her poses)
@@ -226,6 +246,9 @@ sketch({ ...day(9), loop: LOOP, filmLoops: 1, warm: 1, hint: 'Space to pause · 
       shock: [sx, sy, ringA, ringK * 0.9] as never,
       misc: [0, 0.1 * trip * trip * Math.sin(t * 0.23) * gr.drift, smooth(big - 0.05, big + 1.5, t) * (0.8 + 0.5 * trip), 0] as never });
     PF.set({ look: [1.0, 0.9, 1.2, 0.035] as never, look2: [0, 0, 0, 1] as never, shock: [0.5, 0.5, 0, 0] as never, misc: [1, 0, 0, 0] as never, grade: [1, 0, 0, 0] as never, rays: [0, 0, 0, 0] as never });
-    return [...drum.run, scene, front, ...post, out];
+    // (the world inside marched only once the glass is opening)
+    const inner = drum.innerPass && (veilQ ?? gl.amount) > 0.001 ? [drum.innerPass] : [];
+    const deepRun = reveal > 0.001 || STYLE.sky.through * smooth(big + 0.3, big + 4, t) > 0.002 ? [deepPass] : [];
+    return skyPass ? [...drum.run, ...deepRun, skyPass, scene, ...inner, front, ...post, out] : [...drum.run, ...deepRun, scene, front, ...post, out];
   };
 });

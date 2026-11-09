@@ -36,6 +36,9 @@ struct VOut {
   @location(3) @interpolate(flat) mat: u32,
   @location(4) flow: vec3f,
   @location(5) bake: vec4f,
+  // (the normal as it was in the bind pose: the skin's fine relief is made there, where it stays put on her, and turned
+  // onto her as she's posed)
+  @location(6) bn: vec3f,
 };
 
 // ---------------------------------------------------------------- skinning (weft/skin: Boulder's hero.wgsl's)
@@ -73,6 +76,7 @@ fn clearLegs(v: VIn, p: vec3f, lp: vec3f) -> vec3f {
   o.mat = v.pm.w & 0xffu;
   o.flow = skinDir(Q, v.bones, v.weights, v.flow.xyz);
   o.bake = vec4f(v.nrm.w, v.flow.w, v.flow.x, v.flow.y);
+  o.bn = v.nrm.xyz;
   return o;
 }
 
@@ -189,6 +193,60 @@ fn drawEyes(p: vec3f, px: f32) -> vec4f {
   return vec4f(c, max(open, max(lines, brow)));
 }
 
+
+// ---------------------------------------------------------------- skin (living, not lacquered)
+/** value noise and its gradient (iq's analytic form; the same lattice as common's vnoise) */
+fn vnoiseD(x: vec3f) -> vec4f {
+  let i = floor(x); let f = fract(x);
+  let u = f * f * (3.0 - 2.0 * f); let du = 6.0 * f * (1.0 - f);
+  let a = hash13(i); let b = hash13(i + vec3f(1, 0, 0)); let c = hash13(i + vec3f(0, 1, 0)); let d = hash13(i + vec3f(1, 1, 0));
+  let e = hash13(i + vec3f(0, 0, 1)); let f1 = hash13(i + vec3f(1, 0, 1)); let g = hash13(i + vec3f(0, 1, 1)); let h = hash13(i + vec3f(1, 1, 1));
+  let k1 = b - a; let k2 = c - a; let k3 = e - a; let k4 = a - b - c + d; let k5 = a - c - e + g; let k6 = a - b - e + f1;
+  let k7 = -a + b + c - d + e - f1 - g + h;
+  let v = a + k1 * u.x + k2 * u.y + k3 * u.z + k4 * u.x * u.y + k5 * u.y * u.z + k6 * u.z * u.x + k7 * u.x * u.y * u.z;
+  let gr = du * vec3f(k1 + k4 * u.y + k6 * u.z + k7 * u.y * u.z, k2 + k5 * u.z + k4 * u.x + k7 * u.z * u.x, k3 + k6 * u.x + k5 * u.y + k7 * u.x * u.y);
+  return vec4f(v, gr);
+}
+/** a vector turned by the least rotation that takes unit a to unit b */
+fn turnTo(a: vec3f, b: vec3f, v: vec3f) -> vec3f {
+  let c = dot(a, b);
+  if (c < -0.999) { return -v; }
+  let k = cross(a, b);
+  return v * c + cross(k, v) + k * (dot(k, v) / (1.0 + c));
+}
+struct SkinRelief { slope: vec3f, cavity: f32 };
+/** the skin's fine relief in the bind pose (metres): its soft grain a few millimetres across, and its pores — each
+ *  octave let go as it shrinks under a couple of pixels (px: metres a pixel), so it never crawls */
+fn skinRelief(lp: vec3f, px: f32) -> SkinRelief {
+  var o: SkinRelief;
+  o.slope = vec3f(0.0); o.cavity = 0.0;
+  // the grain: soft, stretched a little across the body (the skin's own lines run round the limbs)
+  let F1 = 260.0;
+  let k1 = smoothstep(0.45, 0.15, F1 * px);
+  if (k1 > 0.0) {
+    let n = vnoiseD(lp * vec3f(F1, F1 * 1.6, F1)) ;
+    o.slope += n.yzw * vec3f(1.0, 1.6, 1.0) * F1 * 0.00006 * k1;
+  }
+  // the pores: small pits, scattered
+  let F2 = 1100.0;
+  let k2 = smoothstep(0.45, 0.15, F2 * px);
+  if (k2 > 0.0) {
+    let n = vnoiseD(lp * F2 + 7.3);
+    let pit = smoothstep(0.62, 0.9, n.x);
+    let dpit = select(0.0, 6.0 * ((n.x - 0.62) / 0.28) * (1.0 - (n.x - 0.62) / 0.28) / 0.28, n.x > 0.62 && n.x < 0.9);
+    o.slope += -n.yzw * dpit * F2 * 0.000014 * k2;
+    o.cavity = pit * k2;
+  }
+  return o;
+}
+/** diffuse through skin: each colour wraps round the terminator as far as it scatters (the deep red the furthest, the
+ *  blue hardly), and the deep colours see the smooth form, not the fine relief (the light's come up from under it) */
+fn skinDiffuse(nlSmooth: f32, nlFine: f32, reach: f32) -> vec3f {
+  let nl = vec3f(mix(nlFine, nlSmooth, 0.9), mix(nlFine, nlSmooth, 0.55), mix(nlFine, nlSmooth, 0.2));
+  let w = vec3f(0.75, 0.42, 0.3) * reach;
+  return pow(sat3((nl + w) / (1.0 + w)), 1.0 + w);
+}
+
 // ---------------------------------------------------------------- cloth
 fn weave(p: vec3f, s: f32) -> f32 { return sin(p.x * s + p.z * s * 0.3) * sin(p.y * s * 1.03) * 0.5 + 0.5; }
 /** the tunic's gold embroidery: a panel down the front (eyes stacked in diamonds), a band at the hem, an all-over lattice */
@@ -222,7 +280,8 @@ fn skirtGold(p: vec3f, px: f32) -> f32 {
 
 @fragment fn fs(in: VOut, @builtin(front_facing) ff: bool) -> @location(0) vec4f {
   var N = normalize(in.nrm);
-  if (!ff) { N = -N; }
+  var bn = normalize(in.bn + vec3f(0.0, 1e-6, 0.0));
+  if (!ff) { N = -N; bn = -bn; }
   let V = normalize(frame.camPos - in.wpos);
   let P = in.wpos;
   let lp = in.local;
@@ -234,12 +293,31 @@ fn skirtGold(p: vec3f, px: f32) -> f32 {
   var rough = 0.6; var spec = 0.04; var sheen = 0.0; var emit = vec3f(0.0); var wrap = 0.0; var rimK = 1.9;
   let pulse = G.glow.x;
   let skin = m == 0u || m == 6u || m == 11u;
+  // (skin: where she's thin — the ears, the fingers, the nose's wings — by how fast her surface turns on screen; taken
+  // before any branch, as screen-space widths must be)
+  let curv = length(fwidth(N)) / max(length(fwidth(P)), 1e-6);
+  var thin = 0.0; var oil = 0.0; var lips = 0.0; var cavity = 0.0; var Nf = N;
   if (skin) {
-    base = SU.pal[0].rgb;
-    // a faint iridescent sheen over the violet (a living film)
-    let nv = sat(dot(N, V));
-    base = mix(base, base * (0.6 + 0.8 * thinFilm(nv, 420.0 + 120.0 * sin(lp.y * 9.0))), SU.look.y * 0.35);
-    rough = 0.42; spec = 0.035; wrap = 0.45;
+    thin = smoothstep(30.0, 120.0, curv);
+    // her colour alive, not one paint: a slow mottle, the blood nearer the surface where she's thin, at her cheeks and
+    // the tip of her nose (a rose under the violet), the pores a shade darker
+    let E = SU.eye; let Fc = SU.face;
+    let front = step(0.0, lp.z);
+    let cheek = exp(-pow((abs(lp.x) - 0.036) / 0.02, 2.0) - pow((lp.y - (E.y - 0.03)) / 0.024, 2.0)) * front;
+    let nose = exp(-pow(lp.x / 0.013, 2.0) - pow((lp.y - SU.qmin.w) / 0.016, 2.0)) * step(Fc.w - 0.025, lp.z);
+    let mot = vnoise(lp * 21.0) * 0.6 + vnoise(lp * 73.0 + 3.0) * 0.4;
+    base = SU.pal[0].rgb * (0.86 + 0.28 * mot);
+    base = mix(base, vec3f(0.27, 0.08, 0.25), sat(0.32 * thin + 0.3 * cheek + 0.35 * nose + 0.12 * (mot - 0.5)));
+    // the forehead and the nose carry a little oil: a tighter shine there
+    let fore = smoothstep(E.y + 0.012, E.y + 0.03, lp.y) * (1.0 - smoothstep(Fc.x + 0.05, Fc.x + 0.08, lp.y)) * (1.0 - smoothstep(0.03, 0.05, abs(lp.x))) * front;
+    oil = max(fore, nose);
+    // its fine relief, made in the bind pose and turned onto her
+    let rel = skinRelief(lp, px);
+    cavity = rel.cavity;
+    base *= 1.0 - 0.07 * cavity;
+    let sl = rel.slope - bn * dot(rel.slope, bn);
+    Nf = normalize(N - turnTo(bn, N, sl));
+    rough = mix(0.52, 0.38, oil); spec = 0.028; wrap = 0.0;
     // her lines
     var g = faceLines(lp, px);
     if (abs(lp.x) > 0.12 && lp.y > 0.8) { g = max(g, armLines(lp, sign(lp.x), px)); }
@@ -263,9 +341,14 @@ fn skirtGold(p: vec3f, px: f32) -> f32 {
     let e = drawEyes(lp, px);
     base = mix(base, e.rgb * 0.5, e.a);
     emit += e.rgb * e.a * step(1.2, e.r) * 0.3;
-    // (the lips, darker)
+    // (the lips, darker, smoother, a little wet)
     let lipZone = (1.0 - smoothstep(0.004, 0.008, abs(lp.y - SU.face.y))) * (1.0 - smoothstep(SU.face.z * 0.8, SU.face.z, abs(lp.x))) * step(0.0, lp.z) * step(SU.face.w - 0.03, lp.z);
     base = mix(base, base * vec3f(0.55, 0.35, 0.6), lipZone);
+    lips = lipZone;
+    rough = mix(rough, 0.3, lipZone);
+    Nf = normalize(mix(Nf, N, lipZone));
+    // (the lines and the eyes are painted on, over the grain: they keep the smooth form)
+    Nf = normalize(mix(Nf, N, sat(max(g, e.a))));
   } else if (m == 1u) {
     // the tunic: woven bark fibre, gold embroidery
     let w = weave(lp * vec3f(1.0, 1.0, 1.0), 900.0);
@@ -311,15 +394,43 @@ fn skirtGold(p: vec3f, px: f32) -> f32 {
     // (the beads are on the locks themselves now: regalia.ts's strands)
     rough = 0.62; spec = 0.015;
   }
+  if (skin) {
+    // ---------------------------------------------------------------- skin's light: through it, not off it
+    let reach = 1.0 + 0.9 * thin;
+    let dK = skinDiffuse(dot(N, L.keyL), dot(Nf, L.keyL), reach);
+    let dD = skinDiffuse(dot(N, L.drumL), dot(Nf, L.drumL), reach);
+    // (the pores and creases hold less of the sky)
+    let aoS = ao * (1.0 - 0.12 * cavity);
+    var col = base * (L.key * dK + L.drum * dD + L.amb * aoS * mix(vec3f(1.0), vec3f(1.15, 0.9, 1.0), 0.5));
+    // the light that comes through where she's thin: the key or the drum behind an ear, a hand; the cosmos behind her
+    // edges (a rose glow — the colour of what's under the violet)
+    let deep = vec3f(0.95, 0.22, 0.38) * (0.35 + base * 2.0);
+    let tk = pow(sat(dot(V, -normalize(L.keyL + N * 0.4))), 3.0);
+    let td = pow(sat(dot(V, -normalize(L.drumL + N * 0.4))), 3.0);
+    let edge = pow(1.0 - sat(dot(N, V)), 2.5);
+    col += deep * ((L.key * tk + L.drum * td) * (0.08 + 0.5 * thin) + L.rim * edge * (0.12 + 0.45 * thin)) * ao;
+    // its shine: two lobes (a tight one, a broad haze) with the Fresnel skin has — faint face-on, bright at grazing; the
+    // living film's colours only in it, faintly
+    let nv = sat(dot(Nf, V));
+    let film = mix(vec3f(1.0), 0.6 + 0.8 * thinFilm(nv, 420.0 + 120.0 * sin(lp.y * 9.0)), SU.look.y * 0.3);
+    let specOcc = sat(ao * 1.2) * (1.0 - 0.4 * cavity);
+    let r0 = rough * 0.8; let r1 = min(1.0, rough * 1.45);
+    let Hk = normalize(V + L.keyL); let Hd = normalize(V + L.drumL);
+    let sK = mix(ggx(Nf, V, L.keyL, r0), ggx(Nf, V, L.keyL, r1), 0.2) * fresnel(spec, dot(Hk, V));
+    let sD = mix(ggx(Nf, V, L.drumL, r0), ggx(Nf, V, L.drumL, r1), 0.2) * fresnel(spec, dot(Hd, V));
+    col += film * (sK * L.key + sD * L.drum) * specOcc * (2.3 + 1.4 * lips);
+    // the cosmos's light off her at grazing: a sheen of the sky, and the fine down's soft rim
+    col += L.rim * film * fresnel(0.028, nv) * 1.1 * specOcc + base * L.rim * edge * 0.5 * ao;
+    col += emit;
+    col += vec3f(0.35, 0.85, 0.8) * shockAt(P) * 0.3;
+    return vec4f(col, 1.0);
+  }
   // light
   let nk = dot(N, L.keyL);
   let diffK = sat((nk + wrap) / (1.0 + wrap)) * mix(1.0, sat(nk * 2.0 + 0.5), 0.0);
   let nd = dot(N, L.drumL);
   let diffD = sat((nd + wrap) / (1.0 + wrap));
-  // (skin: the light through it, red-violet at the terminator)
-  var sss = vec3f(0.0);
-  if (skin) { sss = vec3f(0.5, 0.15, 0.4) * (sat(nk + 0.4) - sat(nk)) * 0.6 * L.key + vec3f(0.6, 0.2, 0.25) * (sat(nd + 0.4) - sat(nd)) * L.drum * 0.5; }
-  var col = base * (L.key * diffK + L.drum * diffD + L.amb * ao) + base * sss;
+  var col = base * (L.key * diffK + L.drum * diffD + L.amb * ao);
   // the cosmos's rim
   let fr = pow(1.0 - sat(dot(N, V)), 3.0);
   col += L.rim * pow(1.0 - sat(dot(N, V)), 4.0) * ao * (0.5 + sheen) * rimK;
