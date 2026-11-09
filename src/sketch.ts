@@ -298,27 +298,17 @@ function buildHud(meta: SketchMeta) {
       location.assign(next.href);
     });
   }
-  // the way in: a day with sound waits at its threshold for a gesture (browsers won't play sound before one) — the day's
-  // name, its sentence, a drum of a button rippling slowly, the day's other tellings to choose from; struck, it ripples
-  // out over the whole page and opens on the piece, starting from its beginning with its sound
+  // the way in: a day with sound waits at its threshold for a gesture (browsers won't play sound before one) — only the
+  // day's name and a drum of a button rippling slowly; struck, it ripples out over the whole page and opens on the
+  // piece, starting from its beginning with its sound
   const gate = document.createElement('div'); gate.className = 'begin-gate';
   const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
   gate.innerHTML = `
     <div class="begin-card">
       <div class="begin-kicker">Codevember 2026 <span>·</span> ${pad(meta.day)}</div>
       <h1 class="begin-title">${esc(meta.title)}</h1>
-      ${meta.note ? `<p class="begin-sentence">${esc(meta.note)}</p>` : ''}
       <button class="begin-drum" disabled aria-label="Begin"><i class="ring"></i><i class="ring"></i><i class="ring"></i><span class="begin-label">Loading</span></button>
-      ${meta.styles && meta.styles.options.length > 1 ? `<div class="begin-tellings"><span class="lbl">Telling</span>${meta.styles.options.map((o) =>
-        `<button data-style="${esc(o.id)}" class="${o.id === meta.styles!.selected ? 'on' : ''}">${esc(o.label)}</button>`).join('')}</div>` : ''}
-    </div>
-    <div class="begin-foot"><span class="begin-note"><i class="eq"><b></b><b></b><b></b></i>Sound on · headphones</span><span class="begin-keys">Space pauses · drag to look</span></div>`;
-  for (const b of gate.querySelectorAll<HTMLButtonElement>('.begin-tellings button')) b.addEventListener('click', () => {
-    if (b.classList.contains('on')) return;
-    const next = new URL(location.href); next.searchParams.set('style', b.dataset.style!);
-    next.searchParams.delete('u'); next.searchParams.delete('mode');
-    location.assign(next.href);
-  });
+    </div>`;
   const showGate = !!meta.audio && !['render', 'perf', 'u'].some((k) => new URLSearchParams(location.search).has(k));
   if (showGate) { document.body.append(gate); document.body.classList.add('gated'); }
   const video = document.createElement('video');
@@ -345,7 +335,6 @@ function buildHud(meta: SketchMeta) {
           setTimeout(() => gate.remove(), 1400);
         } catch {
           button.disabled = false; label.textContent = 'Begin';
-          gate.querySelector('.begin-note')!.lastChild!.textContent = 'Could not start the sound · tap Begin again';
         }
       });
     },
@@ -359,7 +348,6 @@ function buildHud(meta: SketchMeta) {
       api.soundOn = on; video.muted = !on;
       soundBtn?.classList.toggle('on', on); soundBtn?.setAttribute('aria-pressed', String(on));
       if (soundBtn) soundBtn.textContent = on ? 'Sound on' : 'Sound off';
-      gate.querySelector('.begin-note')!.lastChild!.textContent = on ? 'Sound on · headphones' : 'Sound off';
     },
     mode: 'live' as 'live' | 'film',
     setMode(m: 'live' | 'film') {

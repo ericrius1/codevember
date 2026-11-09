@@ -46,9 +46,8 @@ the stroke's plan only round contact), so it never floats off the fingers where 
 and bend, one joint frame by frame, the beater's plan, the grip's error). Skinning in
 WGSL is weft's (`#include "weft/skin"`).
 
-A day with sound opens at its threshold (src/sketch.ts buildHud, src/sketch.css `.begin-*`): the day's number, its
-name, its sentence over a darkened still of the piece, a round Begin button rippling slowly (the day's accent), the
-day's tellings to choose from, Sound on. Begin (the gesture a browser needs before it plays sound) bursts a ring out
+A day with sound opens at its threshold (src/sketch.ts buildHud, src/sketch.css `.begin-*`): only the day's number and
+name over a darkened still of the piece, and a round Begin button rippling slowly in the day's accent. Begin (the gesture a browser needs before it plays sound) bursts a ring out
 over the page and starts the piece from zero with its sound; the HUD comes up after. Sound can be muted; Space pauses.
 The picture follows the audio clock, including buffering. Switching Live / Film pauses the other audio source.
 
