@@ -33,8 +33,7 @@ const norm3 = (a: V3): V3 => { const l = Math.hypot(a[0], a[1], a[2]) || 1; retu
 const scale3 = (a: V3, k: number): V3 => [a[0] * k, a[1] * k, a[2] * k];
 const smooth = (a: number, b: number, x: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
-sketch({ ...day(9), loop: LOOP, filmLoops: 1, warm: 1, hint: 'Space to pause · drag to turn', audio: new URLSearchParams(location.search).has('render') ? undefined : soundtrack(),
-  filmId: '09-infinite' }, async (ctx) => {
+sketch({ ...day(9), loop: LOOP, filmLoops: 1, warm: 1, hint: 'Space to pause · drag to turn', audio: new URLSearchParams(location.search).has('render') ? undefined : soundtrack() }, async (ctx) => {
   const { kit } = ctx;
   const G = kit.uniforms(cosmosShader.structs.Globals, 'globals');
   kit.setGlobals(G);

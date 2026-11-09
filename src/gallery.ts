@@ -16,7 +16,7 @@ const seen = new IntersectionObserver((es) => {
 }, { rootMargin: '200px' });
 
 for (const d of [...DAYS].sort((a, b) => b.day - a.day)) {
-  const film = films.find((f) => f.id === pad(d.day));
+  const film = films.find((f) => f.id === (d.filmId ?? pad(d.day)));
   const a = document.createElement('article');
   a.style.setProperty('--tile', d.colors.bg);
   a.innerHTML = `
