@@ -1,9 +1,7 @@
-// Every day's words, for its page and the gallery. A day's sketch is <dd>/main.ts.
+// Every day's name, for its page and the gallery. A day's sketch is <dd>/main.ts.
 export interface Day {
   day: number;
   title: string;
-  /** a sentence about it */
-  note: string;
   /** seconds per loop */
   loop: number;
   colors: { bg: string; fg: string; accent?: string };
@@ -12,8 +10,8 @@ export interface Day {
 }
 
 export const DAYS: Day[] = [
-  { day: 4, title: 'Gyre', loop: 16, note: 'Forty glazed hoops, each turning over twice a loop, the outside first.', colors: { bg: '#e6e0d7', fg: '#2b2520' } },
-  { day: 9, title: 'Membrane', loop: 22, note: 'A shaman strikes a great drum, each stroke harder, then once more: time all but stops, and the hide between universes opens.', colors: { bg: '#0b0714', fg: '#efe3cf', accent: '#5fe3d0' }, filmId: '09-infinite' },
+  { day: 4, title: 'Gyre', loop: 16, colors: { bg: '#e6e0d7', fg: '#2b2520' } },
+  { day: 9, title: 'Membrane', loop: 22, colors: { bg: '#0b0714', fg: '#efe3cf', accent: '#5fe3d0' }, filmId: '09-infinite' },
 ];
 
 export const day = (n: number) => {

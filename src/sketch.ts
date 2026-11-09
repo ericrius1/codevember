@@ -14,8 +14,6 @@ export interface SketchMeta {
   title: string;
   /** seconds per loop */
   loop: number;
-  /** a line under the title */
-  note?: string;
   /** how to play with it (the HUD's second line) */
   hint?: string;
   /** whole loops run before filming starts (a stateful sketch's warm-up) */
@@ -289,7 +287,6 @@ function buildHud(meta: SketchMeta) {
         <button data-mode="live" class="on">Live</button><button data-mode="film" disabled>Film</button>
       </div>
     </div>
-    <div class="bl">${meta.note ? `<span>${meta.note}</span>` : ''}</div>
     <div class="br"><a href="../">All days</a></div>
     <div class="msg"></div>`;
   document.body.append(el);

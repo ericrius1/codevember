@@ -25,7 +25,6 @@ for (const d of [...DAYS].sort((a, b) => b.day - a.day)) {
     </a>
     <div class="cap">
       <h2><span class="n">${pad(d.day)}</span> ${d.title}</h2>
-      <p>${d.note}</p>
       <div class="links"><a href="${pad(d.day)}/">Live</a>${film ? `<a href="footage/?film=${film.id}">Film</a>` : ''}</div>
     </div>`;
   main.append(a);
