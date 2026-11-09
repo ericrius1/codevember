@@ -64,18 +64,25 @@ export async function sketch(meta: SketchMeta, setup: (ctx: Ctx) => Promise<Fram
   document.body.append(canvas);
   const hud = buildHud(meta);
 
+  // (no WebGPU, or the piece couldn't be built on this GPU — a phone's smaller limits: the film instead, its Begin
+  // playing it, so the threshold never hangs on "Loading")
+  const filmInstead = (e: unknown) => {
+    console.error(e);
+    if (render) throw e;
+    document.body.classList.add('nogpu');
+    hud.setMode('film');
+    hud.say(`This one needs WebGPU (${(e as Error)?.message ?? e}). Here's the film.`);
+    hud.begin(async () => {
+      await hud.filmReady; hud.started = true; hud.film.muted = !hud.soundOn; await hud.film.play();
+      setTimeout(() => hud.hush(), 4000);
+    });
+    hud.sound((on) => { hud.film.muted = !on; });
+  };
   let kit: Kit;
   try {
     // (an HDR film, ?render&hdr: a float canvas whatever the display, its frames read back at 16 bits a channel)
     kit = await createKit(canvas, { maxPixelRatio: render ? ss : 2, ...(render && params.has('hdr') ? { hdr: 'force' as const } : {}) });
-  } catch (e) {
-    document.body.classList.add('nogpu');
-    hud.setMode('film');
-    hud.say(`This one needs WebGPU (${(e as Error).message}). Here's the film.`);
-    hud.begin(async () => { hud.started = true; hud.film.muted = !hud.soundOn; await hud.film.play(); });
-    hud.sound((on) => { hud.film.muted = !on; });
-    return;
-  }
+  } catch (e) { filmInstead(e); return; }
 
   const orbit = { yaw: 0, pitch: 0 };
   const pointer = { u: 0.5, v: 0.5, down: false };
@@ -88,8 +95,11 @@ export async function sketch(meta: SketchMeta, setup: (ctx: Ctx) => Promise<Fram
   };
   if (!render) bindPointer(canvas, ctx);
 
-  const frameFn = await setup(ctx);
-  await kit.ready();
+  let frameFn: FrameFn;
+  try {
+    frameFn = await setup(ctx);
+    await kit.ready();
+  } catch (e) { canvas.remove(); filmInstead(e); return; }
 
   let t = 0, n = 0, paused = false;
   const sound = meta.audio && !render && !params.has('perf') ? new Audio(meta.audio) : null;
@@ -112,7 +122,7 @@ export async function sketch(meta: SketchMeta, setup: (ctx: Ctx) => Promise<Fram
     if (!controlled) hud.begin(async () => {
       t = 0; n = 0; paused = false; begun = true; hud.started = true;
       try {
-        if (hud.mode === 'film') { hud.film.muted = !hud.soundOn; await hud.film.play(); }
+        if (hud.mode === 'film') { await hud.filmReady; hud.film.muted = !hud.soundOn; await hud.film.play(); }
         else await playSound();
       } catch (e) { begun = false; hud.started = false; throw e; }
     });
@@ -306,7 +316,7 @@ function bindPointer(canvas: HTMLCanvasElement, ctx: Ctx) {
   canvas.addEventListener('pointercancel', up);
 }
 
-interface Film { id: string; video: string; poster: string }
+interface Film { id: string; video: string; small?: string | null; poster: string }
 function buildHud(meta: SketchMeta) {
   const el = document.createElement('div');
   el.className = 'hud';
@@ -343,8 +353,11 @@ function buildHud(meta: SketchMeta) {
   document.body.append(video);
   const buttons = [...el.querySelectorAll<HTMLButtonElement>('.seg button')];
   const soundBtn = el.querySelector<HTMLButtonElement>('.sound');
+  let filmLoaded = (_ok: boolean) => {};
   const api = {
     film: video,
+    /** resolves once the film's posted (true) or known not to be (false) */
+    filmReady: new Promise<boolean>((r) => (filmLoaded = r)),
     soundOn: !!meta.audio,
     started: !showGate,
     onModeChange: (_mode: 'live' | 'film') => {},
@@ -384,17 +397,20 @@ function buildHud(meta: SketchMeta) {
       api.onModeChange(m);
     },
     say(s: string) { const m = el.querySelector('.msg')!; m.textContent = s; m.classList.add('on'); },
+    hush() { el.querySelector('.msg')!.classList.remove('on'); },
   };
   for (const b of buttons) b.addEventListener('click', () => api.setMode(b.dataset.mode as 'live' | 'film'));
   // the film, if it's been posted (public/footage/footage.json: id is the day)
   fetch(`${import.meta.env.BASE_URL}footage/footage.json`).then((r) => r.json()).then((list: Film[]) => {
     const f = list.find((x) => x.id === (meta.filmId ?? pad(meta.day)));
-    if (!f) return;
-    video.src = f.video;
+    if (!f) return filmLoaded(false);
+    // (a phone gets the lighter copy)
+    video.src = f.small && matchMedia('(max-width: 900px), (pointer: coarse)').matches ? f.small : f.video;
     video.poster = f.poster;
     buttons[1].disabled = false;
     if (api.mode === 'film' && api.started) video.play().catch(() => {});
-  }).catch(() => {});
+    filmLoaded(true);
+  }).catch(() => filmLoaded(false));
   api.soundState(api.soundOn);
   if (new URLSearchParams(location.search).get('mode') === 'film') api.setMode('film');
   return api;
