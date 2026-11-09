@@ -2039,18 +2039,22 @@ export class HeroRig {
       best = local;
       const wn = HeroRig.armSpring;
       if (wn > 0) {
-        // (the spring: toward the best within reach, its speed carried frame to frame; semi-implicit, stable while
-        // wn·dt < 1, which a frame's dt keeps)
+        // (the spring: toward the best within reach, its speed carried frame to frame; semi-implicit, in substeps of
+        // at most 0.5/wn — a frame at 60 fps is one, as it always was; a phone's long, uneven frames take several, where
+        // one step of the whole frame overshot and swung back, frame on frame, and her arms shook)
         const phiB = Math.atan2(dot(best.pole, r1), dot(best.pole, r0));
         let d = phiB - phi0;
         d -= TAU * Math.round(d / TAU);
-        const h = Math.min(dt, 0.9 / wn);
-        let v = this.swVel[ti] + (wn * wn * d - 2 * wn * this.swVel[ti]) * h;
         // (never faster than the hurry the window would allow)
         const vmax = 3 * ARM_SWING;
-        v = Math.max(-vmax, Math.min(vmax, v));
+        const n = Math.max(1, Math.ceil(dt * wn / 0.5 - 1e-9)), h = dt / n;
+        let v = this.swVel[ti], phi = 0;
+        for (let i = 0; i < n; i++) {
+          v = Math.max(-vmax, Math.min(vmax, v + (wn * wn * (d - phi) - 2 * wn * v) * h));
+          phi += v * h;
+        }
         this.swVel[ti] = v;
-        best = cost(phi0 + v * dt);
+        best = cost(phi0 + phi);
       }
     } else this.swVel[ti] = 0;
     if (turn > 0) {

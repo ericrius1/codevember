@@ -104,7 +104,11 @@ export async function sketch(meta: SketchMeta, setup: (ctx: Ctx) => Promise<Fram
   let begun = !sound || controlled, previewDrawn = false, drawnSize = '';
   const playSound = () => {
     if (!sound || !hud.soundOn || paused || !begun || hud.mode !== 'live') return Promise.resolve();
-    sound.currentTime = t % meta.loop;
+    // (to where the picture is — but a phone hasn't loaded a byte of it before the tap (iOS ignores preload), and
+    // seeking an element with nothing loaded can throw there, before play() is ever reached: so then it seeks once
+    // it knows its length, and play() always goes out inside the tap)
+    const seek = () => { try { sound.currentTime = t % meta.loop; } catch { /* the picture follows the sound anyway */ } };
+    if (sound.readyState >= 1) seek(); else sound.addEventListener('loadedmetadata', seek, { once: true });
     return sound.play();
   };
   if (sound) {
