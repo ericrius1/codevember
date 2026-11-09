@@ -61,11 +61,14 @@ image generation, handed the concepts and a frame of the film); `refs.mjs ocean_
 realm inside the drum (design/realms/ocean, its three layers), and `dais,dais_top,dais_rock` the summit she stands on.
 
 09 is one telling, filmed 16:9 (its numbers in `09/style.ts`). The pulse is struck twice — ordinary strokes: the
-universe's membrane doesn't answer them and the hide doesn't open — then the great stroke, her arm carrying its
-momentum on down past the hide's face (strike.ts `followWay`), whose slowed moment eases after two seconds and holds
-slowed to the very end: the hide's own breath, the flight down inside the glass and the wall's ripples all on steady
-slow clocks. The camera holds on the struck point as the glass opens, then draws back and round to behind her, a little
-to her left, seeing into the glass past her (09/camera.ts). Our universe's membrane tears open on the deep (cosmos.wgsl
+universe's membrane doesn't answer them and the hide doesn't open — then the great stroke, struck hard: the heavy beater
+rebounds off the hide and her hand flows back up after it, let go with rather than braked (strike.ts `after`). Time
+falls to a two-hundredth under it, eases after two seconds to a dream's pace, and as the camera flies in comes slowly
+back to 0.85 of its own by the fade (score.ts `rate`). The camera holds on the struck point as the glass opens, draws
+back a little to her, the drum and the torn membrane round them; then, the glass all but wholly open (STYLE.fly), it
+flies in — wide of her left side, banking onto the hide's axis, into the glass — and the drum's world fills the frame,
+flown down through like a portal, faster as time comes back (09/camera.ts; the flight and the portal in main.ts and
+drum.wgsl). `node 09/lab/run.mjs 09/lab/camera.ts` checks the path against her posed bones, the beater and the drum. Our universe's membrane tears open on the deep (cosmos.wgsl
 `deepSky`): not a painting but shells out to forever, each a third again as far and its strands a third again as large,
 long strands of light (sea-teal, deep blue, leaf-green) flowing each shell its own way and strands of dark that hide all
 behind them, a cold light far down past the drum. The glass opens on a deep ocean without end (inner.wgsl `deepWay`,
@@ -79,7 +82,7 @@ void, standing stones on its far side, shards drifting round it — painted by C
 
 ```bash
 node --experimental-strip-types 09/audio/render.ts   # the soundtrack: film/09.wav + 09/assets/membrane.m4a
-node 09/lab/run.mjs 09/lab/camera.ts                 # the camera's clearance, continuity, and time slowed to the end
+node 09/lab/run.mjs 09/lab/camera.ts                 # the flight in: clear of her, the beater and the drum; no jumps
 node 09/lab/run.mjs 09/lab/motion.ts                 # her motion's jerks, ranked
 node tools/render.mjs 09 --aspect 16:9               # film/09.mp4, 1920×1080, 60fps, 2× supersampled
 node ~/codeprojects/footage/publish.mjs film/09.mp4 --id 09-infinite …   # its footage id stays 09-infinite

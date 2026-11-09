@@ -145,6 +145,13 @@ sketch({ ...day(9), loop: LOOP, filmLoops: 1, warm: 1, hint: 'Space to pause · 
   const rippleAt = (t: number) => smooth(big, big + 0.8, t);
   // the fade: in from black at the loop's start, out to it at its end
   const fadeAt = (t: number) => smooth(0, 0.9, t) * (1 - smooth(ACT.fade, ACT.black, t));
+  // the flight in: the camera's own way down the realm's (ribs, added to its steady flow), from as it leaves its pull-back
+  // (STYLE.fly.go), quickening into the glass, then on with time as it comes back toward its own pace. Tabulated once.
+  const FLY = STYLE.fly, flyGo = big + FLY.go, flyIn = big + FLY.in;
+  const flySpeed = (x: number) => x < flyIn ? FLY.speedIn * smooth(flyGo, flyIn, x) : FLY.speedIn + (FLY.speedEnd - FLY.speedIn) * smooth(flyIn, ACT.fade, x);
+  const FLY_STEP = 1 / 240, flight = new Float64Array(Math.ceil(LOOP / FLY_STEP) + 2);
+  for (let i = 1; i < flight.length; i++) flight[i] = flight[i - 1] + flySpeed((i - 0.5) * FLY_STEP) * FLY_STEP;
+  const flightAt = (x: number) => { const f = Math.max(0, x) / FLY_STEP, i = Math.min(flight.length - 2, Math.floor(f)); return flight[i] + (flight[i + 1] - flight[i]) * (f - i); };
   // (?veil=0..1 and ?trip=0..1 hold the hide's thinning and the trip there, for looking at the world inside)
   const veilQ = ctx.params.has('veil') ? Number(ctx.params.get('veil')) : null;
   const tripQ = ctx.params.has('trip') ? Number(ctx.params.get('trip')) : null;
@@ -189,13 +196,16 @@ sketch({ ...day(9), loop: LOOP, filmLoops: 1, warm: 1, hint: 'Space to pause · 
     const gl = glassAt(t);
     // (the hide breathes slowly, on a steady clock of its own: in film time its rings ran on at the world's pace as
     // everything else held slowed, and swelled to the end)
-    drum.glass(veilQ ?? gl.amount, t, veilQ !== null ? [0, 0, 9] : gl.front, trip, t, 0.0032 * trip * trip, 0.3 * t);
+    // (the camera at the glass — its last hand's breadth in — the hide's own surface gone: the portal)
+    const cam0 = camOverride ?? shot(t, ctx.orbit);
+    const toHide = Math.hypot(cam0.eye[0] - DRUM.c[0], cam0.eye[1] - DRUM.c[1], cam0.eye[2] - DRUM.c[2]);
+    const portal = gl.amount > 0 && cam0.eye[0] < DRUM.c[0] ? 1 - smooth(0.11, 0.32, toHide) : 0;
+    drum.glass(veilQ ?? gl.amount, t, veilQ !== null ? [0, 0, 9] : gl.front, trip, t, 0.0032 * trip * trip, 0.3 * t, flightAt(t), portal);
     // ---------------------------------------------------------------- the light, the shock, the cosmos
     // the shock's front: barely moving through the dilated moment, then racing out as time lifts
     const shockR = t > big ? 0.5 * Math.pow(t - big, 1.5) + 40 * Math.pow(Math.max(0, t - ACT.shock), 2) : 0;
     const deep = Math.log(Math.max(r, 1e-4)) / Math.log(0.01);
     const deepK = Math.min(1, deep);
-    const cam0 = camOverride ?? shot(t, ctx.orbit);
     cam.lookAt(cam0.eye, cam0.at);
     ctx.fit(cam, cam0.fov);
     const rip = rippleAt(t);
@@ -242,13 +252,21 @@ sketch({ ...day(9), loop: LOOP, filmLoops: 1, warm: 1, hint: 'Space to pause · 
     P.set({ look: [fadeAt(t) * gr.exp, (0.9 + 0.35 * trip) * gr.bloom, 1.2, 0.02] as never,
       look2: [0.2 + 1.2 * deepK * deepK + 0.8 * trip, 0.015 * deepK * deepK * deepK, 0.55 + 0.1 * trip, (1.0 + 0.2 * deepK + 0.12 * trip) * (1 + (gr.sat - 1) * smooth(big, big + 3, t))] as never,
       grade: [gr.cool, 0, 0, 0] as never,
-      rays: [px, py, pz > 0 ? STYLE.rays * trip : 0, 0.55] as never,
+      rays: [px, py, pz > 0 ? STYLE.rays * trip * (1 - 0.6 * portal) : 0, 0.55] as never,
       shock: [sx, sy, ringA, ringK * 0.9] as never,
       misc: [0, 0.1 * trip * trip * Math.sin(t * 0.23) * gr.drift, smooth(big - 0.05, big + 1.5, t) * (0.8 + 0.5 * trip), 0] as never });
     PF.set({ look: [1.0, 0.9, 1.2, 0.035] as never, look2: [0, 0, 0, 1] as never, shock: [0.5, 0.5, 0, 0] as never, misc: [1, 0, 0, 0] as never, grade: [1, 0, 0, 0] as never, rays: [0, 0, 0, 0] as never });
     // (the world inside marched only once the glass is opening)
     const inner = drum.innerPass && (veilQ ?? gl.amount) > 0.001 ? [drum.innerPass] : [];
-    const deepRun = reveal > 0.001 || STYLE.sky.through * smooth(big + 0.3, big + 4, t) > 0.002 ? [deepPass] : [];
-    return skyPass ? [...drum.run, ...deepRun, skyPass, scene, ...inner, front, ...post, out] : [...drum.run, ...deepRun, scene, front, ...post, out];
+    // (live: no sky drawn while the glass fills the whole frame — every corner's ray meets the hide well inside its rim)
+    const covered = !!skyPass && portal > 0.99 && [[-1, -1], [1, -1], [-1, 1], [1, 1]].every(([cx, cy]) => {
+      const d = norm3([fw[0] + (rt[0] * cx * asp + upv[0] * cy) * th, fw[1] + (rt[1] * cx * asp + upv[1] * cy) * th, fw[2] + (rt[2] * cx * asp + upv[2] * cy) * th]);
+      if (d[0] <= 1e-3) return false;
+      const k = (DRUM.c[0] - ce[0]) / d[0];
+      return Math.hypot(ce[1] + d[1] * k - DRUM.c[1], ce[2] + d[2] * k - DRUM.c[2]) < DRUM.r * 0.8;
+    });
+    const deepRun = !covered && (reveal > 0.001 || STYLE.sky.through * smooth(big + 0.3, big + 4, t) > 0.002) ? [deepPass] : [];
+    const sky = skyPass && !covered ? [skyPass] : [];
+    return skyPass ? [...drum.run, ...deepRun, ...sky, scene, ...inner, front, ...post, out] : [...drum.run, ...deepRun, scene, front, ...post, out];
   };
 });

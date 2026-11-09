@@ -53,13 +53,20 @@ function specFor(i: number, shift: number): StrokeSpec {
       // the top: her hand high over her head and back, the beater pointing back and up behind her
       top: [-1.0, 2.04, STRIKE_A + 0.24],
       lift: S - down - hang - liftFrom, hang,
-      dwell: 0.0055, depth: 0.13, restitution: 0.35, settle: 0.75,
-      // after: no flourish — the beater comes down by her side, its head low ahead of her (a hanging arm, the shaft square to it), and she stands
-      // and watches what the stroke has done
+      dwell: 0.0055, depth: 0.13, restitution: 0.6, settle: 1.2,
+      // after: the beater lowered by her side, its head low ahead of her (a hanging arm, the shaft square to it), and
+      // she stands and watches what the stroke has done
       ready: { hand: [-0.74, 0.9, 0.38], shaft: norm([0.84, -0.32, 0.3]) },
-      // (her arm carries its momentum on through the hide: driven on down past its face, losing its speed over a hand's
-      // span of 0.4 m and a fifth of a second — not stopped dead at the contact)
       lag: 0.12, follow: 0.2, followDist: 0.42, followWay: norm([0.5, -0.86, 0.06]), topFlow: 0.3, lay: 0.35,
+      // (struck hard: the heavy beater rebounds off the hide and she lets it — her hand carried on a touch, then drawn
+      // back and up a little after the head as it flies off, loose, and flowing down to her side; not braked)
+      after: [
+        { dt: 0.012, hand: [-0.43, 1.04, 0.395], shaft: [0.52, 0.85, 0.02] },
+        { dt: 0.06, hand: [-0.45, 1.03, 0.42], shaft: [0.22, 0.97, 0.06] },
+        { dt: 0.2, hand: [-0.6, 1.2, 0.5], shaft: [-0.05, 0.99, 0.12] },
+        { dt: 0.48, hand: [-0.7, 1.06, 0.46], shaft: [0.6, 0.6, 0.3] },
+        { dt: 0.95, hand: [-0.74, 0.92, 0.4], shaft: [0.84, -0.3, 0.3] },
+      ],
     };
   }
   // (a fuller arc than a tap: the hand comes from up by her ear, the beater cocked back past upright; each stroke of
@@ -146,13 +153,15 @@ for (const k of strokes.list) {
   // (its keys after it on its own loop's clock: the great stroke is also the stroke before the loop's first)
   const sh = tC - SB;
   const O = { in1: OPEN.in1 + sh, out0: OPEN.out0 + sh, out1: OPEN.out1 + sh };
+  // (and as the beater's rebound draws her arm back she goes with it a little: the trunk easing up and open out of the
+  // crunch, the head lifting with it)
   key('hips', tR + 0.4, -0.05); key('hips', tT - 0.3 * D, -0.44); key('hips', tC + 0.3, 0.22); key('hips', O.in1, 0.04); key('hips', O.out1, 0);
-  key('trunk', tR + 0.5, -0.04); key('trunk', tT - 0.04 * D, -0.42); key('trunk', tC + 0.36, 0.2); key('trunk', O.in1, 0.0);
-  key('flex', tR + 0.6, -0.04); key('flex', tT - 0.08, -0.24); key('flex', tC + 0.09, 0.4); key('flex', O.in1, 0.03); key('flex', O.out0, 0.02); key('flex', O.out1, 0.0);
+  key('trunk', tR + 0.5, -0.04); key('trunk', tT - 0.04 * D, -0.42); key('trunk', tC + 0.12, 0.2); key('trunk', tC + 0.42, 0.06); key('trunk', O.in1 + 0.2, 0.0);
+  key('flex', tR + 0.6, -0.04); key('flex', tT - 0.08, -0.24); key('flex', tC + 0.09, 0.4); key('flex', tC + 0.4, 0.14); key('flex', O.in1 + 0.2, 0.03); key('flex', O.out0, 0.02); key('flex', O.out1, 0.0);
   key('side', tR + 0.6, 0.02); key('side', tT - 0.05, 0.12); key('side', tC + 0.1, -0.06); key('side', O.in1, 0.0);
   key('load', tR + 0.4, 0.2); key('load', tT - 0.25, 0.85); key('load', tC + 0.12, 1.0); key('load', O.in1, 0.4); key('load', O.out0, 0.36); key('load', O.out1, 0.15);
   key('shift', tR + 0.4, -0.02); key('shift', tT - 0.2, -0.16); key('shift', tC + 0.16, 0.2); key('shift', O.in1, 0.0);
-  key('nod', tT - 0.1, -0.06); key('nod', tC + 0.08, 0.12); key('nod', O.in1, -0.07); key('nod', O.out0, -0.06); key('nod', O.out1, 0.02);
+  key('nod', tT - 0.1, -0.06); key('nod', tC + 0.08, 0.12); key('nod', tC + 0.38, 0.0); key('nod', O.in1 + 0.2, -0.07); key('nod', O.out0, -0.06); key('nod', O.out1, 0.02);
   // (her gaze: lifting from the struck point as she comes up out of the stroke, between the veil and the rippling sky)
   key('sky', tC + 0.05, 0, 'hold'); key('sky', O.in1, 0.6);
   key('sky', O.out0, 0.7, 'hold'); key('sky', O.out1, 0, 'hold');

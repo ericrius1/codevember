@@ -81,8 +81,8 @@ fn wayMedium(o: vec2f, slope: vec2f, R0: f32, L: f32, z: f32, dz: f32, flow: f32
  *  way's axis); R0 its mouth's radius and L how fast it narrows (m) */
 fn deepWay(o: vec2f, slope: vec2f, R0: f32, L: f32, T: f32, trip: f32, px: f32, camD: f32) -> vec3f {
   let texN = f32(textureDimensions(realmMid).x);
-  // (flown down at a steady pace: a pace growing with the trip, times the clock, ran ever faster to the end)
-  let flow = T * 0.2;
+  // (flown down at a steady pace, and the camera's own flight down it as it comes in through the glass: D.breath.y)
+  let flow = T * 0.2 + D.breath.y;
   // where the ray meets the wall: steps growing with depth, then halved down onto it
   var zh = WAY_FAR;
   var zp = 0.0;

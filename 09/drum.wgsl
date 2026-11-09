@@ -29,7 +29,9 @@ struct DrumU {
   // the glass's front: xy where the hide was struck (its frame: a across, b up; m), z how far out the front's got (m),
   // w how soft its edge is (m)
   front: vec4f,
-  // x the hide's breath's own clock (s: slow and steady, to the end), yzw spare
+  // x the hide's breath's own clock (s: slow and steady, to the end), y the flight down the realm's way (its ribs,
+  // added to its own steady flow: the camera flying in), z the portal (0..1: the camera at the glass, the hide's own
+  // surface gone, only the realm), w spare
   breath: vec4f,
 }
 @group(2) @binding(0) var<uniform> D: DrumU;
@@ -237,7 +239,9 @@ fn innerRead(uvIn: vec2f) -> vec3f {
       // (marched already, at half the size: read where the bent ray would have looked — the bend as a shift on screen,
       // true for the realm's depths, near enough for its mouth)
       let uv0 = in.pos.xy * frame.invRes;
-      realm = innerRead(uv0 + screenOf(in.wpos + rdIn * 4.0) - screenOf(in.wpos - V * 4.0));
+      // (the shift let go toward the frame's edges: past them there's nothing marched to read)
+      let edge = smoothstep(vec2f(0.0), vec2f(0.05), uv0) * smoothstep(vec2f(0.0), vec2f(0.05), 1.0 - uv0);
+      realm = innerRead(uv0 + (screenOf(in.wpos + rdIn * 4.0) - screenOf(in.wpos - V * 4.0)) * edge);
     } else {
       let px = frame.fovY / frame.res.y;
       INNER_JIT = fract(52.9829189 * fract(dot(in.pos.xy, vec2f(0.06711056, 0.00583715))) + fract(D.trip.y * 60.0) * 0.618034);
@@ -252,11 +256,13 @@ fn innerRead(uvIn: vec2f) -> vec3f {
     let irid = thinFilm(nv, 320.0 + 2600.0 * slope + 900.0 * in.disp) * sat(slope * 18.0) * (0.35 + 0.65 * D.trip.x);
     // (thin over the endless deep: the depth is the thing, not the film on it)
     col += irid * veil * (0.18 + 0.5 * stretch) * (0.6 + 0.4 * L.key.r) * 0.25;
+    // (the camera at the glass: the hide's own surface gone — its paint, its film, its warmth — only the realm)
+    col = mix(col, realm, D.breath.z);
   }
   // the front's seam: where the glass is spreading, a fine line of the film's colours
   if (D.glass.x > 0.001 && front) {
     let seam = exp(-pow((dHit - (D.front.z - D.front.w * 0.5)) / (D.front.w * 0.3), 2.0)) * D.glass.x * step(dHit, D.sim.x * 1.9);
-    col += thinFilm(sat(dot(N, V)), 380.0 + 900.0 * dHit) * seam * 0.35;
+    col += thinFilm(sat(dot(N, V)), 380.0 + 900.0 * dHit) * seam * 0.35 * (1.0 - D.breath.z);
   }
   return vec4f(col, 1.0);
 }
@@ -357,6 +363,8 @@ struct FuzzOut {
   // (the down thins with the hide as it turns to a veil)
   let abF = (in.uv - 0.5) * 2.0 * D.sim.x;
   a *= 1.0 - 0.8 * D.glass.x * (1.0 - smoothstep(D.front.z - D.front.w, D.front.z, length(abF - D.front.xy)));
+  // (and none at all with the camera at the glass)
+  a *= 1.0 - D.breath.z;
   if (a < 0.002) { discard; }
   // (as much cover as twelve shells would give, however many are drawn)
   return vec4f(col, 1.0 - pow(1.0 - a * 0.85, 12.0 / f32(FUZZ_SHELLS)));

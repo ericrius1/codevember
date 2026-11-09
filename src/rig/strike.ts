@@ -81,6 +81,12 @@ export interface StrokeSpec {
   /** how much further back the shaft lays early in the downswing as the hand starts down without it (rad, default
    *  0.22): the head lagging the hand, then snapping through — what makes a stroke read as a whip, not a slide */
   lay?: number;
+  /** the stroke's own way on after contact, in place of the follow and the plain way back to ready: keys (seconds
+   *  after contact) of where the hand is and the shaft's way (grip → head), the hand and the shaft each a smooth curve
+   *  through them (quintic Hermite, velocities from the neighbouring keys: nothing stops at a key) — a heavy implement's
+   *  rebound drawing the arm back after it, let flow rather than braked. After the last key (held still there), the
+   *  way on to ready by the stroke's end */
+  after?: { dt: number; hand: V3; shaft: V3 }[];
 }
 
 export type StrokePhase = 'ready' | 'lift' | 'hang' | 'down' | 'contact' | 'rebound';
@@ -195,13 +201,31 @@ export class Stroke {
     return { p, v: add(scale(way, vC * 0.08), scale(up, vC * 0.04)), t: S.t + S.dwell + fol };
   }
 
+  /** (after: the hand and the shaft through the keys, at t from contact to the last key) */
+  private afterAt(t: number): { p: V3; v: V3; shaft: V3 } {
+    const S = this.s, A = S.after!, Z: V3 = [0, 0, 0];
+    const ts = [S.t, ...A.map((k) => S.t + k.dt)];
+    const ps = [this.handC, ...A.map((k) => k.hand)];
+    const ss = [this.shaft, ...A.map((k) => norm(k.shaft))];
+    const vel = (xs: V3[], i: number, v0: V3): V3 => i === 0 ? v0 : i === xs.length - 1 ? Z : scale(sub(xs[i + 1], xs[i - 1]), 1 / (ts[i + 1] - ts[i - 1]));
+    let i = 0;
+    while (i < ts.length - 2 && t > ts[i + 1]) i++;
+    const h = ts[i + 1] - ts[i], u = clamp((t - ts[i]) / h, 0, 1);
+    // (the hand leaves the contact still travelling into the stroke, at what of its speed the hide's given back — the
+    // contact is the one break a stroke has; the shaft turning back off the surface from the first: its head flung back
+    // by the rebound)
+    const r = hermite5v(ps[i], vel(ps, i, scale(this.dir, this.vHand * (1 - S.restitution))), Z, ps[i + 1], vel(ps, i + 1, Z), Z, h, u);
+    const sh = hermite5v(ss[i], vel(ss, i, Z), Z, ss[i + 1], vel(ss, i + 1, Z), Z, h, u);
+    return { p: r.p, v: r.v, shaft: norm(sh.p) };
+  }
+
   /** the stroke at time t, coming from `from` (the previous stroke's ready, or this one's) and going to `to` */
   at(t: number, from = this.ready, to = this.ready): StrokeState {
     const S = this.s, T = this.tool;
     const since = t - S.t;
     const tTop = S.t - S.down, tRise = this.begins, tEnd = this.ends;
     const Z: V3 = [0, 0, 0];
-    let hand: V3, shaft: V3, vel: V3 = [0, 0, 0], phase: StrokePhase, coil = 0, swing = 0, settle = 0, press = 0;
+    let hand: V3, shaft: V3 = this.shaft, vel: V3 = [0, 0, 0], phase: StrokePhase, coil = 0, swing = 0, settle = 0, press = 0;
     const vTop = this.topVel;
     if (t < tRise) {
       phase = 'ready'; hand = from.hand; shaft = from.shaft;
@@ -244,7 +268,7 @@ export class Stroke {
       press = Math.sin(Math.PI * k);
       swing = 1;
       const f = this.followEnd;
-      hand = hermite5v(this.handC, scale(this.dir, this.vHand), Z, f.p, f.v, Z, f.t - S.t, since / (f.t - S.t)).p;
+      hand = S.after ? this.afterAt(t).p : hermite5v(this.handC, scale(this.dir, this.vHand), Z, f.p, f.v, Z, f.t - S.t, since / (f.t - S.t)).p;
       // (the shaft keeps the head where the surface puts it)
       const head = add(sub(S.at, scale(this.dir, T.headR)), scale(this.dir, S.depth * press));
       shaft = norm(sub(head, hand));
@@ -256,7 +280,17 @@ export class Stroke {
       settle = u;
       const k = minJerk(u);
       const f = this.followEnd;
-      if (t < f.t) {
+      const A = S.after, tA = A ? S.t + A[A.length - 1].dt : 0;
+      if (A && t < tA) {
+        // (its own way on: the heavy head's rebound carrying the arm through its swing)
+        const a = this.afterAt(t);
+        hand = a.p; vel = a.v; shaft = a.shaft;
+      } else if (A) {
+        const last = A[A.length - 1], w = minJerk(clamp((t - tA) / Math.max(1e-3, tEnd - tA), 0, 1));
+        if (t < tEnd) { const r = hermite5v(last.hand, Z, Z, to.hand, this.endVel, Z, tEnd - tA, (t - tA) / (tEnd - tA)); hand = r.p; vel = r.v; }
+        else hand = to.hand;
+        shaft = slerpDir(norm(last.shaft), to.shaft, w);
+      } else if (t < f.t) {
         const r = hermite5v(this.handC, scale(this.dir, this.vHand), Z, f.p, f.v, Z, f.t - S.t, since / (f.t - S.t));
         hand = r.p; vel = r.v;
       } else if (t < tEnd) {
@@ -266,11 +300,13 @@ export class Stroke {
       // (the head's flight back off the surface: a turn the other way through the swing plane, as quick as the
       // rebound — its angle rising as 1 − e^(−τ/τr), leaving at the rebound's own angular speed — then eased on to
       // ready's)
-      const tau = Math.max(0, since - S.dwell);
-      const wr = S.restitution * this.vContact / T.reach;
-      const back = clamp(wr * 0.13, 0.2, 1.0), tr = back / Math.max(wr, 1e-3);
-      const flung = rotateAxis(this.shaft, this.axis, -back * (1 - Math.exp(-tau / tr)) * (1 - k));
-      shaft = slerpDir(flung, to.shaft, k);
+      if (!A) {
+        const tau = Math.max(0, since - S.dwell);
+        const wr = S.restitution * this.vContact / T.reach;
+        const back = clamp(wr * 0.13, 0.2, 1.0), tr = back / Math.max(wr, 1e-3);
+        const flung = rotateAxis(this.shaft, this.axis, -back * (1 - Math.exp(-tau / tr)) * (1 - k));
+        shaft = slerpDir(flung, to.shaft, k);
+      }
       swing = 1;
       // (and never back into the surface while the hand follows through: turned back out as far as it went in)
       const h0 = add(hand, scale(shaft, T.reach));

@@ -1,10 +1,10 @@
 // The camera's path through the loop (film time). The pulse on her left side: wide, a slow arc in, nearly still as
 // each stroke lands; back out to see her whole body coil as she winds up, pushing in slowly; then, as the downswing
 // whips and time falls away, the swoop down to the struck point, arriving with the contact; a breath there as the
-// hide starts to turn to glass from it, then drawn back soon, while time's still slowed, to see the whole hide clearing
-// behind its ripple and the sky's membrane rippling round it; then, as time lifts, round behind her, the glass beyond
-// her a window on the other realm, and slowly in over her shoulder toward it, into the dark. It never leaves the
-// dais's realm.
+// hide starts to turn to glass from it, then drawn back a little, while time's still slowed, to her, the drum and the
+// sky's membrane rippling and tearing round them; then, the glass all but wholly open, the flight in — past her left
+// side, round onto the hide's axis and into the glass, the drum's world filling the frame — and on down through it like
+// a portal as time comes back toward its own pace (STYLE.fly), till the fade.
 //
 import { LOOP, BIG, ACT } from './score';
 import { STYLE } from './style';
@@ -129,23 +129,31 @@ const AT = channels((k) => k.at);
 const FOV = new Channel(ts, keys.map((k) => Math.log(k.fov)), LOOP);
 
 // After the great stroke: bullet time, the camera a dancer. From the instant of the stroke, close on the struck point,
-// it lingers as the glass starts to spread from it, then draws back — and the drawing back is already a turn, round
-// toward behind her as it rises a little, to see the drum, her and the whole torn membrane round them, still drifting
-// at the end. Every channel (azimuth, elevation, distance about the drum, the point it looks at, the lens) a smooth
+// it lingers as the glass starts to spread from it, then draws back a little — already a turn, round toward behind her
+// as it rises — to see her, the drum and the torn membrane round them; and as the glass has all but spread over the
+// hide it flies in: past her left side, down and round onto the hide's axis, slowing into the glass, held there (the
+// realm's own way flown down past it: main.ts's flight) with its gaze wandering a little to the fade. Every channel (azimuth, elevation, distance about the drum, the point it looks at, the lens) a smooth
 // curve through its keys, monotone between them (no overshoot) and eased by a Gaussian (no corners anywhere); and over
 // it a slow breath, a sway too slow to read as a hand. The keys in seconds after the stroke, stretched to the moment
 // after it. Film time, never story.
 type OKey = { tau: number; az: number; el: number; r: number; at: V3; fov: number };
-// (the pull: held on the struck point as the glass opens from it, then drawn back and round to behind her, a little to
-// her left, rising a little, to the drum, her and the whole torn membrane round them — still drifting at the end)
+// (the pull: held on the struck point as the glass opens from it, then drawn back a little and round toward behind her,
+// rising, to her, the drum and the torn membrane round them; then the flight in: wide of her left side, in toward the
+// glass, banking onto the hide's axis, slowing into it, held there to the fade with the gaze wandering a little)
+const FLY = STYLE.fly;
 const PULL: OKey[] = [
   { tau: 0.0, az: -126.9, el: 25.7, r: 0.83, at: [0.0, 1.42, 0.36], fov: 46 },
   { tau: 1.3, az: -127.3, el: 25.0, r: 0.93, at: [0.0, 1.41, 0.35], fov: 47 },
-  { tau: 3.4, az: -131, el: 21, r: 1.75, at: [0.0, 1.38, 0.26], fov: 49 },
-  // (and round toward behind her as it draws back: at the end she's just to the side of the glass, seen into)
-  { tau: 6.0, az: -140, el: 16.5, r: 2.95, at: [0.0, 1.38, 0.14], fov: 50 },
-  { tau: 9.0, az: -150, el: 13, r: 3.9, at: [0.0, 1.4, 0.06], fov: 50 },
-  { tau: 12.8, az: -157, el: 11, r: 4.4, at: [0.0, 1.42, 0.0], fov: 49 },
+  { tau: 3.0, az: -134, el: 19, r: 2.0, at: [-0.05, 1.36, 0.2], fov: 50 },
+  { tau: FLY.go, az: -138, el: 17, r: 2.3, at: [-0.1, 1.33, 0.14], fov: 51 },
+  // (wide of her left side — she's leaning into the drum, her left elbow out — in toward the glass from there, and
+  // banking onto the hide's axis in its last hand's breadth)
+  { tau: FLY.go + 1.3, az: -131, el: 9.5, r: 1.15, at: [0.0, 1.12, 0.02], fov: 52 },
+  { tau: FLY.go + 2.2, az: -126, el: 6.5, r: 0.52, at: [0.15, 1.07, 0.0], fov: 54 },
+  { tau: FLY.go + 2.85, az: -150, el: 3.5, r: 0.16, at: [1.2, 1.065, 0.0], fov: 56 },
+  { tau: FLY.in, az: -180, el: 0.5, r: 0.085, at: [2.0, 1.065, 0.0], fov: 56 },
+  { tau: FLY.in + 2.2, az: -180, el: 0.4, r: 0.08, at: [2.0, 1.09, 0.06], fov: 56 },
+  { tau: 12.8, az: -180, el: 0.3, r: 0.08, at: [2.0, 1.04, -0.05], fov: 56 },
 ];
 const OK = PULL;
 const TAU_END = OK[OK.length - 1].tau;

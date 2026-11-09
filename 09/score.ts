@@ -2,8 +2,8 @@
 //
 // Film time t runs 0..LOOP and wraps (the loop). Story time is the world's own clock: it runs with film time except
 // from the great stroke on, where time dilates — the rate falls to a two-hundredth as the beater comes down and holds
-// there for seconds while the hide takes it and its rings crawl out across it, then lifts, not all the way: to a
-// dream's pace, a sixth of the world's, which it keeps to the very end, coming back only across the loop's wrap.
+// there for seconds while the hide takes it and its rings crawl out across it, then lifts to a dream's pace, a sixth of
+// the world's, and as the camera flies in through the glass comes slowly back to near its own (0.85) by the fade.
 // Everything physical (the membrane, the beater, the locks) moves in story time; the camera and the cosmos move in
 // film time.
 //
@@ -45,18 +45,21 @@ export const SLOWEST = 0.005;
  *  to the end — film seconds. It snaps in late — a speed ramp: the downswing whips through at the world's own speed
  *  and time falls away under it in the last few tenths of a second before contact, so the beater is still visibly
  *  travelling as it meets the hide — holds deep for two seconds, and lifts slowly */
-export const DILATE = { from: GREAT - 0.65, deep: GREAT + 0.02, lift: GREAT + STYLE.slow.lift, dream: GREAT + STYLE.slow.dream };
+export const DILATE = { from: GREAT - 0.65, deep: GREAT + 0.02, lift: GREAT + STYLE.slow.lift, dream: GREAT + STYLE.slow.dream,
+  back: GREAT + STYLE.slow.back, full: GREAT + STYLE.slow.full };
 
-/** the world's rate against film time: 1 normally, SLOWEST at the deepest, the slowed pace after, to the end. Falls
- *  and rises log-smoothly, so the slowing reads as an exponential settling, not a ramp */
+/** the world's rate against film time: 1 normally, SLOWEST at the deepest, the slowed pace after, then coming back
+ *  toward its own pace (STYLE.slow.home) as the camera flies in through the glass, held there to the fade. Falls and
+ *  rises log-smoothly, so the slowing reads as an exponential settling, not a ramp */
 export function rate(t: number): number {
-  const ls = Math.log(SLOWEST), ld = Math.log(STYLE.slow.pace);
+  const ls = Math.log(SLOWEST), ld = Math.log(STYLE.slow.pace), lh = Math.log(STYLE.slow.home);
   // (smootherstep: the rate's slope and its own slope both 0 at each end, so nothing moving through a turn of the
   // clock jerks — a smoothstep's corner in its curvature kinked the beater as time reached its dream pace)
   const s5 = (a: number, b: number) => { const x = Math.min(1, Math.max(0, (t - a) / (b - a))); return x * x * x * (x * (x * 6 - 15) + 10); };
   const down = s5(DILATE.from, DILATE.deep);
   const up = s5(DILATE.lift, DILATE.dream);
-  return Math.exp((ls * (1 - up) + ld * up) * down);
+  const back = s5(DILATE.back, DILATE.full);
+  return Math.exp((ls * (1 - up) + (ld * (1 - back) + lh * back) * up) * down);
 }
 
 // story time: the integral of the rate, tabulated once (fine steps; the loop's total is a little under LOOP)

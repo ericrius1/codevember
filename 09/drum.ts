@@ -272,10 +272,11 @@ export class Drum {
   }
   /** how far the hide's seen through behind its front (0..1), the down's breeze clock; the front: where it was struck
    *  (the hide's frame, m) and how far out it's spread (m); the trip: how deep (0..1), the realm's clock, how far the
-   *  hide breathes on its own (m) and its breath's clock (s) */
-  glass(through: number, t: number, front: [number, number, number], trip = 0, clock = t, breath = 0, breathClock = clock) {
+   *  hide breathes on its own (m) and its breath's clock (s); the camera's flight down the realm's way (its ribs) and
+   *  the portal (0..1: the camera at the glass, the hide's own surface gone) */
+  glass(through: number, t: number, front: [number, number, number], trip = 0, clock = t, breath = 0, breathClock = clock, flight = 0, portal = 0) {
     this.U.set({ glass: [through, 0.16, FUZZ_LEN, t] as never, front: [...front, 0.12] as never, trip: [trip, clock, breath, INNER_ONLY] as never,
-      breath: [breathClock, 0, 0, 0] as never });
+      breath: [breathClock, flight, portal, 0] as never });
   }
   /** the drum's look this frame: the inner light's flicker, the time */
   look(t: number, glow: number, rock = 0) {

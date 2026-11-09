@@ -82,7 +82,12 @@ export interface VOut {
   mat: number;
   flow: Vec3;
   bake: Vec4;
+  bn: Vec3;
+}
+export interface SkinRelief {
+  slope: Vec3;
+  cavity: number;
 }
 
-declare const shader: Shader<{ Frame: Frame; Globals: Globals; StageLight: StageLight; SkinDQ: SkinDQ; ShamanU: ShamanU; VIn: VIn; VOut: VOut }, 'frame' | 'G' | 'SU' | 'DQ' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; Globals: Globals; StageLight: StageLight; SkinDQ: SkinDQ; ShamanU: ShamanU; VIn: VIn; VOut: VOut; SkinRelief: SkinRelief }, 'frame' | 'G' | 'SU' | 'DQ' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;

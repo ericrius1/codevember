@@ -1,12 +1,19 @@
-// 09 / Membrane's telling, its numbers in one place: two strokes, then the great one; the slowed moment held to the
-// end while the camera draws back round to behind her; the glass opening on an ocean's way down without end, and our
-// universe's membrane torn open on the deep (cosmos.wgsl deepSky). Filmed 16:9.
+// 09 / Membrane's telling, its numbers in one place: two strokes, then the great one; the slowed moment, the camera
+// drawn back a little to her, the drum and the torn membrane round them; then, the glass all but wholly open, the
+// flight in through it — over her shoulder and into the drum's world, flown down through it like a portal as time
+// comes back toward its own pace; the glass opening on an ocean's way down without end, and our universe's membrane
+// torn open on the deep (cosmos.wgsl deepSky). Filmed 16:9.
 export const STYLE = {
   /** seconds from the great stroke to the fade */
   after: 11.5,
   /** the slowed moment's shape (seconds after the great stroke): time held all but stopped till `lift`, easing up to
-   *  `pace` (of the world's rate) by `dream`, and held there to the end — so she draws the beater back still slowed */
-  slow: { lift: 2.0, dream: 4.6, pace: 0.16 },
+   *  `pace` (of the world's rate) by `dream`; then, as the camera flies in through the glass, coming back from `back`
+   *  to `home` of the world's own pace by `full`, and held there to the fade */
+  slow: { lift: 2.0, dream: 4.6, pace: 0.16, back: 4.6, full: 10.6, home: 0.85 },
+  /** the flight in (seconds after the great stroke): the camera leaves its pull-back as the glass has all but spread
+   *  over the hide (`go`), reaches the glass (`in`: the realm fills the frame); inside, the flight down the realm's way
+   *  (ribs a second) at `in`, and at the fade */
+  fly: { go: 3.6, in: 6.9, speedIn: 0.9, speedEnd: 2.6 },
   /** the grade: saturation (from the great stroke on), exposure, bloom, the sky's hue drift (×), how cool the depths go
    *  under water */
   grade: { sat: 1.05, exp: 1, bloom: 1.1, drift: 0.4, cool: 1.1 },
