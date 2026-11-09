@@ -142,7 +142,14 @@ export async function sketch(meta: SketchMeta, setup: (ctx: Ctx) => Promise<Fram
       if (sound && hud.soundOn) {
         // Buffering freezes picture with audio instead of allowing the clocks to drift.
         if (sound.readyState < 2 || sound.paused) return;
-        t = sound.currentTime % meta.loop;
+        // (the picture's clock follows the sound's smoothly: an audio element's currentTime moves in uneven steps and
+        // now and then a hair backwards, which the world's physics feel as jolts — a lock of hair snapping back to
+        // rest. So it runs on the frame clock, eased toward the sound's time, never back; it jumps with the sound only
+        // when they're far apart: a seek, a stall)
+        const at = sound.currentTime % meta.loop;
+        let err = at - t;
+        if (err > meta.loop / 2) err -= meta.loop; else if (err < -meta.loop / 2) err += meta.loop;
+        t = Math.abs(err) > 0.25 ? at : (t + Math.max(0, dt + err * Math.min(1, dt * 4))) % meta.loop;
       } else t = (t + dt) % meta.loop;
       if (!pointer.down) { const k = 1 - Math.exp(-dt * 1.6); orbit.yaw -= orbit.yaw * k; orbit.pitch -= orbit.pitch * k; }
     }

@@ -105,7 +105,7 @@ sketch({ ...day(9), loop: LOOP, filmLoops: 1, warm: 1, hint: 'Space to pause · 
   // once.
   const big = BIG.t;
   const domePace = (x: number) => STYLE.orbit
-    ? 0.75 - 0.53 * smooth(big - 0.25, big + 0.2, x) + 0.30 * smooth(big + 4, ACT.fade, x)
+    ? 0.75 - 0.53 * smooth(big - 0.25, big + 0.2, x) + (STYLE.slow ? 0 : 0.30) * smooth(big + 4, ACT.fade, x)
     : 0.75 - 0.4 * smooth(big - 0.25, big + 0.2, x) + 0.75 * smooth(ACT.shock - 1, ACT.trip + 3, x);
   const DOME_STEP = 1 / 120, dome = new Float64Array(Math.ceil(LOOP / DOME_STEP) + 2);
   for (let i = 1; i < dome.length; i++) dome[i] = dome[i - 1] + domePace((i - 0.5) * DOME_STEP) * DOME_STEP;
@@ -161,11 +161,13 @@ sketch({ ...day(9), loop: LOOP, filmLoops: 1, warm: 1, hint: 'Space to pause · 
     const r = rate(t);
     const s = story(t);
     // (the story clock across a frame: the previous frame's, or a frame's worth back if the loop wrapped)
-    const jumped = lastStory < 0 || s < lastStory - 1e-6 && lastStory - s < STORY_LOOP * 0.5 || Math.abs(s - lastStory) > 0.5 && !(lastStory > STORY_LOOP - 0.5 && s < 0.5);
+    // (a clock a hair behind the last frame's is no jump: it holds still, so nothing snaps back to rest)
+    const back = lastStory >= 0 && s < lastStory && lastStory - s < 0.05;
+    const jumped = lastStory < 0 || s < lastStory - 0.05 && lastStory - s < STORY_LOOP * 0.5 || Math.abs(s - lastStory) > 0.5 && !(lastStory > STORY_LOOP - 0.5 && s < 0.5);
     // (across the loop's wrap the story clock runs on: its step is what's left of the last loop and this one's start)
     const wrapped = lastStory > STORY_LOOP - 0.5 && s < 0.5;
-    const s0 = lastStory >= 0 && s >= lastStory && s - lastStory < 0.5 ? lastStory : wrapped ? s - (STORY_LOOP - lastStory) : Math.max(0, s - dt * r);
-    lastStory = s;
+    const s0 = back ? s : lastStory >= 0 && s >= lastStory && s - lastStory < 0.5 ? lastStory : wrapped ? s - (STORY_LOOP - lastStory) : Math.max(0, s - dt * r);
+    if (!back) lastStory = s;
     const ds = Math.max(1e-5, s - s0);
     // ---------------------------------------------------------------- her
     const M = moment(s);
@@ -193,7 +195,9 @@ sketch({ ...day(9), loop: LOOP, filmLoops: 1, warm: 1, hint: 'Space to pause · 
     drum.look(s, 1, M.rock);
     const trip = tripQ ?? tripAt(t);
     const gl = glassAt(t);
-    drum.glass(veilQ ?? gl.amount, t, veilQ !== null ? [0, 0, 9] : gl.front, trip, t, 0.0045 * trip * trip);
+    // (a slow style's hide breathes slowly, on a steady clock of its own: in film time its rings ran on at the world's
+    // pace as everything else held slowed, and swelled to the end)
+    drum.glass(veilQ ?? gl.amount, t, veilQ !== null ? [0, 0, 9] : gl.front, trip, t, (STYLE.slow ? 0.0032 : 0.0045) * trip * trip, STYLE.slow ? 0.3 * t : t);
     // ---------------------------------------------------------------- the light, the shock, the cosmos
     // the shock's front: barely moving through the dilated moment, then racing out as time lifts
     const shockR = t > big ? 0.5 * Math.pow(t - big, 1.5) + 40 * Math.pow(Math.max(0, t - ACT.shock), 2) : 0;
@@ -239,7 +243,7 @@ sketch({ ...day(9), loop: LOOP, filmLoops: 1, warm: 1, hint: 'Space to pause · 
     K.set({ worlds: [only >= 0 ? 1 : reveal, seams, t * 0.6, 1.0] as never, aux: [0.0003 * (1 + 0.5 * trip), only, domeAt(t), 0] as never,
       front: [only >= 0 ? -1 : big + 0.02, FRONT_NEAR, (STYLE.orbit ? 18 + 22 * smooth(big + 1, big + 5, t) : 30 + 50 * smooth(big + 2, ACT.shock, t)), 1.0] as never,
       front2: [lastPulse < 0 ? -1 : lastPulse + 0.02, FRONT_NEAR, 70, 0.45 + 0.2 * pulses.findIndex((k) => k.t === lastPulse)] as never,
-      trip: [STYLE.orbit ? 0.045 : 0.16, 0.9, trip, STYLE.sky.hue] as never, kinds: [STYLE.sky.kinds[0] ?? 0, STYLE.sky.kinds[1] ?? 0, STYLE.sky.kinds[2] ?? 0, STYLE.sky.kinds.length] as never, look: [dkSky, 0, 0, 0] as never,
+      trip: [STYLE.orbit ? 0.045 : 0.16, 0.9, trip, STYLE.sky.hue] as never, kinds: [STYLE.sky.kinds[0] ?? 0, STYLE.sky.kinds[1] ?? 0, STYLE.sky.kinds[2] ?? 0, STYLE.sky.kinds.length] as never, look: [dkSky, STYLE.deepSky ? 1 : 0, ctx.render ? 18 : 14, ctx.params.has('deep') ? 1 : 0] as never,
       beyond: [STYLE.beyondMix ? STYLE.beyondMix[0] : 0, STYLE.beyondMix?.[1] ?? 1, (STYLE.beyondMix?.[2] ?? 0) * (STYLE.orbit ? smooth(big + 0.3, big + 4, t) : trip), t] as never });
     // the motes: the sparks' own clock (the membrane's pace: they spray slowly through the dilation, then fly)
     let burstAge = 0;

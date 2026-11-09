@@ -64,7 +64,8 @@ export function rate(t: number): number {
   const s5 = (a: number, b: number) => { const x = Math.min(1, Math.max(0, (t - a) / (b - a))); return x * x * x * (x * (x * 6 - 15) + 10); };
   const down = s5(DILATE.from, DILATE.deep);
   const up = s5(DILATE.lift, DILATE.dream);
-  const back = s5(DILATE.back, DILATE.home);
+  // (a slow style stays in its slowed time to the very end: no return to the world's pace in the seam's dark)
+  const back = STYLE.slow ? 0 : s5(DILATE.back, DILATE.home);
   return Math.exp((ls * (1 - up) + ld * up) * down * (1 - back));
 }
 

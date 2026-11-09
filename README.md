@@ -75,10 +75,15 @@ dais at their own distances (so they slide against each other as the camera goes
 ripples with a colour split, through the tears and a little through the whole membrane. 29.4 s.
 
 Infinite (`style=infinite`, filmed 16:9) strikes the pulse twice — ordinary strokes: the universe's membrane doesn't
-answer them and the hide doesn't open (`quietPulse`), no motes in the air (`noMotes`) — then the great stroke, whose
-slowed moment eases after two seconds (`slow`) so she draws the beater back still in slow motion. The camera holds on
+answer them and the hide doesn't open (`quietPulse`), no motes in the air (`noMotes`) — then the great stroke, her arm
+carrying its momentum on down past the hide's face (strike.ts `followWay`), whose slowed moment eases after two
+seconds (`slow`) and holds slowed to the very end: the hide's own breath, the flight down inside the glass and the
+wall's ripples all on steady slow clocks. The camera holds on
 the struck point as the glass opens, then draws back and round to behind her, a little to her left, seeing into the
-glass past her. Its glass opens on a deep ocean without end (inner.wgsl `deepWay`, design/realms/ocean, painted by
+glass past her. Our universe's membrane opens on the deep (`deepSky`, cosmos.wgsl): not a painting but shells out to
+forever, each a third again as far and its strands a third again as large, long strands of light (sea-teal, deep blue,
+leaf-green) flowing each shell its own way and strands of dark that hide all behind them, a cold light far down past
+the drum. Its glass opens on a deep ocean without end (inner.wgsl `deepWay`, design/realms/ocean, painted by
 Codex): a way down ribbed with rings of bioluminescent veils and coral, flown down for ever, and between the rings a
 volume marched through front to back (`wayMedium`) — torn veils of glowing dust from ridged spiral noise, darker where
 they thicken, lit by a light deep down the axis — its feeling of glowing depth after the volumetric nebulae of

@@ -15,6 +15,9 @@ export interface Style {
   noMotes?: boolean;
   /** the ground she stands on a mountain's summit torn up and floating (summit.ts), not the plain dais */
   summit?: boolean;
+  /** the universe's membrane opens on the deep (cosmos.wgsl deepSky: strands of light and dark marched out to forever),
+   *  not the painted beyond */
+  deepSky?: boolean;
   /** the slowed moment's own shape (seconds after the great stroke): time held all but stopped till `lift`, easing up
    *  to `pace` (of the world's rate) by `dream` — so she can draw the beater back while it's still slow */
   slow?: { lift: number; dream: number; pace: number };
@@ -58,9 +61,9 @@ export const STYLES: Record<string, Style> = {
   // two strokes, then the great one; the camera holds on the drum as its ripple spreads and the glass opens on a nebula
   // far down inside it, then draws back — no circling — round to behind her, the summit she stands on round them (16:9
   // films)
-  infinite: { id: 'infinite', orbit: true, camera: 'pull', pulses: 2, quietPulse: true, noMotes: true, summit: true, slow: { lift: 2.0, dream: 4.6, pace: 0.16 }, inner: 'infinite', after: 11.5, realm: 'design/realms/ocean', realmMix: [1, 1, 1], realmFly: 0.02, realmTwist: 1,
-    grade: { sat: 1.05, exp: 1, bloom: 1.1, drift: 0.4, cool: 1.1 }, sky: { reveal: 0.82, heave: 1.3, hue: 0, kinds: [] },
-    glass: 0.98, light: [0.85, 0.65, 1.0], spill: 1.6, rays: 0.8, beyond: 'design/beyond', beyondMix: [0.8, 1, 0.22] },
+  infinite: { id: 'infinite', orbit: true, camera: 'pull', pulses: 2, quietPulse: true, noMotes: true, summit: true, deepSky: true, slow: { lift: 2.0, dream: 4.6, pace: 0.16 }, inner: 'infinite', after: 11.5, realm: 'design/realms/ocean', realmMix: [1, 1, 1], realmFly: 0.02, realmTwist: 1,
+    grade: { sat: 1.05, exp: 1, bloom: 1.1, drift: 0.4, cool: 1.1 }, sky: { reveal: 0.95, heave: 1.3, hue: 0, kinds: [] },
+    glass: 0.98, light: [0.85, 0.65, 1.0], spill: 1.6, rays: 0.8, beyond: 'design/beyond', beyondMix: [1, 1, 0.55] },
   orbit: { id: 'orbit', orbit: true, after: 16.5, realm: 'assets', realmMix: [0.65, 1.0, 1.0], realmFly: 0.014, realmTwist: 1.1,
     grade: { sat: 1.05, exp: 1, bloom: 1.05, drift: 0.4, cool: 1.1 }, sky: { reveal: 0.82, heave: 1.4, hue: 0, kinds: [] },
     glass: 0.98, light: [0.85, 0.7, 1.0], spill: 1.6, rays: 0.9, beyond: 'design/beyond', beyondMix: [1, 1, 0.42] },

@@ -66,8 +66,12 @@ export interface StrokeSpec {
   /** the chain's lag: each link of the chain this share of the downswing after the one before (default 0.1) */
   lag?: number;
   /** how long the hand takes to lose its speed after contact (s, default 0.12), and how far its follow carries it
-   *  past the contact point along the stroke's way (m, default from its speed) */
+   *  past the contact point along the stroke's way (m, default from its speed). (Too short a follow for its speed and
+   *  time, under about 0.3 of speed × follow, and the hand's curve overshoots and pulls back: it stops dead) */
   follow?: number; followDist?: number;
+  /** the way the hand carries on after contact (world; default the stroke's way): an overhead stroke's arm drives on
+   *  down past the surface rather than into it */
+  followWay?: V3;
   /** the hand's speed leaving the top into the downswing, as a share of the downswing's mean speed (default 0.25: the
    *  elbow leading the hand down out of the top) */
   topFlow?: number;
@@ -186,8 +190,9 @@ export class Stroke {
     const dist = S.followDist ?? vC * fol * 0.42;
     // (it carries on along the stroke's way, curling up off the surface as the head rebounds)
     const up = norm(rej(scale(this.dir, -1), this.shaft));
-    const p = add(this.handC, add(scale(this.dir, dist), scale(this.shaft, -dist * 0.3)));
-    return { p, v: add(scale(this.dir, vC * 0.08), scale(up, vC * 0.04)), t: S.t + S.dwell + fol };
+    const way = S.followWay ? norm(S.followWay) : this.dir;
+    const p = add(this.handC, add(scale(way, dist), scale(this.shaft, -dist * 0.3)));
+    return { p, v: add(scale(way, vC * 0.08), scale(up, vC * 0.04)), t: S.t + S.dwell + fol };
   }
 
   /** the stroke at time t, coming from `from` (the previous stroke's ready, or this one's) and going to `to` */

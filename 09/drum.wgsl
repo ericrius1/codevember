@@ -29,7 +29,7 @@ struct DrumU {
   // w how soft its edge is (m)
   front: vec4f,
   // the realm's layers (inner.wgsl): xyz their gains (deep, middle, near), w the deep one's flight (octaves a second);
-  // realm2 x its twist (×)
+  // realm2 x its twist (×), y which world's inside (drum.ts INNER_KIND), z the hide's breath's clock (s)
   realm: vec4f, realm2: vec4f,
 }
 @group(2) @binding(0) var<uniform> D: DrumU;
@@ -81,7 +81,7 @@ fn breathe(uv: vec2f) -> f32 {
   let p = (uv - 0.5) * 2.0;
   let r = length(p);
   let a = atan2(p.y, p.x);
-  let T = D.trip.y;
+  let T = D.realm2.z;
   let edge = max(1.0 - r * r, 0.0);
   return A * edge * (0.55 * sin(r * 9.0 - T * 0.9) + 0.35 * r * sin(3.0 * a + r * 4.0 + T * 0.35) + 0.22 * sin(r * 19.0 - T * 1.6 + a));
 }

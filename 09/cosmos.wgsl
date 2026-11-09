@@ -28,7 +28,8 @@ struct CosmosU {
   trip: vec4f,
   // the style's worlds: xyz the kinds its places open on (each place's own kind picks among them), w how many (0: all)
   kinds: vec4f,
-  // x our own sky's brightness (×: a style can darken it)
+  // x our own sky's brightness (×: a style can darken it), y 1: the membrane opens on the deep (deepSky), not the
+  // painted beyond, z the deep's shells, w 1: the deep alone (a debug: ?deep=1)
   look: vec4f,
   // the dimension beyond (a style's: design/beyond): x how much it shows where the membrane's open (0: the worlds), y its
   // refraction through the ripples (×), z how far it shows through the whole membrane, w its clock (s)
@@ -71,6 +72,93 @@ fn beyond(ro: vec3f, rd: vec3f, split: vec3f) -> vec3f {
   let mid = beyondTap(beyondMid, beyondUV(beyondHit(ro, rd, 45.0), -tm * 0.009 + 0.37));
   let near = beyondTap(beyondNear, beyondUV(beyondHit(ro, rd, 16.0), tm * 0.015 + 0.71));
   return far * 0.5 + mid * 0.75 + near * 0.8;
+}
+
+// ---------------------------------------------------------------- the deep beyond (a style's: K.look.y)
+// What the membrane opens on, marched through rather than painted: a living depth beyond our universe's wall, strands
+// of light and of dark winding through it — kelp, roots, a forest's hanging threads — at every scale. The march goes
+// out by doublings of distance, each doubling its own band of strands a doubling larger, so they're always about the
+// same size to the eye out to forever; each band is real 3D (it slides against the next as the camera moves) and turns
+// slowly its own way round the light. Light strands glow (sea-teal, deep blue, leaf-green in places), dark ones drink
+// the light behind them, all of it toward a cold light far down. A strand is where two smooth noises are both near
+// zero: a line winding through space, never a lattice.
+fn gnc(i: vec3f, f: vec3f, o: vec3f) -> f32 { return dot(hash33(i + o) * 2.0 - 1.0, f - o); }
+/** gradient noise (quintic), about ±0.5 */
+fn gnoise(p: vec3f) -> f32 {
+  let i = floor(p); let f = fract(p); let u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+  return mix(mix(mix(gnc(i, f, vec3f(0, 0, 0)), gnc(i, f, vec3f(1, 0, 0)), u.x), mix(gnc(i, f, vec3f(0, 1, 0)), gnc(i, f, vec3f(1, 1, 0)), u.x), u.y),
+             mix(mix(gnc(i, f, vec3f(0, 0, 1)), gnc(i, f, vec3f(1, 0, 1)), u.x), mix(gnc(i, f, vec3f(0, 1, 1)), gnc(i, f, vec3f(1, 1, 1)), u.x), u.y), u.z);
+}
+/** p turned by angle a about the unit axis k */
+fn turnAbout(p: vec3f, k: vec3f, a: f32) -> vec3f { let c = cos(a); let s = sin(a); return p * c + cross(k, p) * s + k * dot(k, p) * (1.0 - c); }
+/** the cold light far down beyond the wall (beyond the drum as the camera ends, up a little and to the right of it) */
+const DEEP_LIGHT = vec3f(0.82, 0.15, 0.56);
+/** the deep along a ray: ro, rd the ray (bent by the membrane), d0 where it leaves the wall (m), jit its dither (0..1).
+ *  Shells round the dais out from the wall, each a third again as far as the last, each with strands a third again as
+ *  large (so the same size to the eye, out to forever): long strands of light flowing each shell its own way, strands
+ *  of dark that hide all behind them, a glowing haze between. Every shell is drawn, near or not (its weight fades it
+ *  in past the wall), so the screen-space widths (fwidth) stay in uniform control flow */
+fn deepSky(ro: vec3f, rd: vec3f, d0: f32, jit: f32) -> vec3f {
+  let T = K.beyond.w;
+  let Ld = normalize(DEEP_LIGHT);
+  let toL = max(dot(rd, Ld), 0.0);
+  let C = vec3f(0.0, 1.4, 0.0);
+  let N = i32(K.look.z);
+  let G0 = 1.33;
+  var col = vec3f(0.0);
+  var tr = 1.0;
+  var Rk = 70.0;
+  for (var k = 0; k < N; k++) {
+    let fk = f32(k);
+    let Rn = Rk * G0;
+    // where the ray meets this shell (from inside it), and how far past the wall that is
+    let hk = sphereHit(ro, rd, C, Rk).y;
+    let p = ro + rd * hk;
+    let wgt = smoothstep(d0 * 0.98, d0 * 1.25, hk);
+    let s = Rk * 0.16;
+    // (the shell's own place in the noise, its own slow turn round the light — the next the other way — and the way its
+    // strands flow)
+    let h3 = hash33(vec3f(fk * 3.1, fk * 1.7 + 2.0, 5.3));
+    let spin = T * 0.004 * (0.6 + 0.8 * h3.z) * select(-1.0, 1.0, (k & 1) == 0);
+    var q = turnAbout(p - C, Ld, spin) / s + h3 * 97.0;
+    let F = normalize(vec3f(h3.x - 0.5, 1.4, h3.y - 0.5) + vec3f(0.0, 0.0, 0.6 * sin(fk * 2.4)));
+    q += 0.09 * vec3f(dotNoise(q * 0.35 + vec3f(0.0, T * 0.01, 0.0)), dotNoise(q * 0.35 + 2.3), dotNoise(q * 0.35 + 5.1));
+    let qf = q - F * dot(q, F) * 0.88;
+    // light: the contours of a noise, long along the flow
+    let a = gnoise(qf) + 0.12 * gnoise(qf * 2.3 + 11.0);
+    let aw = max(fwidth(a), 1e-4);
+    let far = exp(-fk * 0.16);
+    // (near shells' strands thick and soft, as if out of focus; far ones fine — the eye reads the depth in their sizes)
+    let far3 = far * far * far;
+    let lw = max(0.005 + 0.012 * far3, aw * 0.9);
+    let core = exp(-(a / lw) * (a / lw)) * sqrt(0.008 / lw);
+    let halo = exp(-(a / (lw * 6.0)) * (a / (lw * 6.0)));
+    // (only some of each shell's contours are strands: the rest of it open, so the shells behind show)
+    let keepL = smoothstep(-0.04, 0.26, gnoise(q * 0.31 + 3.0) + 0.12);
+    // dark: another noise's contours, flowing across, thicker
+    let qd = q - F.zxy * dot(q, F.zxy) * 0.93;
+    let c = gnoise(qd * 0.5 + 41.0);
+    let cw = max(0.013 + 0.03 * far3, max(fwidth(c), 1e-4) * 0.9);
+    let keepD = smoothstep(0.06, 0.3, gnoise(q * 0.27 + 17.0) + 0.05);
+    let dark = exp(-(c / cw) * (c / cw)) * keepD;
+    // its colour: sea-teal and deep blue, leaf-green in places; pale only at the brightest; dimmer and bluer far off
+    var lc = mix(vec3f(0.10, 0.50, 0.36), vec3f(0.12, 0.28, 0.70), sat(gnoise(q * 0.09 + 5.0) * 2.4 + 0.5));
+    lc = mix(lc, vec3f(0.30, 0.56, 0.20), 0.75 * smoothstep(-0.04, 0.2, gnoise(q * 0.13 + 9.0)));
+    lc = mix(lc, vec3f(luma(lc)), 0.2);
+    lc = mix(vec3f(0.10, 0.22, 0.42), lc, far);
+    let lit = (0.25 + 1.3 * pow(toL, 8.0)) * (0.35 + 0.65 * far);
+    let em = (lc * (core * 0.7 + halo * 0.008) + vec3f(0.55, 0.85, 0.8) * core * core * 0.12) * keepL * lit;
+    // the haze from the last shell to this one, its glow wandering (softly, at the shells' own scale)
+    let hz = pow(sat(gnoise(q * 0.05 + 23.0) * 2.2 + 0.35), 2.0);
+    let hazeG = sat(gnoise(q * 0.04 + 51.0) * 2.0 + 0.5);
+    let hazeC = mix(vec3f(0.003, 0.009, 0.014), mix(vec3f(0.012, 0.04, 0.046), vec3f(0.02, 0.042, 0.02), hazeG), hz) * (1.0 + 2.0 * pow(toL, 6.0));
+    col += tr * wgt * (hazeC * 0.03 + em);
+    tr *= 1.0 - wgt * (dark * 0.92 + min(core, 1.0) * keepL * 0.35);
+    Rk = Rn;
+  }
+  // the light far down and its haze, seen past what's dark
+  let back = vec3f(0.006, 0.02, 0.028) * (0.5 + 0.5 * toL) + vec3f(0.3, 0.62, 0.72) * (pow(toL, 40.0) * 0.5 + pow(toL, 10.0) * 0.05);
+  return col + tr * back;
 }
 
 // ---------------------------------------------------------------- the wall's ripples
@@ -726,7 +814,9 @@ fn frontAt(q: vec3f, F: vec4f, fadeRate: f32) -> vec3f {
   let bent = normalize(rd + dh * amp * K.aux.x + bendF);
   let bentW = normalize(rd + dh * amp * K.aux.x * 0.12 + bendF * 0.7);
   // (the style's hue on our own sky only: the worlds beyond keep theirs)
-  var col = (hueShift(nebula(bent), K.trip.w) + stars(bent) * 0.8) * K.look.x;
+  let deepOn = K.look.y > 0.5;
+  // (the sky's drift in colour on our own sky alone when the membrane opens on the deep: the deep keeps its own)
+  var col = (hueShift(nebula(bent), K.trip.w + select(0.0, G.cosmos.w, deepOn)) + stars(bent) * 0.8) * K.look.x;
   // the face it's on (its borders flexing with the ripples, a little wandering)
   // (its borders wandering at two scales, so the foam's faces are each their own shape, never a honeycomb)
   // (the worlds' places warped far — their edges curving like coastlines, so where a tear meets one it's never a straight
@@ -753,7 +843,14 @@ fn frontAt(q: vec3f, F: vec4f, fadeRate: f32) -> vec3f {
   let bendB = normalize(rd + (dh * amp * 0.0014 + bendF * 1.0) * K.beyond.y);
   let splitB = (dh * amp * 0.0007 + vec3f(0.0015, 0.0, -0.0015) * (0.3 + abs(hr))) * K.beyond.y;
   var bey = vec3f(0.0);
-  if (K.beyond.x > 0.0 && (open > 0.002 || K.beyond.z > 0.002)) { bey = beyond(ro, bendB, splitB) * K.worlds.w; }
+  // (the deep is drawn wherever the sky is, once the membrane's opening at all — its strands' widths are screen-space
+  // derivatives, so it's gated on uniform values only, never on this pixel's own openness)
+  if (deepOn) {
+    if (K.beyond.x > 0.0 && (K.worlds.x > 0.001 || K.beyond.z > 0.002)) {
+      bey = deepSky(ro, bendB, max(hit.y, 0.0), fract(hash12(i.pos.xy) + G.clock.x * 7.31)) * K.worlds.w;
+    }
+  } else if (K.beyond.x > 0.0 && (open > 0.002 || K.beyond.z > 0.002)) { bey = beyond(ro, bendB, splitB) * K.worlds.w; }
+  if (K.look.w > 0.5) { return vec4f(bey, 1.0); }
   // (through the whole membrane, a little, as the trip deepens: the film itself turning to a window)
   col = mix(col, col * 0.5 + bey, K.beyond.z * (0.4 + 0.6 * smoothstep(0.0, 0.8, abs(hr))));
   if (open > 0.002 && K.beyond.x >= 1.0) {
@@ -780,7 +877,9 @@ fn frontAt(q: vec3f, F: vec4f, fadeRate: f32) -> vec3f {
   // (its colours softened: a film's interference fully saturated paints the ripples' crests as blots)
   let tf = thinFilm(c, nm);
   let filmCol = mix(vec3f(luma(tf)), tf, 0.55) * (0.03 + 0.5 * fresnel(0.04, c)) * (1.0 + 1.2 * abs(hr));
-  col += filmCol * (0.06 + 0.22 * abs(hr)) * (1.0 - 0.6 * open);
+  // (over the deep the film's colours all but go: a whisper of them on the ripples, the depth is the thing)
+  let filmK = select(1.0, 0.25, deepOn);
+  col += filmCol * (0.06 + 0.22 * abs(hr)) * (1.0 - 0.6 * open) * filmK;
   // the crests burn with the film's colours; a thin bright line where it turns over
   // (the crests: bands of the film's colours, wide and burning as the trip deepens — design/ref-cosmos.jpg)
   let trip = G.cosmos.z;
@@ -788,14 +887,14 @@ fn frontAt(q: vec3f, F: vec4f, fadeRate: f32) -> vec3f {
   let band = smoothstep(0.1, 0.9, abs(hr)) * (1.0 - 0.5 * open);
   let edge = exp(-pow(hr / 0.08, 2.0)) * smoothstep(0.05, 0.3, length(dh) * 0.004) * amp;
   let tf2 = pow(thinFilm(c, 280.0 + 240.0 * hr + 160.0 * fbm(n * 9.0)), vec3f(2.0));
-  col += mix(vec3f(luma(tf2)), tf2, 0.5) * (min(crest, 1.0) * (0.1 + 0.08 * trip) + band * 0.05 * trip) + vec3f(0.8, 0.9, 1.0) * edge * 0.08;
+  col += (mix(vec3f(luma(tf2)), tf2, select(0.5, 0.15, deepOn)) * (min(crest, 1.0) * (0.1 + 0.08 * trip) + band * 0.05 * trip) + vec3f(0.8, 0.9, 1.0) * edge * 0.08) * filmK;
   // the front's crest: a band of the film bulged and burning with its colours as it sweeps the dome (the great
   // stroke's, and the pulse's fainter)
   let fcrest = max(fr.x, 0.0) + max(fr2.x, 0.0);
-  col += (thinFilm(c, 320.0 + 300.0 * fcrest) * 0.3 + vec3f(0.62, 0.72, 0.85) * (0.25 + 0.6 * fcrest * fcrest)) * fcrest * 0.42;
+  col += (thinFilm(c, 320.0 + 300.0 * fcrest) * 0.3 * filmK + vec3f(0.62, 0.72, 0.85) * (0.25 + 0.6 * fcrest * fcrest)) * fcrest * 0.42;
   // the tears' rims: the film gathered thick at their edges, burning with its colours
   let rimK = exp(-pow((tn - th) / 0.012, 2.0)) * sat(reveal * 1.5 + 0.8 * G.cosmos.y * max(-hr, 0.0)) * inner;
-  col += (thinFilm(c, 420.0 + 300.0 * hr) * 0.2 + vec3f(0.5, 0.55, 0.65) * 0.1) * rimK * 0.35;
-  col = hueShift(col, G.cosmos.w);
+  col += (thinFilm(c, 420.0 + 300.0 * hr) * 0.2 * filmK + select(vec3f(0.5, 0.55, 0.65), vec3f(0.3, 0.6, 0.55), deepOn) * 0.1) * rimK * 0.35;
+  if (!deepOn) { col = hueShift(col, G.cosmos.w); }
   return vec4f(col, 1.0);
 }

@@ -58,7 +58,9 @@ function specFor(i: number, shift: number): StrokeSpec {
       // after: no flourish — the beater comes down by her side, its head low ahead of her (a hanging arm, the shaft square to it), and she stands
       // and watches what the stroke has done
       ready: { hand: [-0.74, 0.9, 0.38], shaft: norm([0.84, -0.32, 0.3]) },
-      lag: 0.12, follow: 0.3, followDist: 0.14, topFlow: 0.3, lay: 0.35,
+      // (her arm carries its momentum on through the hide: driven on down past its face, losing its speed over a hand's
+      // span of 0.4 m and a fifth of a second — not stopped dead at the contact)
+      lag: 0.12, follow: 0.2, followDist: 0.42, followWay: norm([0.5, -0.86, 0.06]), topFlow: 0.3, lay: 0.35,
     };
   }
   // (a fuller arc than a tap: the hand comes from up by her ear, the beater cocked back past upright; each stroke of
@@ -74,7 +76,8 @@ function specFor(i: number, shift: number): StrokeSpec {
     lift: prevBig ? 1.6 : 0.66, hang: 0.1,
     dwell: 0.0065, depth: 0.026 + (v - 3) * 0.01, restitution: 0.55, settle: nextBig ? 0.4 : 0.55,
     ready: { hand: [-0.6, 1.22, STRIKE_A + 0.06], shaft: norm([0.2, 0.97, -0.05]) },
-    lag: 0.1, follow: 0.12, followDist: 0.04, topFlow: 0.4,
+    // (the follow's length from the hand's own speed: carried on, never stopped short)
+    lag: 0.1, follow: 0.12, topFlow: 0.4,
   };
 }
 

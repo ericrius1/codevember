@@ -37,6 +37,8 @@ const FUZZ_SHELLS = 12;
 /** ?inner=1: the hide shows only the world inside it, wherever it's thinned (for looking at that world) */
 const INNER_ONLY = new URLSearchParams(globalThis.location?.search ?? '').has('inner') ? 1 : 0;
 const DT = (0.42 * H) / C_WAVE;
+/** the world inside the glass (inner.wgsl's innerWorld): 0 the realm's layers, 1 the endless way down, 2 the nebula */
+const INNER_KIND = STYLE.inner === 'nebula' ? 2 : STYLE.inner === 'infinite' ? 1 : 0;
 
 /** the beater's head on the hide at a moment: its centre (world) and radius */
 export type HeadAt = (story: number) => { c: V3; r: number } | null;
@@ -219,7 +221,7 @@ export class Drum {
     this.U = kit.uniforms(drumShader.structs.DrumU, 'drum');
     this.U.set({ sim: [R, H, lam2, mu2] as never, sim2: [0, 0, 0, Number(new URLSearchParams(globalThis.location?.search ?? '').get('hidegain') ?? 1)] as never, center: [...DRUM.c, 0] as never, look: [3, 1, 0, 1] as never,
       glass: [0, 0.16, FUZZ_LEN, 0] as never, trip: [0, 0, 0, 0] as never, front: [0, 0, 0, 0.12] as never,
-      realm: [...STYLE.realmMix, STYLE.realmFly] as never, realm2: [STYLE.realmTwist, STYLE.inner === 'nebula' ? 2 : STYLE.inner === 'infinite' ? 1 : 0, 0, 0] as never });
+      realm: [...STYLE.realmMix, STYLE.realmFly] as never, realm2: [STYLE.realmTwist, INNER_KIND, 0, 0] as never });
   }
 
   async loadTextures() {
@@ -278,9 +280,10 @@ export class Drum {
   }
   /** how far the hide's seen through behind its front (0..1), the down's breeze clock; the front: where it was struck
    *  (the hide's frame, m) and how far out it's spread (m); the trip: how deep (0..1), the realm's clock, how far the
-   *  hide breathes on its own (m) */
-  glass(through: number, t: number, front: [number, number, number], trip = 0, clock = t, breath = 0) {
-    this.U.set({ glass: [through, 0.16, FUZZ_LEN, t] as never, front: [...front, 0.12] as never, trip: [trip, clock, breath, INNER_ONLY] as never });
+   *  hide breathes on its own (m) and its breath's clock (s) */
+  glass(through: number, t: number, front: [number, number, number], trip = 0, clock = t, breath = 0, breathClock = clock) {
+    this.U.set({ glass: [through, 0.16, FUZZ_LEN, t] as never, front: [...front, 0.12] as never, trip: [trip, clock, breath, INNER_ONLY] as never,
+      realm2: [STYLE.realmTwist, INNER_KIND, breathClock, 0] as never });
   }
   /** the drum's look this frame: the inner light's flicker, the time */
   look(t: number, glow: number, rock = 0) {
