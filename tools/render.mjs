@@ -1,5 +1,5 @@
 // Films a day's loop: node tools/render.mjs 04 [--size 1080] [--aspect 16:9] [--ss 2] [--fps 60] [--stills 0,0.25,0.5] [--q 'k=v&…'] [--tag x]
-// Headless Chrome (WebGPU on Metal, muted) opens the day in render mode on a dev server of its own, which steps the
+// Headless Chrome (WebGPU on Metal or D3D12, muted) opens the day in render mode on a dev server of its own, which steps the
 // loop exactly 1/fps a frame from u = 0, reads every frame back from the swapchain at size × ss and posts it raw to
 // the server's film sink (vite.config.ts): ffmpeg scales it down (lanczos), lays the HUD over and writes
 // film/<day>.mp4. --stills writes film/<day>-still-<i>.png at those phases
@@ -18,14 +18,15 @@ const name = day + (flag('tag', '') ?? '').replace(/[^\w.-]/g, '');
 // its own dev server, without reloads (RENDER=1, vite.config.ts), on a port of its own
 const PORT = Number(process.env.RENDER_PORT ?? 5191 + Math.floor(Math.random() * 200));
 const ORIGIN = `http://localhost:${PORT}`;
-const server = spawn('node_modules/.bin/vite', [], { stdio: 'ignore', env: { ...process.env, RENDER: '1', PORT: String(PORT) } });
+// (vite's own script under this node, not node_modules/.bin's shell shim: the same on macOS and Windows)
+const server = spawn(process.execPath, ['node_modules/vite/bin/vite.js'], { stdio: 'ignore', env: { ...process.env, RENDER: '1', PORT: String(PORT) } });
 process.on('exit', () => server.kill());
 const up = () => fetch(`${ORIGIN}/codevember/`).then((r) => r.ok).catch(() => false);
 for (let i = 0; i < 120 && !(await up()); i++) await new Promise((r) => setTimeout(r, 250));
 
 const browser = await chromium.launch({
   channel: 'chrome', headless: true,
-  args: ['--mute-audio', '--enable-unsafe-webgpu', '--enable-gpu', '--use-angle=metal', '--ignore-gpu-blocklist',
+  args: ['--mute-audio', '--enable-unsafe-webgpu', '--enable-gpu', ...(process.platform === 'darwin' ? ['--use-angle=metal'] : []), '--ignore-gpu-blocklist',
     '--disable-background-timer-throttling', '--disable-renderer-backgrounding'],
 });
 // (--aspect w:h: the frame that shape, its height the size — 16:9 at 1080 is 1920×1080; square by default)

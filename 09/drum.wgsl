@@ -57,6 +57,9 @@ struct HideOut {
 // a rigid prop (the beater): its model matrix (its rotation orthonormal)
 struct PropU { model: mat4x4f }
 @group(2) @binding(8) var<uniform> PM: PropU;
+// the summit's paintings (summit.ts): its carved top seen from above, the rock of its cliffs (tiling)
+@group(2) @binding(12) var daisTop: texture_2d<f32>;
+@group(2) @binding(13) var daisRock: texture_2d<f32>;
 #include "./inner"
 
 /** the hide's displacement at uv (bilinear by hand: rg32float isn't filterable) */
@@ -191,7 +194,7 @@ fn hideH(uv: vec2f) -> f32 { return simAt(uv) * D.sim2.w + breathe(uv); }
     if (D.trip.w > 0.5) { col = realm; }
     let irid = thinFilm(nv, 320.0 + 2600.0 * slope + 900.0 * in.disp) * sat(slope * 18.0) * (0.35 + 0.65 * D.trip.x);
     // (thin over the endless deep: the depth is the thing, not the film on it)
-    col += irid * veil * (0.18 + 0.5 * stretch) * (0.6 + 0.4 * L.key.r) * (1.0 - 0.75 * D.realm2.y);
+    col += irid * veil * (0.18 + 0.5 * stretch) * (0.6 + 0.4 * L.key.r) * (1.0 - 0.75 * min(D.realm2.y, 1.0));
   }
   // the front's seam: where the glass is spreading, a fine line of the film's colours
   if (D.glass.x > 0.001 && front) {
@@ -308,6 +311,8 @@ struct BodyOut {
   @location(2) uv: vec2f,
   @location(3) col: vec4f,
   @location(4) @interpolate(flat) mat: u32,
+  // where it is at rest (the drifting shards' own frame, so their rock doesn't swim over them)
+  @location(5) rest: vec3f,
 };
 @vertex fn vsBody(@builtin(vertex_index) vi: u32) -> BodyOut {
   var o: BodyOut;
@@ -321,11 +326,23 @@ struct BodyOut {
     p.x += a * (top - p.y);
   }
   // (the drum and its stand rock with the strokes; the dais and the rock under it don't)
-  let rocks = m != 5u && m != 7u;
+  let rocks = m != 5u && m != 7u && m < 12u;
   if (rocks) { p = rock(p); }
+  var nrm = meshNormal(v);
+  o.rest = p;
+  // (the summit's drifting shards: each turned round its axis at its own pace on the story clock, bobbing — uv x its
+  // pace, y its phase)
+  if (m == 15u) {
+    let sh = meshUV(v);
+    let a = G.clock.y * sh.x + sh.y;
+    let c = cos(a); let s = sin(a);
+    let q = p.xz - vec2f(-0.3, 0.2);
+    p = vec3f(-0.3 + q.x * c - q.y * s, p.y + 0.07 * sin(G.clock.y * 0.35 + sh.y * 3.0), 0.2 + q.x * s + q.y * c);
+    nrm = vec3f(nrm.x * c - nrm.z * s, nrm.y, nrm.x * s + nrm.z * c);
+  }
   o.wpos = p;
   o.pos = frame.viewProj * vec4f(p, 1.0);
-  o.n = select(meshNormal(v), rockDir(meshNormal(v)), rocks);
+  o.n = select(nrm, rockDir(nrm), rocks);
   o.uv = meshUV(v);
   o.col = meshColor(v);
   o.mat = m;
@@ -336,12 +353,20 @@ struct BodyOut {
   let v = verts[vi];
   let p = (PM.model * vec4f(meshPos(v), 1.0)).xyz;
   o.wpos = p;
+  o.rest = p;
   o.pos = frame.viewProj * vec4f(p, 1.0);
   o.n = (PM.model * vec4f(meshNormal(v), 0.0)).xyz;
   o.uv = meshUV(v);
   o.col = meshColor(v);
   o.mat = v.mat;
   return o;
+}
+/** a normal bumped by a height's screen derivatives (Mikkelsen's surface gradient, no tangents) */
+fn bumpN(N: vec3f, dPx: vec3f, dPy: vec3f, dH: vec2f) -> vec3f {
+  let r1 = cross(dPy, N); let r2 = cross(N, dPx);
+  let det = dot(dPx, r1);
+  let g = sign(det) * (dH.x * r1 + dH.y * r2);
+  return normalize(abs(det) * N - g);
 }
 fn woodGrain(p: vec3f, s: f32) -> f32 { return 0.5 + 0.5 * sin(p.y * s + fbm(p * vec3f(3.0, 0.6, 3.0)) * 9.0); }
 @fragment fn fsBody(in: BodyOut, @builtin(front_facing) ff: bool) -> @location(0) vec4f {
@@ -357,6 +382,19 @@ fn woodGrain(p: vec3f, s: f32) -> f32 { return 0.5 + 0.5 * sin(p.y * s + fbm(p *
   let rimC = textureSample(rimTex, samp_repeat, vec2f(in.uv.x * D.look.x, 1.0 - in.uv.y)).rgb;
   // (the footprints of a pixel in uv and in the world, for fading fine carving out before it shimmers)
   let fwu = fwidth(in.uv.y); let fwp = length(fwidth(P));
+  // (the summit's paintings, sampled out here too: its top's carving by uv, its rock round it by the world, three ways;
+  // and the derivatives a bump from each needs)
+  let topC = textureSample(daisTop, samp_linear, clamp(in.uv, vec2f(0.002), vec2f(0.998))).rgb;
+  let tw = pow(abs(normalize(in.n)), vec3f(4.0));
+  let twn = tw / (tw.x + tw.y + tw.z);
+  let Pr = in.rest;
+  let rq = Pr / 1.1;
+  let rockC = textureSample(daisRock, samp_repeat, rq.zy).rgb * twn.x + textureSample(daisRock, samp_repeat, rq.xz).rgb * twn.y
+    + textureSample(daisRock, samp_repeat, rq.xy).rgb * twn.z;
+  let dPx = dpdx(P); let dPy = dpdy(P);
+  let hTop = luma(topC) * 0.02; let hRock = luma(rockC) * 0.05;
+  let dTop = vec2f(dpdx(hTop), dpdy(hTop)); let dRock = vec2f(dpdx(hRock), dpdy(hRock));
+  var fogK = 0.0;
   if (m == 0u) {
     // the shell: the carved band (its texture round it), polished
     let t = rimC;
@@ -425,6 +463,45 @@ fn woodGrain(p: vec3f, s: f32) -> f32 { return 0.5 + 0.5 * sin(p.y * s + fbm(p *
     // the beater's head: soft leather over felt
     base = in.col.rgb * (0.75 + 0.4 * fbm(P * 40.0));
     rough = 0.75; spec = 0.03;
+  } else if (m == 12u) {
+    // the summit's top: the carved stone circle, worn; its grooves inlaid with a glow; past the carving, the rock
+    let r = length(P.xz - vec2f(-0.3, 0.2));
+    let a = atan2(P.z - 0.2, P.x + 0.3);
+    let past = smoothstep(2.38, 2.5, r);
+    let tc = mix(topC, rockC * 0.9, past);
+    // (dark stone: the carving's contrast pushed, its paleness taken down)
+    base = pow(sat3((tc - 0.5 * luma(tc)) * 1.35 + 0.5 * luma(tc) * 0.9), vec3f(2.4)) * 0.45;
+    N = bumpN(N, dPx, dPy, mix(dTop, dRock, past));
+    rough = 0.75; spec = 0.035;
+    let inlay = sat(((topC.g + topC.b) * 0.5 - topC.r - 0.015) * 7.0) * (1.0 - past);
+    let gold = sat((topC.r + topC.g) * 0.5 - topC.b - 0.12) * 3.0 * (1.0 - past);
+    // (a ring of the light runs out from the drum with each stroke)
+    let wave = exp(-pow((r - G.shock2.w * 6.0) * 3.0, 2.0)) * G.shock2.w;
+    let tint = mix(vec3f(0.15, 0.95, 0.85), vec3f(0.45, 0.4, 1.0), 0.5 + 0.5 * sin(a * 2.0 + G.clock.y * 0.2));
+    emit += tint * inlay * (0.12 + 0.5 * G.drumCol.w + 3.0 * wave) + vec3f(1.0, 0.7, 0.3) * gold * 0.04 * (1.0 + 2.0 * G.drumCol.w + 4.0 * wave);
+  } else if (m == 13u || m == 15u || m == 14u) {
+    // the summit's cliffs and its spire, its standing stones, its drifting shards: basalt in strata, moss where it
+    // faces up near the top, seams of crystal glowing in its cracks; fading into the void below
+    let stone = m == 14u;
+    base = pow(rockC, vec3f(2.2)) * select(1.0, 0.75, stone) * vec3f(1.0, 0.95, 0.92);
+    // (the stones hewn: shaded by their facets)
+    if (m != 13u) { let fN = normalize(cross(dPx, dPy)); N = select(-fN, fN, dot(fN, V) > 0.0); }
+    N = bumpN(N, dPx, dPy, dRock);
+    rough = 0.8; spec = 0.035;
+    let up = sat((N.y - 0.25) * 2.5) * sat((P.y + 1.4) / 1.2);
+    let moss = up * smoothstep(0.45, 0.62, fbm(Pr * 3.0)) * select(1.0, 0.5, stone);
+    base = mix(base, vec3f(0.035, 0.05, 0.02) * (0.6 + 0.8 * fbm(Pr * 20.0)), moss);
+    let tinted = sat((max(rockC.b, rockC.g) - rockC.r) * 6.0);
+    let seam = (1.0 - smoothstep(0.004, 0.016, abs(fbm(Pr * vec3f(1.1, 2.6, 1.1) + 3.0) - 0.5))) * smoothstep(0.5, 0.62, fbm(Pr * 0.6 + 9.0));
+    let vcol = mix(vec3f(0.2, 0.9, 0.95), vec3f(0.55, 0.3, 1.0), smoothstep(0.35, 0.65, fbm(Pr * 0.8)));
+    emit += vcol * (tinted * 0.12 + seam * 0.9) * (0.6 + 1.2 * G.drumCol.w) * select(1.0, 0.4, m != 13u);
+    fogK = select(sat(-(P.y + 0.6) / 7.0), 0.0, stone);
+  } else if (m == 16u) {
+    // the summit's roots, into the dark
+    base = in.col.rgb * (0.5 + 0.5 * fbm(P * 4.0));
+    rough = 0.85;
+    emit += vec3f(0.2, 0.9, 0.8) * step(0.88, fbm(P * 9.0)) * 0.25;
+    fogK = sat(-(P.y + 0.6) / 7.0);
   } else if (m == 7u) {
     // the dais's roots and the rock under it, fading into the dark
     base = in.col.rgb * (0.5 + 0.5 * fbm(P * 2.0));
@@ -438,5 +515,7 @@ fn woodGrain(p: vec3f, s: f32) -> f32 { return 0.5 + 0.5 * sin(p.y * s + fbm(p *
   col += L.rim * pow(1.0 - sat(dot(N, V)), 3.0) * 0.6;
   col += emit;
   col += vec3f(0.35, 0.85, 0.8) * shockAt(P) * 0.3;
+  // (the summit's underside lost in the violet dark below)
+  col = mix(col, vec3f(0.012, 0.006, 0.03), fogK * 0.85);
   return vec4f(col, 1.0);
 }

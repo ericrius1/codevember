@@ -70,7 +70,7 @@ sketch({ ...day(9), loop: LOOP, filmLoops: 1, warm: 1, hint: 'Space to pause · 
   const front = kit.pass({ label: 'scene.hide', color: [{ target: hdr, clear: false }], depth: { target: depth, clear: false } });
   drum.drawHide(front);
   const MU = kit.uniforms(motesShader.structs.MoteU, 'motes');
-  front.draw(motesShader, { label: 'motes', vertex: 'vsMote', fragment: 'fsMote', count: 6, instances: 900 + 3200, bind: { MU } as never,
+  if (!STYLE.noMotes) front.draw(motesShader, { label: 'motes', vertex: 'vsMote', fragment: 'fsMote', count: 6, instances: 900 + 3200, bind: { MU } as never,
     blend: 'add', depthWrite: false, depthCompare: 'greater' });
 
   const P = kit.uniforms(postShader.structs.PostU, 'post');
@@ -115,7 +115,7 @@ sketch({ ...day(9), loop: LOOP, filmLoops: 1, warm: 1, hint: 'Space to pause · 
   const pulses = STROKES.filter((k) => !k.big);
   const PULSE_DIRS: V3[] = [[0.99, -0.1, 0.05], [0.97, 0.02, -0.12], [0.98, -0.16, 0.09]];
   const WAVES: number[][] = [
-    ...pulses.map((k, i) => [...scale3(norm3(PULSE_DIRS[i % 3]), 0.35 + 0.22 * i), domeAt(k.t + 0.04)]),
+    ...(STYLE.quietPulse ? [] : pulses.map((k, i) => [...scale3(norm3(PULSE_DIRS[i % 3]), 0.35 + 0.22 * i), domeAt(k.t + 0.04)])),
     [...scale3(norm3([0.99, -0.12, 0]), 1.05), domeAt(big + 0.02)],
     [...scale3(norm3([0.95, 0.15, 0.12]), 0.8), domeAt(big + 2.2)],
     [...scale3(norm3([0.9, -0.3, -0.2]), 0.7), domeAt(big + 5.5)],
@@ -139,7 +139,7 @@ sketch({ ...day(9), loop: LOOP, filmLoops: 1, warm: 1, hint: 'Space to pause · 
     const [a, b] = struckAt(k);
     const R = 100 * 0.92 * (memAt(t) - memAt(k.t));
     const i = pulses.indexOf(k);
-    const amount = k.big ? STYLE.glass : (0.24 + 0.12 * i) * Math.exp(-Math.max(0, t - k.t - 0.2) / 1.3);
+    const amount = k.big ? STYLE.glass : STYLE.quietPulse ? 0 : (0.24 + 0.12 * i) * Math.exp(-Math.max(0, t - k.t - 0.2) / 1.3);
     return { amount, front: [a, b, R] as [number, number, number] };
   };
   // the trip: 0 till the great stroke, deepening to the end
@@ -148,7 +148,7 @@ sketch({ ...day(9), loop: LOOP, filmLoops: 1, warm: 1, hint: 'Space to pause · 
   // stroke's held
   const rippleAt = (t: number) => {
     let r = 0;
-    pulses.forEach((k, i) => { if (t > k.t) r = Math.max(r, (0.3 + 0.15 * i) * Math.exp(-(t - k.t) / 1.6) * smooth(k.t, k.t + 0.3, t)); });
+    if (!STYLE.quietPulse) pulses.forEach((k, i) => { if (t > k.t) r = Math.max(r, (0.3 + 0.15 * i) * Math.exp(-(t - k.t) / 1.6) * smooth(k.t, k.t + 0.3, t)); });
     return Math.max(r, smooth(big, big + 0.8, t));
   };
   // the fade: in from black at the loop's start, out to it at its end
@@ -214,7 +214,7 @@ sketch({ ...day(9), loop: LOOP, filmLoops: 1, warm: 1, hint: 'Space to pause · 
     const mixc = (a: number[], b: number[], k: number) => a.map((x, i) => x + (b[i] - x) * k);
     // the latest stroke of the pulse, for its front
     let lastPulse = -1;
-    for (const k of pulses) if (t > k.t) lastPulse = k.t;
+    if (!STYLE.quietPulse) for (const k of pulses) if (t > k.t) lastPulse = k.t;
     // (a style's world going dark as the glass opens)
     const dk = smooth(big, big + 2.5, t), dkS = STYLE.dark;
     const dkKey = dkS ? 1 + (dkS.key - 1) * dk : 1, dkAmb = dkS ? 1 + (dkS.amb - 1) * dk : 1, dkSky = dkS ? 1 + (dkS.sky - 1) * dk : 1;

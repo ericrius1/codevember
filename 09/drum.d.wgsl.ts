@@ -100,7 +100,8 @@ export interface BodyOut {
   uv: Vec2;
   col: Vec4;
   mat: number;
+  rest: Vec3;
 }
 
-declare const shader: Shader<{ Frame: Frame; Globals: Globals; StageLight: StageLight; MeshVertex: MeshVertex; DrumU: DrumU; HideOut: HideOut; PropU: PropU; FuzzOut: FuzzOut; BodyOut: BodyOut }, 'frame' | 'G' | 'D' | 'PM' | 'verts' | 'simTex' | 'hideTex' | 'rimTex' | 'realmFar' | 'realmMid' | 'realmNear' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; Globals: Globals; StageLight: StageLight; MeshVertex: MeshVertex; DrumU: DrumU; HideOut: HideOut; PropU: PropU; FuzzOut: FuzzOut; BodyOut: BodyOut }, 'frame' | 'G' | 'D' | 'PM' | 'verts' | 'simTex' | 'hideTex' | 'rimTex' | 'daisTop' | 'daisRock' | 'realmFar' | 'realmMid' | 'realmNear' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;

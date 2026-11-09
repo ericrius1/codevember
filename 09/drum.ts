@@ -11,6 +11,7 @@ import drumShader from './drum.wgsl';
 import { STYLE } from './style';
 import { realmUrls } from './media';
 import membraneShader from './membrane.wgsl';
+import { buildSummit } from './summit';
 
 import { DRUM, DAIS } from './stage';
 export { DRUM, DAIS };
@@ -81,7 +82,7 @@ export class Drum {
   private steps: RunEntry[] = [];
   private K = 0;
   private acc = 0;
-  hideTex!: Texture; rimTex!: Texture;
+  hideTex!: Texture; rimTex!: Texture; daisTop!: Texture; daisRock!: Texture;
   /** the other realm's three layers, deep to near (inner.wgsl) */
   realm!: Texture[];
 
@@ -159,22 +160,25 @@ export class Drum {
       b.setColor([0.42, 0.3, 0.16], 3).tube([p, [p[0], p[1] - hang, p[2]]], 0.003, 4);
       teardrop(b, [p[0], p[1] - hang, p[2]], 0.08, 0.026, k * 2.3, 4, [0.3, 0.16, 0.06]);
     }
-    // ---------------------------------------------------------------- the dais
-    const [dx, , dz] = DAIS.c, DR = DAIS.r;
-    b.push().translate(dx, 0, dz);
-    b.setColor([0.07, 0.06, 0.075], 5).lathe([[0.001, 0], [DR - 0.1, 0], [DR - 0.02, -0.02], [DR + 0.02, -0.08], [DR + 0.02, -0.16]], 128);
-    b.setColor([0.05, 0.045, 0.05], 7).lathe([[DR + 0.02, -0.16], [DR - 0.1, -0.34], [DR * 0.8, -0.6], [DR * 0.5, -1.1], [DR * 0.25, -1.6], [0.05, -2.1], [0.001, -2.2]], 64);
-    b.pop();
-    // roots hanging from under it into the void
-    b.setColor([0.06, 0.04, 0.035], 7);
-    for (let k = 0; k < 22; k++) {
-      const a = k * 2.399, r0 = DR * (0.35 + 0.6 * ((k * 7) % 11) / 11);
-      const x = dx + Math.cos(a) * r0, z = dz + Math.sin(a) * r0;
-      const y0 = -0.3 - (1 - r0 / DR) * 1.2;
-      const L = 1.2 + 2.5 * ((k * 5) % 9) / 9;
-      const path: V3[] = [];
-      for (let i = 0; i <= 8; i++) { const t = i / 8; path.push([x + Math.sin(t * 3 + k) * 0.15 * t, y0 - L * t, z + Math.cos(t * 2.5 + k) * 0.15 * t]); }
-      b.tube(path, (t) => 0.05 * (1 - t) + 0.004, 7);
+    // ---------------------------------------------------------------- the dais (or the summit: summit.ts)
+    if (STYLE.summit) buildSummit(b);
+    else {
+      const [dx, , dz] = DAIS.c, DR = DAIS.r;
+      b.push().translate(dx, 0, dz);
+      b.setColor([0.07, 0.06, 0.075], 5).lathe([[0.001, 0], [DR - 0.1, 0], [DR - 0.02, -0.02], [DR + 0.02, -0.08], [DR + 0.02, -0.16]], 128);
+      b.setColor([0.05, 0.045, 0.05], 7).lathe([[DR + 0.02, -0.16], [DR - 0.1, -0.34], [DR * 0.8, -0.6], [DR * 0.5, -1.1], [DR * 0.25, -1.6], [0.05, -2.1], [0.001, -2.2]], 64);
+      b.pop();
+      // roots hanging from under it into the void
+      b.setColor([0.06, 0.04, 0.035], 7);
+      for (let k = 0; k < 22; k++) {
+        const a = k * 2.399, r0 = DR * (0.35 + 0.6 * ((k * 7) % 11) / 11);
+        const x = dx + Math.cos(a) * r0, z = dz + Math.sin(a) * r0;
+        const y0 = -0.3 - (1 - r0 / DR) * 1.2;
+        const L = 1.2 + 2.5 * ((k * 5) % 9) / 9;
+        const path: V3[] = [];
+        for (let i = 0; i <= 8; i++) { const t = i / 8; path.push([x + Math.sin(t * 3 + k) * 0.15 * t, y0 - L * t, z + Math.cos(t * 2.5 + k) * 0.15 * t]); }
+        b.tube(path, (t) => 0.05 * (1 - t) + 0.004, 7);
+      }
     }
     const mb = b.upload(kit, 'drum.body');
     this.body = { vertices: mb.vertices, indices: mb.indices, count: mb.count };
@@ -215,16 +219,17 @@ export class Drum {
     this.U = kit.uniforms(drumShader.structs.DrumU, 'drum');
     this.U.set({ sim: [R, H, lam2, mu2] as never, sim2: [0, 0, 0, Number(new URLSearchParams(globalThis.location?.search ?? '').get('hidegain') ?? 1)] as never, center: [...DRUM.c, 0] as never, look: [3, 1, 0, 1] as never,
       glass: [0, 0.16, FUZZ_LEN, 0] as never, trip: [0, 0, 0, 0] as never, front: [0, 0, 0, 0.12] as never,
-      realm: [...STYLE.realmMix, STYLE.realmFly] as never, realm2: [STYLE.realmTwist, STYLE.inner === 'infinite' ? 1 : 0, 0, 0] as never });
+      realm: [...STYLE.realmMix, STYLE.realmFly] as never, realm2: [STYLE.realmTwist, STYLE.inner === 'nebula' ? 2 : STYLE.inner === 'infinite' ? 1 : 0, 0, 0] as never });
   }
 
   async loadTextures() {
     const load = (url: string) => loadImage(this.kit, url);
-    const [hide, rim, ...realm] = await Promise.all([
+    const [hide, rim, daisTop, daisRock, ...realm] = await Promise.all([
       load(new URL('./assets/hide.jpg', import.meta.url).href), load(new URL('./assets/rim.jpg', import.meta.url).href),
+      load(new URL('./assets/dais-top.webp', import.meta.url).href), load(new URL('./assets/dais-rock.webp', import.meta.url).href),
       ...realmUrls().map(load),
     ]);
-    this.hideTex = hide; this.rimTex = rim; this.realm = realm;
+    this.hideTex = hide; this.rimTex = rim; this.daisTop = daisTop; this.daisRock = daisRock; this.realm = realm;
   }
 
   /** this frame's steps of the hide: as many as the membrane's clock moved (film dt × membranePace(rate)), each
@@ -252,7 +257,7 @@ export class Drum {
   get run(): RunEntry[] { return this.steps; }
 
   /** what every draw of drum.wgsl binds (the beater's own model matrix stands in for the drum's draws) */
-  bindings() { return { D: this.U, simTex: this.sim.read, hideTex: this.hideTex, rimTex: this.rimTex, PM: this.propU }; }
+  bindings() { return { D: this.U, simTex: this.sim.read, hideTex: this.hideTex, rimTex: this.rimTex, daisTop: this.daisTop, daisRock: this.daisRock, PM: this.propU }; }
   propU!: UniformBuffer<any>;
 
   /** the shell, the stand, the dais: drawn with everything else behind the hide */

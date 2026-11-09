@@ -74,12 +74,19 @@ its own (design/beyond, painted by `refs.mjs beyond_far,beyond_mid,beyond_near`)
 dais at their own distances (so they slide against each other as the camera goes round), refracted through the
 ripples with a colour split, through the tears and a little through the whole membrane. 29.4 s.
 
-Infinite (`style=infinite`, filmed 16:9) strikes the pulse twice, then the great stroke; the camera holds on the struck
-point as its ripple spreads and the glass opens behind it, then draws back (no circling) to the drum, her and the whole
-torn membrane. Its glass opens on depth without end (inner.wgsl `innerInfinite`): a volumetric march down an endless
-shaft of folded light, flown down for ever — turbulence as fragcoord.xyz's shaders do it, glow gathered from every fold
-the ray passes near, a haze that thickens with distance, motes streaming past, the realm painting at its far end and
-colouring it — so it never reads as a back wall. 24.4 s.
+Infinite (`style=infinite`, filmed 16:9) strikes the pulse twice — ordinary strokes: the universe's membrane doesn't
+answer them and the hide doesn't open (`quietPulse`), no motes in the air (`noMotes`) — then the great stroke, whose
+slowed moment eases after two seconds (`slow`) so she draws the beater back still in slow motion. The camera holds on
+the struck point as the glass opens, then draws back and round to behind her, a little to her left, seeing into the
+glass past her. Its glass opens on a deep ocean without end (inner.wgsl `deepWay`, design/realms/ocean, painted by
+Codex): a way down ribbed with rings of bioluminescent veils and coral, flown down for ever, and between the rings a
+volume marched through front to back (`wayMedium`) — torn veils of glowing dust from ridged spiral noise, darker where
+they thicken, lit by a light deep down the axis — its feeling of glowing depth after the volumetric nebulae of
+fragcoord.xyz and Duke's "Dusty nebula 4" (shadertoy.com/view/MsVXWW, CC BY-NC-SA 3.0; a straight port of it is kept
+as `inner: 'nebula'`). She stands on a summit (`summit`, summit.ts): a mountain's top torn up and floating, its
+top a carved stone circle (assets/dais-top.webp), ragged cliffs in strata to an inverted spire (assets/dais-rock.webp),
+roots hanging into the void, standing stones on its far side, shards drifting round it — painted by Codex
+(refs.mjs dais, dais_top, dais_rock; design/summit-concept.jpg). 24.4 s.
 
 ```bash
 STYLE=orbit node --experimental-strip-types 09/audio/render.ts  # matching WAV + browser M4A

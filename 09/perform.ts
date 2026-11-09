@@ -16,6 +16,7 @@ import { type V3, add, sub, scale, norm } from '../src/rig/hero/math';
 import type { BodyGoal, FootGoal } from '../src/rig/body/solve';
 import type { HandGoal, HeroRig } from '../src/rig/hero/rig';
 import { DRUM } from './stage';
+import { STYLE } from './style';
 
 export const BEATER = { reach: 0.6, headR: 0.075 };
 
@@ -53,7 +54,7 @@ function specFor(i: number, shift: number): StrokeSpec {
       // the top: her hand high over her head and back, the beater pointing back and up behind her
       top: [-1.0, 2.04, STRIKE_A + 0.24],
       lift: S - down - hang - liftFrom, hang,
-      dwell: 0.0055, depth: 0.13, restitution: 0.35, settle: 1.3,
+      dwell: 0.0055, depth: 0.13, restitution: 0.35, settle: STYLE.slow ? 0.75 : 1.3,
       // after: no flourish — the beater comes down by her side, its head low ahead of her (a hanging arm, the shaft square to it), and she stands
       // and watches what the stroke has done
       ready: { hand: [-0.74, 0.9, 0.38], shaft: norm([0.84, -0.32, 0.3]) },

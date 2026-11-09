@@ -137,15 +137,16 @@ const FOV = new Channel(ts, keys.map((k) => Math.log(k.fov)), LOOP);
 // a Gaussian (no corners anywhere), its speed never stopping; and over it a slow breath, a sway too slow to read as a
 // hand. The keys in seconds after the stroke, stretched to the style's moment. Film time, never story.
 type OKey = { tau: number; az: number; el: number; r: number; at: V3; fov: number };
-// (the pull: held on the struck point as the glass opens from it, then drawn back and a little round toward the hide's
-// face, rising a little, to the drum, her and the whole torn membrane round them — still drifting at the end)
+// (the pull: held on the struck point as the glass opens from it, then drawn back and round to behind her, a little to
+// her left, rising a little, to the drum, her and the whole torn membrane round them — still drifting at the end)
 const PULL: OKey[] = [
   { tau: 0.0, az: -126.9, el: 25.7, r: 0.83, at: [0.0, 1.42, 0.36], fov: 46 },
   { tau: 1.3, az: -127.3, el: 25.0, r: 0.93, at: [0.0, 1.41, 0.35], fov: 47 },
-  { tau: 3.4, az: -128.5, el: 22, r: 1.75, at: [0.0, 1.38, 0.27], fov: 49 },
-  { tau: 6.0, az: -130.5, el: 18, r: 3.0, at: [0.0, 1.4, 0.16], fov: 51 },
-  { tau: 9.0, az: -133, el: 15.5, r: 4.0, at: [0.0, 1.47, 0.08], fov: 52 },
-  { tau: 12.8, az: -135.5, el: 14, r: 4.5, at: [0.0, 1.52, 0.04], fov: 51 },
+  { tau: 3.4, az: -131, el: 21, r: 1.75, at: [0.0, 1.38, 0.26], fov: 49 },
+  // (and round toward behind her as it draws back: at the end she's just to the side of the glass, seen into)
+  { tau: 6.0, az: -140, el: 16.5, r: 2.95, at: [0.0, 1.38, 0.14], fov: 50 },
+  { tau: 9.0, az: -150, el: 13, r: 3.9, at: [0.0, 1.4, 0.06], fov: 50 },
+  { tau: 12.8, az: -157, el: 11, r: 4.4, at: [0.0, 1.42, 0.0], fov: 49 },
 ];
 const ORBIT_KEYS: OKey[] = [
   { tau: 0.0, az: -126.9, el: 25.7, r: 0.83, at: [0.0, 1.42, 0.36], fov: 46 },

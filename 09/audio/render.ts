@@ -203,7 +203,7 @@ const drives: Drive[] = [];
 {
   // each stroke of the pulse: its ring, a touch (the picture's wall answers each with a ring of its own)
   STROKES.forEach((k, i) => {
-    if (k.big) return;
+    if (k.big || STYLE.quietPulse) return;
     const lead = Math.round((k.t - U0) * uSR), ring = dec(mono(voices[i]));
     const sig = new Float32Array(lead + ring.length);
     for (let j = 0; j < ring.length; j++) sig[lead + j] = ring[j] * 90 * (PULSE_GAIN[i] ?? 1);

@@ -8,11 +8,19 @@ export interface Style {
    *  (camera.ts) — once round her and the drum, or (camera 'pull') holding on the drum, then drawing back to see it
    *  and the whole torn membrane round it */
   orbit?: boolean; camera?: 'orbit' | 'pull';
-  /** how many strokes of the pulse before the great one (3 by default) */
-  pulses?: 2 | 3;
-  /** the world in the glass: the painted realm's layers ('layers', by default), or an endless volume coloured by them
-   *  ('infinite': inner.wgsl innerInfinite) */
-  inner?: 'layers' | 'infinite';
+  /** how many strokes of the pulse before the great one (3 by default); quiet: they're ordinary strokes — the
+   *  universe's membrane doesn't answer them and the hide doesn't open */
+  pulses?: 2 | 3; quietPulse?: boolean;
+  /** no floating motes in the air round the dais */
+  noMotes?: boolean;
+  /** the ground she stands on a mountain's summit torn up and floating (summit.ts), not the plain dais */
+  summit?: boolean;
+  /** the slowed moment's own shape (seconds after the great stroke): time held all but stopped till `lift`, easing up
+   *  to `pace` (of the world's rate) by `dream` — so she can draw the beater back while it's still slow */
+  slow?: { lift: number; dream: number; pace: number };
+  /** the world in the glass: the painted realm's layers ('layers', by default), an endless way down coloured by them
+   *  ('infinite': inner.wgsl innerInfinite), or a raymarched dusty nebula ('nebula': inner.wgsl innerNebula) */
+  inner?: 'layers' | 'infinite' | 'nebula';
   /** the dimension beyond our universe's membrane: a folder (relative to 09/) of beyond-{far,mid,near}.webp, shown
    *  through the sky's tears instead of the worlds; and its mix: how much, its refraction (×), how far it shows through
    *  the whole membrane (× the trip) */
@@ -47,9 +55,10 @@ export const STYLES: Record<string, Style> = {
   // and goes once all the way round her and the drum and on to behind her — the glass spreading across the hide behind
   // its ripple, the universe's membrane torn open on a dimension of its own (design/beyond: liquid light, parallaxed
   // and refracted through the ripples)
-  // two strokes, then the great one; the camera holds on the drum as its ripple spreads and the glass opens on depth
-  // without end, then draws back — no circling — to the drum and the whole torn membrane round it (16:9 films)
-  infinite: { id: 'infinite', orbit: true, camera: 'pull', pulses: 2, inner: 'infinite', after: 11.5, realm: 'assets', realmMix: [1, 1, 1], realmFly: 0.02, realmTwist: 1,
+  // two strokes, then the great one; the camera holds on the drum as its ripple spreads and the glass opens on a nebula
+  // far down inside it, then draws back — no circling — round to behind her, the summit she stands on round them (16:9
+  // films)
+  infinite: { id: 'infinite', orbit: true, camera: 'pull', pulses: 2, quietPulse: true, noMotes: true, summit: true, slow: { lift: 2.0, dream: 4.6, pace: 0.16 }, inner: 'infinite', after: 11.5, realm: 'design/realms/ocean', realmMix: [1, 1, 1], realmFly: 0.02, realmTwist: 1,
     grade: { sat: 1.05, exp: 1, bloom: 1.1, drift: 0.4, cool: 1.1 }, sky: { reveal: 0.82, heave: 1.3, hue: 0, kinds: [] },
     glass: 0.98, light: [0.85, 0.65, 1.0], spill: 1.6, rays: 0.8, beyond: 'design/beyond', beyondMix: [0.8, 1, 0.22] },
   orbit: { id: 'orbit', orbit: true, after: 16.5, realm: 'assets', realmMix: [0.65, 1.0, 1.0], realmFly: 0.014, realmTwist: 1.1,

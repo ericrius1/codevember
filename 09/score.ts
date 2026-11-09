@@ -51,12 +51,14 @@ export const SLOWEST = 0.005, DREAM = 0.35;
  *  dark of the loop's seam) — film seconds. It snaps in late — a speed ramp: the downswing whips through at the
  *  world's own speed and time falls away under it in the last few tenths of a second before contact, so the beater
  *  is still visibly travelling as it meets the hide — holds deep for three seconds, and lifts slowly */
-export const DILATE = { from: GREAT - 0.65, deep: GREAT + 0.02, lift: GREAT + (STYLE.orbit ? 0.82 : 0.33) * AFTER, dream: GREAT + (STYLE.orbit ? 0.98 : 0.74) * AFTER, back: GREAT + AFTER + 0.4, home: GREAT + AFTER + 1.4 };
+export const DILATE = { from: GREAT - 0.65, deep: GREAT + 0.02,
+  lift: GREAT + (STYLE.slow ? STYLE.slow.lift : (STYLE.orbit ? 0.82 : 0.33) * AFTER), dream: GREAT + (STYLE.slow ? STYLE.slow.dream : (STYLE.orbit ? 0.98 : 0.74) * AFTER),
+  back: GREAT + AFTER + 0.4, home: GREAT + AFTER + 1.4 };
 
 /** the world's rate against film time: 1 normally, SLOWEST at the deepest, DREAM after. Falls and rises
  *  log-smoothly, so the slowing reads as an exponential settling, not a ramp */
 export function rate(t: number): number {
-  const ls = Math.log(SLOWEST), ld = Math.log(DREAM);
+  const ls = Math.log(SLOWEST), ld = Math.log(STYLE.slow ? STYLE.slow.pace : DREAM);
   // (smootherstep: the rate's slope and its own slope both 0 at each end, so nothing moving through a turn of the
   // clock jerks — a smoothstep's corner in its curvature kinked the beater as time reached its dream pace)
   const s5 = (a: number, b: number) => { const x = Math.min(1, Math.max(0, (t - a) / (b - a))); return x * x * x * (x * (x * 6 - 15) + 10); };
