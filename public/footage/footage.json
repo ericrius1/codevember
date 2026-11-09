@@ -1,32 +1,32 @@
 [
-  {
-    "id": "09-infinite",
-    "title": "09 / Membrane: Infinite",
-    "sub": "Another telling of 09 / Membrane, wide, on a mountain's summit torn up and floating in the void: two strokes, then the great one. Time all but stops as it lands; the hide turns to glass behind the struck point, onto an ocean's way down without end, veils of glowing dust between its rings, and the camera draws back round behind her to look into it past her. 24 seconds at 1920×1080, WebGPU, the drum's sound simulated from its own physics.",
-    "date": "2026-11-09",
-    "created": "2026-11-09T11:40-08:00",
-    "seconds": 24,
-    "width": 1920,
-    "height": 1080,
-    "mb": 55.8,
-    "video": "https://footage.ericrius1.workers.dev/codevember/2a33f9ffab3b09af/09-infinite.mp4",
-    "small": "https://footage.ericrius1.workers.dev/codevember/2f4cc01f896093cd/09-infinite-720.mp4",
-    "poster": "https://footage.ericrius1.workers.dev/codevember/df3b0d89a36ce0df/09-infinite-poster.jpg",
-    "card": "https://footage.ericrius1.workers.dev/codevember/07fa87cabec78273/09-infinite-card.jpg"
-  },
-  {
-    "id": "04",
-    "title": "04 / Gyre",
-    "sub": "Forty glazed hoops, each one flipping over twice a loop, starting from the outside. A seamless 16-second loop, sphere-traced in WebGPU.",
-    "date": "2026-11-04",
-    "created": "2026-11-04T07:54-08:00",
-    "seconds": 16,
-    "width": 1080,
-    "height": 1080,
-    "mb": 14.7,
-    "video": "https://footage.ericrius1.workers.dev/codevember/c5ade22de34ab9f1/04.mp4",
-    "small": null,
-    "poster": "https://footage.ericrius1.workers.dev/codevember/768e9fa61b79b2b4/04-poster.jpg",
-    "card": "https://footage.ericrius1.workers.dev/codevember/981769bc1364f976/04-card.jpg"
-  }
+ {
+  "id": "09-infinite",
+  "title": "09 / Membrane: Infinite",
+  "sub": "Another telling of 09 / Membrane, wide, on a mountain's summit torn up and floating in the void: two strokes, then the great one, her arm driving on through it. Time all but stops as it lands and stays slowed to the end; the hide turns to glass on an ocean's way down without end, and our universe's membrane tears open on a deep of its own, strands of light and of dark out to forever. 24 seconds at 1920×1080, WebGPU, the drum's sound simulated from its own physics.",
+  "date": "2026-11-09",
+  "created": "2026-11-09T12:19-08:00",
+  "seconds": 24,
+  "width": 1920,
+  "height": 1080,
+  "mb": 55.8,
+  "video": "https://footage.ericrius1.workers.dev/codevember/82f433ad081b21a5/09-infinite.mp4",
+  "small": "https://footage.ericrius1.workers.dev/codevember/14ef6fe75a97a82a/09-infinite-720.mp4",
+  "poster": "https://footage.ericrius1.workers.dev/codevember/dd12c3aca20bcd96/09-infinite-poster.jpg",
+  "card": "https://footage.ericrius1.workers.dev/codevember/6e974aa7d9b6873c/09-infinite-card.jpg"
+ },
+ {
+  "id": "04",
+  "title": "04 / Gyre",
+  "sub": "Forty glazed hoops, each one flipping over twice a loop, starting from the outside. A seamless 16-second loop, sphere-traced in WebGPU.",
+  "date": "2026-11-04",
+  "created": "2026-11-04T07:54-08:00",
+  "seconds": 16,
+  "width": 1080,
+  "height": 1080,
+  "mb": 14.7,
+  "video": "https://footage.ericrius1.workers.dev/codevember/c5ade22de34ab9f1/04.mp4",
+  "small": null,
+  "poster": "https://footage.ericrius1.workers.dev/codevember/768e9fa61b79b2b4/04-poster.jpg",
+  "card": "https://footage.ericrius1.workers.dev/codevember/981769bc1364f976/04-card.jpg"
+ }
 ]
