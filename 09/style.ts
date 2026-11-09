@@ -28,6 +28,10 @@ export interface Style {
 const STYLES: Record<string, Style> = {
   a: { id: 'a', after: 9.1, realm: 'assets', realmMix: [0.6, 1.0, 0.8], realmFly: 0.022, realmTwist: 1,
     grade: { sat: 1, exp: 1, bloom: 1, drift: 1, cool: 1 }, sky: { reveal: 1, heave: 1, hue: 0, kinds: [] }, glass: 0.97, light: [1.0, 0.55, 0.22], spill: 0.5, rays: 0 },
+  // the serpent realm of 'a' with everything since: its light spilling on her, pouring out as rays, a longer moment,
+  // the sky heaving harder
+  vision: { id: 'vision', after: 11, realm: 'assets', realmMix: [0.6, 1.0, 0.9], realmFly: 0.02, realmTwist: 0.8,
+    grade: { sat: 1, exp: 1, bloom: 1.1, drift: 1, cool: 1.2 }, sky: { reveal: 1, heave: 1.3, hue: 0, kinds: [] }, glass: 0.97, light: [1.0, 0.55, 0.7], spill: 1.6, rays: 1.0 },
   // the deep: a dark sea inside the drum, vast slow beings of light; the longest, quietest moment; the sky barely torn
   abyss: { id: 'abyss', after: 13, realm: 'design/realms/abyss', realmMix: [0.9, 1.1, 1.4], realmFly: 0.012, realmTwist: 0.4,
     grade: { sat: 0.82, exp: 0.95, bloom: 1.15, drift: 0.4, cool: 1.6 }, sky: { reveal: 0.55, heave: 0.7, hue: -0.3, kinds: [4, 6, 5] }, glass: 0.98, light: [0.35, 0.75, 1.0], spill: 1.4, rays: 0.6 },

@@ -1,5 +1,35 @@
 [
  {
+  "id": "09-mycelium",
+  "title": "09 / Membrane: Mycelium",
+  "sub": "Another telling of 09 / Membrane, the longest breath after the great stroke: the hide turns to glass behind its ripple onto an inner forest of golden threads running to a slow heart of light, its glow over her, while the universe's membrane heaves green and deep all round. 29 seconds, WebGPU, the drum's sound simulated from its own physics.",
+  "date": "2026-11-09",
+  "created": "2026-11-09T04:39-08:00",
+  "seconds": 29,
+  "width": 1080,
+  "height": 1080,
+  "mb": 65.7,
+  "video": "https://footage.ericrius1.workers.dev/codevember/623343398280c1d6/09-mycelium.mp4",
+  "small": "https://footage.ericrius1.workers.dev/codevember/88960c0aaf46853b/09-mycelium-720.mp4",
+  "poster": "https://footage.ericrius1.workers.dev/codevember/9bdb6d40e83ef5f3/09-mycelium-poster.jpg",
+  "card": "https://footage.ericrius1.workers.dev/codevember/7223dba888aadc8f/09-mycelium-card.jpg"
+ },
+ {
+  "id": "09-cathedral",
+  "title": "09 / Membrane: Cathedral",
+  "sub": "Another telling of 09 / Membrane. Warm and reverent: the hide turns to glass behind the great stroke's ripple onto a cathedral of gold light dissolving into mist, its glow spilling over her, while the sky's membrane tears open on gold dusk worlds. 23 seconds, WebGPU, the drum's sound simulated from its own physics.",
+  "date": "2026-11-09",
+  "created": "2026-11-09T04:34-08:00",
+  "seconds": 23,
+  "width": 1080,
+  "height": 1080,
+  "mb": 52,
+  "video": "https://footage.ericrius1.workers.dev/codevember/70bcd014ed44bf1f/09-cathedral.mp4",
+  "small": "https://footage.ericrius1.workers.dev/codevember/b032a61414ec5500/09-cathedral-720.mp4",
+  "poster": "https://footage.ericrius1.workers.dev/codevember/195e525cb5905bb5/09-cathedral-poster.jpg",
+  "card": "https://footage.ericrius1.workers.dev/codevember/1daabe35a83ffbcd/09-cathedral-card.jpg"
+ },
+ {
   "id": "09-abyss",
   "title": "09 / Membrane: Abyss",
   "sub": "Another telling of 09 / Membrane. The great stroke's moment held longer and quieter: the ripple crawls out from the struck point and the hide turns to glass behind it, onto a dark inner sea where vast veiled beings of light drift, while the universe's membrane ripples cool and blue all round. 26 seconds, WebGPU, the drum's sound simulated from its own physics.",
