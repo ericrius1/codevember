@@ -3,15 +3,15 @@
   "id": "09-infinite",
   "title": "09 / Membrane: Infinite",
   "date": "2026-11-09",
-  "created": "2026-11-09T12:19-08:00",
+  "created": "2026-11-09T14:10-08:00",
   "seconds": 24,
   "width": 1920,
   "height": 1080,
-  "mb": 55.8,
-  "video": "https://footage.ericrius1.workers.dev/codevember/82f433ad081b21a5/09-infinite.mp4",
-  "small": "https://footage.ericrius1.workers.dev/codevember/14ef6fe75a97a82a/09-infinite-720.mp4",
-  "poster": "https://footage.ericrius1.workers.dev/codevember/dd12c3aca20bcd96/09-infinite-poster.jpg",
-  "card": "https://footage.ericrius1.workers.dev/codevember/6e974aa7d9b6873c/09-infinite-card.jpg"
+  "mb": 55.5,
+  "video": "https://footage.ericrius1.workers.dev/codevember/807604f0c0c1e65d/09.mp4",
+  "small": "https://footage.ericrius1.workers.dev/codevember/f83c0cb9a839f5dc/09-infinite-720.mp4",
+  "poster": "https://footage.ericrius1.workers.dev/codevember/8411db81cdc9869c/09-infinite-poster.jpg",
+  "card": "https://footage.ericrius1.workers.dev/codevember/8e9fa604c9db54f5/09-infinite-card.jpg"
  },
  {
   "id": "04",
