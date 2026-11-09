@@ -41,6 +41,7 @@ export interface Globals {
   wall: Vec4;
   waves: ArrayLike<number> | Vec4[];
   glow: Vec4;
+  caps: ArrayLike<number> | Vec4[];
 }
 export interface StageLight {
   key: Vec3;
@@ -75,6 +76,7 @@ export interface DrumU {
   trip: Vec4;
   front: Vec4;
   breath: Vec4;
+  realm: Vec4;
 }
 export interface HideOut {
   pos: Vec4;

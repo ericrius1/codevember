@@ -6,8 +6,8 @@
 // side, round onto the hide's axis and into the glass, the drum's world filling the frame — and on down through it like
 // a portal as time comes back toward its own pace (STYLE.fly), till the fade.
 //
-import { LOOP, BIG, ACT } from './score';
-import { STYLE } from './style';
+import { LOOP, BIG, ACT } from './score.ts';
+import { STYLE } from './style.ts';
 import type { V3 } from '../src/rig/hero/math';
 
 interface Key { t: number; eye: V3; at: V3; fov: number }
@@ -80,8 +80,9 @@ function fromPolar(q: Polar): V3 {
  *  non-uniform keys, made periodic (it runs on across the loop's seam; an azimuth that goes once round carries on
  *  round), then eased by a Gaussian in time so its acceleration has no corners at the keys */
 class Channel {
-  private n: number;
-  constructor(private ts: number[], private ys: number[], private L: number, private drift = 0, private sigma = 0.16) { this.n = ts.length; }
+  // (fields spelled out, not parameter properties: node runs this file as it is, for the soundtrack — audio/render.ts)
+  private n: number; private ts: number[]; private ys: number[]; private L: number; private drift: number; private sigma: number;
+  constructor(ts: number[], ys: number[], L: number, drift = 0, sigma = 0.16) { this.ts = ts; this.ys = ys; this.L = L; this.drift = drift; this.sigma = sigma; this.n = ts.length; }
   private key(i: number) {
     const n = this.n, k = Math.floor(i / n), j = i - k * n;
     return { t: this.ts[j] + k * this.L, y: this.ys[j] + k * this.drift };
@@ -152,15 +153,19 @@ const PULL: OKey[] = [
   { tau: FLY.go + 2.2, az: -126, el: 6.5, r: 0.52, at: [0.15, 1.07, 0.0], fov: 54 },
   { tau: FLY.go + 2.85, az: -150, el: 3.5, r: 0.16, at: [1.2, 1.065, 0.0], fov: 56 },
   { tau: FLY.in, az: -180, el: 0.5, r: 0.085, at: [2.0, 1.065, 0.0], fov: 56 },
-  { tau: FLY.in + 2.2, az: -180, el: 0.4, r: 0.08, at: [2.0, 1.09, 0.06], fov: 56 },
-  { tau: 12.8, az: -180, el: 0.3, r: 0.08, at: [2.0, 1.04, -0.05], fov: 56 },
+  { tau: FLY.in + 1.6, az: -180, el: 0.4, r: 0.08, at: [2.0, 1.085, 0.05], fov: 56 },
+  // (the last second: the lens opening as the flight leaps)
+  { tau: FLY.hyper, az: -180, el: 0.35, r: 0.08, at: [2.0, 1.06, 0.0], fov: 58 },
+  { tau: STYLE.after + 1.3, az: -180, el: 0.3, r: 0.08, at: [2.0, 1.065, 0.0], fov: 74 },
 ];
 const OK = PULL;
 const TAU_END = OK[OK.length - 1].tau;
 /** a channel through keys (seconds after the stroke): monotone cubic, held at its ends, eased by a Gaussian */
 class Smooth {
   private m: number[];
-  constructor(private ts: number[], private ys: number[], private sigma: number) {
+  private ts: number[]; private ys: number[]; private sigma: number;
+  constructor(ts: number[], ys: number[], sigma: number) {
+    this.ts = ts; this.ys = ys; this.sigma = sigma;
     const n = ts.length, d = ts.slice(1).map((t, i) => (ys[i + 1] - ys[i]) / (t - ts[i]));
     this.m = ts.map((_, i) => {
       if (i === 0 || i === n - 1) return 0;

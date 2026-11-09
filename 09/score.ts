@@ -15,6 +15,8 @@ import { STYLE } from './style.ts';
 
 /** seconds from the great stroke to the fade */
 const AFTER = STYLE.after;
+/** the trip's own span (seconds from the great stroke): how deep it is follows this, whenever the fade comes */
+export const TRIP_SPAN = 11.5;
 const GREAT = 10.9;
 export const LOOP = Math.round((GREAT + AFTER + 2.0) * 10) / 10;
 
@@ -93,9 +95,9 @@ export const ACT = {
   /** the downswing starts (story time from here to contact is a real downswing's ~0.2 s) */
   swing: 0,   // filled below
   /** the close look at the hide ends as time starts to lift: the camera draws back round her, the shock leaves the drum */
-  shock: GREAT + 0.363 * AFTER,
+  shock: GREAT + 4.17,
   /** time at its dream pace, the veil wide open: the trip, deepening to the end */
-  trip: GREAT + 0.615 * AFTER,
+  trip: GREAT + 7.07,
   /** the fade to black, and the black of the loop's seam */
   fade: GREAT + AFTER, black: GREAT + AFTER + 1.3,
 };

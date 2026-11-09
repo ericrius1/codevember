@@ -239,13 +239,22 @@ fn skinRelief(lp: vec3f, px: f32) -> SkinRelief {
   }
   return o;
 }
-/** diffuse through skin: each colour wraps round the terminator as far as it scatters (the deep red the furthest, the
- *  blue hardly), and the deep colours see the smooth form, not the fine relief (the light's come up from under it) */
-fn skinDiffuse(nlSmooth: f32, nlFine: f32, reach: f32) -> vec3f {
-  let nl = vec3f(mix(nlFine, nlSmooth, 0.9), mix(nlFine, nlSmooth, 0.55), mix(nlFine, nlSmooth, 0.2));
-  let w = vec3f(0.75, 0.42, 0.3) * reach;
-  return pow(sat3((nl + w) / (1.0 + w)), 1.0 + w);
+/** diffuse through skin, in its two layers (reach: how far the light gets through her there, 1 and up) */
+fn skinDiffuse(nlSmooth: f32, nlFine: f32, reach: f32) -> vec2f {
+  // x: off her surface — the fine relief's own turning, hardly wrapped; y: come back from under it — the smooth
+  // form's, wrapped far round, and strongest where the surface itself has gone dark
+  let e = sat((nlFine + 0.1) / 1.1);
+  let w = 0.6 * reach;
+  let u = pow(sat((nlSmooth + w) / (1.0 + w)), 1.0 + w);
+  return vec2f(e, u * (1.0 - 0.8 * e) * 0.9 + 0.1 * e);
 }
+// her colours: the blue-violet of her, its pale and its deep, the rose-violet where her blood's near, and the colour
+// of the light come back from under her skin
+const SKIN_MID = vec3f(0.1, 0.125, 0.46);
+const SKIN_PALE = vec3f(0.2, 0.22, 0.6);
+const SKIN_DEEP = vec3f(0.05, 0.06, 0.3);
+const SKIN_BLOOD = vec3f(0.3, 0.1, 0.42);
+const SKIN_UNDER = vec3f(0.5, 0.13, 0.42);
 
 // ---------------------------------------------------------------- cloth
 fn weave(p: vec3f, s: f32) -> f32 { return sin(p.x * s + p.z * s * 0.3) * sin(p.y * s * 1.03) * 0.5 + 0.5; }
@@ -296,18 +305,27 @@ fn skirtGold(p: vec3f, px: f32) -> f32 {
   // (skin: where she's thin — the ears, the fingers, the nose's wings — by how fast her surface turns on screen; taken
   // before any branch, as screen-space widths must be)
   let curv = length(fwidth(N)) / max(length(fwidth(P)), 1e-6);
-  var thin = 0.0; var oil = 0.0; var lips = 0.0; var cavity = 0.0; var Nf = N;
+  var thin = 0.0; var oil = 0.0; var lips = 0.0; var cavity = 0.0; var Nf = N; var blood = 0.0; var mottle = 0.5;
   if (skin) {
     thin = smoothstep(30.0, 120.0, curv);
-    // her colour alive, not one paint: a slow mottle, the blood nearer the surface where she's thin, at her cheeks and
-    // the tip of her nose (a rose under the violet), the pores a shade darker
+    // her colour alive, not one paint: a blue-violet, paler over the broad forms and deepening to indigo down her arms
+    // and legs, in slow patches and a finer mottle; the blood nearer the surface where she's thin, at her cheeks and
+    // the tip of her nose (a rose-violet under the blue); freckles of a darker blue; the pores a shade darker
     let E = SU.eye; let Fc = SU.face;
     let front = step(0.0, lp.z);
     let cheek = exp(-pow((abs(lp.x) - 0.036) / 0.02, 2.0) - pow((lp.y - (E.y - 0.03)) / 0.024, 2.0)) * front;
     let nose = exp(-pow(lp.x / 0.013, 2.0) - pow((lp.y - SU.qmin.w) / 0.016, 2.0)) * step(Fc.w - 0.025, lp.z);
     let mot = vnoise(lp * 21.0) * 0.6 + vnoise(lp * 73.0 + 3.0) * 0.4;
-    base = SU.pal[0].rgb * (0.86 + 0.28 * mot);
-    base = mix(base, vec3f(0.27, 0.08, 0.25), sat(0.32 * thin + 0.3 * cheek + 0.35 * nose + 0.12 * (mot - 0.5)));
+    let blotch = vnoise(lp * 5.5 + 17.0);
+    mottle = mot;
+    let ext = max(smoothstep(0.3, 0.5, abs(lp.x)), smoothstep(0.45, 0.08, lp.y));
+    base = mix(SKIN_MID, SKIN_PALE, sat(0.55 * blotch + 0.7 * (mot - 0.4)));
+    base = mix(base, SKIN_DEEP, sat(0.5 * ext + 0.5 * (0.45 - mot)));
+    blood = sat(0.45 * thin + 0.4 * cheek + 0.42 * nose + 0.16 * (mot - 0.5));
+    base = mix(base, SKIN_BLOOD, blood * 0.8);
+    let fk = smoothstep(0.5, 0.2, 190.0 * px);
+    base *= 1.0 - 0.2 * fk * smoothstep(0.64, 0.8, vnoise(lp * 190.0 + 5.0)) * smoothstep(0.3, 0.6, vnoise(lp * 12.0 + 31.0));
+    base *= SU.pal[m].rgb / SU.pal[0].rgb;
     // the forehead and the nose carry a little oil: a tighter shine there
     let fore = smoothstep(E.y + 0.012, E.y + 0.03, lp.y) * (1.0 - smoothstep(Fc.x + 0.05, Fc.x + 0.08, lp.y)) * (1.0 - smoothstep(0.03, 0.05, abs(lp.x))) * front;
     oil = max(fore, nose);
@@ -317,7 +335,8 @@ fn skirtGold(p: vec3f, px: f32) -> f32 {
     base *= 1.0 - 0.07 * cavity;
     let sl = rel.slope - bn * dot(rel.slope, bn);
     Nf = normalize(N - turnTo(bn, N, sl));
-    rough = mix(0.52, 0.38, oil); spec = 0.028; wrap = 0.0;
+    // (no two patches of her shine alike)
+    rough = mix(0.56, 0.4, oil) + 0.12 * (mot - 0.5); spec = 0.028; wrap = 0.0;
     // her lines
     var g = faceLines(lp, px);
     if (abs(lp.x) > 0.12 && lp.y > 0.8) { g = max(g, armLines(lp, sign(lp.x), px)); }
@@ -335,15 +354,20 @@ fn skirtGold(p: vec3f, px: f32) -> f32 {
     }
     // (gold, a little teal running through it: never the white the two make half and half)
     let lineCol = mix(vec3f(1.0, 0.6, 0.15), vec3f(0.25, 1.0, 0.9), 0.15 + 0.15 * sin(lp.y * 14.0 + G.clock.y * 1.3));
-    emit += lineCol * g * (SU.look.x * (0.4 + 0.9 * pulse) + run * 6.0);
+    emit += lineCol * g * (SU.look.x * (0.3 + 0.6 * pulse) + run * 4.0);
     base = mix(base, vec3f(0.55, 0.38, 0.12), g * 0.75);
     // the eyes
     let e = drawEyes(lp, px);
     base = mix(base, e.rgb * 0.5, e.a);
     emit += e.rgb * e.a * step(1.2, e.r) * 0.3;
-    // (the lips, darker, smoother, a little wet)
-    let lipZone = (1.0 - smoothstep(0.004, 0.008, abs(lp.y - SU.face.y))) * (1.0 - smoothstep(SU.face.z * 0.8, SU.face.z, abs(lp.x))) * step(0.0, lp.z) * step(SU.face.w - 0.03, lp.z);
-    base = mix(base, base * vec3f(0.55, 0.35, 0.6), lipZone);
+    // (the lips: a plum, fuller at the middle and gone at the corners; smoother, a little wet)
+    let lx = abs(lp.x) / (SU.face.z * 1.05);
+    let lh = 0.0085 * sqrt(max(0.0, 1.0 - lx * lx)) + 1e-5;
+    let lipZone = (1.0 - smoothstep(lh * 0.45, lh, abs(lp.y - SU.face.y))) * step(lx, 1.0) * step(0.0, lp.z) * step(SU.face.w - 0.03, lp.z);
+    base = mix(base, vec3f(0.11, 0.04, 0.2) * (0.8 + 0.4 * mot), lipZone * 0.8);
+      // (the line between them)
+      base *= 1.0 - 0.6 * lipZone * (1.0 - smoothstep(0.0006, 0.0018, abs(lp.y - SU.face.y - 0.0012)));
+    blood = max(blood, lipZone * 0.45);
     lips = lipZone;
     rough = mix(rough, 0.3, lipZone);
     Nf = normalize(mix(Nf, N, lipZone));
@@ -396,31 +420,41 @@ fn skirtGold(p: vec3f, px: f32) -> f32 {
   }
   if (skin) {
     // ---------------------------------------------------------------- skin's light: through it, not off it
+    // two layers: the blue of her surface, lit as the surface is (its grain and all); and under it the light that's
+    // gone in and come back out rose — round the terminator and into the shade, off the smooth form
     let reach = 1.0 + 0.9 * thin;
     let dK = skinDiffuse(dot(N, L.keyL), dot(Nf, L.keyL), reach);
     let dD = skinDiffuse(dot(N, L.drumL), dot(Nf, L.drumL), reach);
-    // (the pores and creases hold less of the sky)
+    let under = SKIN_UNDER * (0.55 + 0.9 * blood);
+    // (the drum's fire on her: a blue skin gives little of an amber light back, so it reads grey — she takes it a
+    // little paler than it is)
+    var drum = mix(L.drum, vec3f(luma(L.drum)) * vec3f(0.92, 0.96, 1.12), 0.42);
+    drum /= 1.0 + 0.3 * luma(drum);   // (close to the glass, its light doesn't burn her out)
+    // (the pores and creases hold less of the sky; and what light there is in a crease has been in her first)
     let aoS = ao * (1.0 - 0.12 * cavity);
-    var col = base * (L.key * dK + L.drum * dD + L.amb * aoS * mix(vec3f(1.0), vec3f(1.15, 0.9, 1.0), 0.5));
+    var col = base * (L.key * dK.x + drum * dD.x) + under * (L.key * dK.y + drum * dD.y);
+    col += base * L.amb * aoS * mix(vec3f(1.35, 0.8, 1.05), vec3f(1.0), aoS);
     // the light that comes through where she's thin: the key or the drum behind an ear, a hand; the cosmos behind her
-    // edges (a rose glow — the colour of what's under the violet)
-    let deep = vec3f(0.95, 0.22, 0.38) * (0.35 + base * 2.0);
+    // edges (a rose glow — the colour of what's under the blue)
+    let deep = vec3f(0.9, 0.22, 0.5) * (0.3 + base * 1.6);
     let tk = pow(sat(dot(V, -normalize(L.keyL + N * 0.4))), 3.0);
     let td = pow(sat(dot(V, -normalize(L.drumL + N * 0.4))), 3.0);
     let edge = pow(1.0 - sat(dot(N, V)), 2.5);
-    col += deep * ((L.key * tk + L.drum * td) * (0.08 + 0.5 * thin) + L.rim * edge * (0.12 + 0.45 * thin)) * ao;
-    // its shine: two lobes (a tight one, a broad haze) with the Fresnel skin has — faint face-on, bright at grazing; the
-    // living film's colours only in it, faintly
+    col += deep * ((L.key * tk + drum * td) * (0.08 + 0.5 * thin) + L.rim * edge * (0.08 + 0.09 * thin)) * ao;
+    // its shine: two lobes (a tight one, a broad haze) with the Fresnel skin has — faint face-on, bright at grazing —
+    // broken by her grain, never one clean highlight; the living film's colours only in it, faintly
     let nv = sat(dot(Nf, V));
-    let film = mix(vec3f(1.0), 0.6 + 0.8 * thinFilm(nv, 420.0 + 120.0 * sin(lp.y * 9.0)), SU.look.y * 0.3);
-    let specOcc = sat(ao * 1.2) * (1.0 - 0.4 * cavity);
-    let r0 = rough * 0.8; let r1 = min(1.0, rough * 1.45);
+    let film = mix(vec3f(1.0), 0.6 + 0.8 * thinFilm(nv, 420.0 + 120.0 * sin(lp.y * 9.0)), SU.look.y * 0.25);
+    let specOcc = sat(ao * 1.2) * (1.0 - 0.4 * cavity) * (0.55 + 0.9 * mottle);
+    let r0 = rough * 0.8; let r1 = min(1.0, rough * 1.5);
     let Hk = normalize(V + L.keyL); let Hd = normalize(V + L.drumL);
-    let sK = mix(ggx(Nf, V, L.keyL, r0), ggx(Nf, V, L.keyL, r1), 0.2) * fresnel(spec, dot(Hk, V));
-    let sD = mix(ggx(Nf, V, L.drumL, r0), ggx(Nf, V, L.drumL, r1), 0.2) * fresnel(spec, dot(Hd, V));
-    col += film * (sK * L.key + sD * L.drum) * specOcc * (2.3 + 1.4 * lips);
-    // the cosmos's light off her at grazing: a sheen of the sky, and the fine down's soft rim
+    let sK = mix(ggx(Nf, V, L.keyL, r0), ggx(Nf, V, L.keyL, r1), 0.3) * fresnel(spec, dot(Hk, V));
+    let sD = mix(ggx(Nf, V, L.drumL, r0), ggx(Nf, V, L.drumL, r1), 0.3) * fresnel(spec, dot(Hd, V));
+    col += film * (sK * L.key + sD * L.drum) * specOcc * (1.7 + 1.6 * lips);
+    // the cosmos's light off her at grazing: a sheen of the sky, and the fine down's soft pale rim — in the key's and
+    // the drum's light too
     col += L.rim * film * fresnel(0.028, nv) * 1.1 * specOcc + base * L.rim * edge * 0.5 * ao;
+    col += SKIN_PALE * pow(1.0 - nv, 4.0) * (L.key * sat(dot(N, L.keyL) + 0.35) + drum * sat(dot(N, L.drumL) + 0.35)) * 0.22 * ao;
     col += emit;
     col += vec3f(0.35, 0.85, 0.8) * shockAt(P) * 0.3;
     return vec4f(col, 1.0);

@@ -1,4 +1,4 @@
-// Films a day's loop: node tools/render.mjs 04 [--size 1080] [--aspect 16:9] [--ss 2] [--fps 60] [--stills 0,0.25,0.5] [--q 'k=v&…'] [--tag x]
+// Films a day's loop: node tools/render.mjs 04 [--size 1080] [--aspect 16:9] [--ss 2] [--fps 60] [--stills 0,0.25,0.5] [--q 'k=v&…'] [--tag x] [--hdr]
 // Headless Chrome (WebGPU on Metal or D3D12, muted) opens the day in render mode on a dev server of its own, which steps the
 // loop exactly 1/fps a frame from u = 0, reads every frame back from the swapchain at size × ss and posts it raw to
 // the server's film sink (vite.config.ts): ffmpeg scales it down (lanczos), lays the HUD over and writes
@@ -39,6 +39,9 @@ page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') 
 const q = new URLSearchParams({ render: '', size: String(size), ss: String(ss), fps: String(fps), name });
 if (stills) q.set('stills', stills);
 if (argv.includes('--hud')) q.set('hud', '1');
+// (--hdr: an HDR film, 10-bit HEVC in HLG/BT.2020 — for a sketch whose last pass writes that signal when asked, ?hdr)
+const hdr = argv.includes('--hdr');
+if (hdr) q.set('hdr', '1');
 // (--q 'a=1&b=2': more of the page's own parameters, a debug camera say)
 for (const [k, v] of new URLSearchParams(flag('q', ''))) q.set(k, v);
 await page.goto(`${ORIGIN}/codevember/${day}/?${q}`);
@@ -63,8 +66,10 @@ const soundtrack = flag('audio', `film/${day}.wav`);
 if (!stills && existsSync(soundtrack)) {
   const out = `film/${name}.mp4`, tmp = `film/${name}.av.mp4`;
   execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', out, '-stream_loop', '-1', '-i', soundtrack, '-map', '0:v', '-map', '1:a',
-    '-c:v', 'copy', '-bsf:v', 'h264_metadata=sample_aspect_ratio=1/1:video_full_range_flag=0:colour_primaries=1:transfer_characteristics=1:matrix_coefficients=1',
-    '-color_primaries', 'bt709', '-color_trc', 'bt709', '-colorspace', 'bt709', '-color_range', 'tv', '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', tmp]);
+    '-c:v', 'copy', ...(hdr ? ['-tag:v', 'hvc1', '-color_primaries', 'bt2020', '-color_trc', 'arib-std-b67', '-colorspace', 'bt2020nc']
+      : ['-bsf:v', 'h264_metadata=sample_aspect_ratio=1/1:video_full_range_flag=0:colour_primaries=1:transfer_characteristics=1:matrix_coefficients=1',
+        '-color_primaries', 'bt709', '-color_trc', 'bt709', '-colorspace', 'bt709']),
+    '-color_range', 'tv', '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', tmp]);
   renameSync(tmp, out);
   console.log(`${out}: with ${soundtrack}`);
 }

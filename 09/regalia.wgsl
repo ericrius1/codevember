@@ -1,5 +1,5 @@
 // Her regalia, laid on at run time: cards anchored to points of her mesh and skinned by the same bones (the mantle of
-// beetle-wing scales and leaves over her shoulders, the skirt's tiers of scales, glowing flowers, the crown of leaves),
+// feathers and leaves over her shoulders, the skirt's tiers of long eyed feathers, glowing flowers, the crown of leaves),
 // and strands simulated on the CPU (hair.ts) and drawn here as tubes (her rope locks, the bead strings from her
 // diadem, the seed pods' cords, the sash's tails) with what's threaded on them: glass and gold beads, gold coils and
 // carved bone pins on the locks, filigree pods lit from inside, seed pods.
@@ -35,10 +35,27 @@ struct CardOut {
   @location(3) @interpolate(flat) kind: u32,
   @location(4) @interpolate(flat) seed: f32,
   @location(5) @interpolate(flat) hue: f32,
+  // its own frame: along it (root to tip), across it
+  @location(6) along: vec3f,
+  @location(7) across: vec3f,
 };
 
 const COLS = 3u;
-const ROWS = 7u;
+const ROWS = 9u;
+/** a point kept out of her arms and her head (common's capsules 0 and 2..5), a margin off them */
+fn clearOfHer(p: vec3f, m: f32) -> vec3f {
+  var q = p;
+  let n = min(u32(G.glow.y), 6u);
+  for (var i = 0u; i < n; i++) {
+    if (i == 1u) { continue; }
+    let a = G.caps[2u * i]; let b = G.caps[2u * i + 1u];
+    let ba = b.xyz - a.xyz; let pa = q - a.xyz;
+    let d = pa - ba * sat(dot(pa, ba) / dot(ba, ba));
+    let l = length(d); let r = a.w + m;
+    if (l < r) { q += d / max(l, 1e-4) * (r - l); }
+  }
+  return q;
+}
 @vertex fn vsCard(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> CardOut {
   var o: CardOut;
   let c = cards[ii];
@@ -61,26 +78,52 @@ const ROWS = 7u;
   let kind = c.skin.z;
   let seed = f32(c.skin.w) / 65535.0;
   let L = c.pos.w; let Wd = c.nrm.w;
-  // its outline: a scale or a leaf pointed at its tip, a flower round
-  var w = Wd * sin(PI * pow(max(v, 0.0), 0.75)) * (1.0 - 0.25 * v) + Wd * 0.25 * (1.0 - v) * step(0.5, f32(kind == 0u));
-  // the flutter: a breath of air, and the shock's push lifting them off her
+  // its outline: a leaf pointed at its tip, a flower round; a feather's is cut from its card (fsCard)
+  let w = select(Wd * sin(PI * pow(max(v, 0.0), 0.75)) * (1.0 - 0.25 * v), Wd, kind == 0u);
+  // the flutter: a breath of air; the shock lifts them a little off her and bends them away from it, the tips the most
   let t = R.look.x;
-  let lift = c.shape.x + 0.08 * sin(t * (1.3 + seed) + seed * 40.0) + R.look.y * (0.6 + 0.6 * seed);
+  let push = R.look.y;
+  let lift = c.shape.x + 0.06 * sin(t * (1.3 + seed) + seed * 40.0) + push * 0.14 * (0.4 + seed);
   var p: vec3f;
   var nn: vec3f;
+  var along = down;
   if (kind == 3u) {
     // a flower: flat, facing out, a little off the surface
     let a = (v * 2.0 - 1.0);
     p = anchor + n * (c.shape.y + 0.004) + side * u * Wd + down * a * Wd;
     nn = n;
-  } else {
+  } else if (c.shape.x > 1.5) {
+    // (the crown's leaves: standing, swept back; folded along the midrib, the edges a little out)
     let ca = cos(lift); let sa = sin(lift);
     let dir = normalize(down * ca + n * sa);
-    // (folded along its midrib: its edges a little out)
     p = anchor + n * c.shape.y + dir * (v * L) + side * (u * w) + n * (abs(u) * w * 0.3 + v * v * L * 0.15);
     nn = normalize(cross(dir, side) * -1.0 + side * u * 0.3);
     if (dot(nn, n) < 0.0) { nn = -nn; }
+    along = dir;
+  } else {
+    // what hangs on her — feathers, leaves: it leaves the surface at its lift and arcs back to it by its tip (laid
+    // one over the next as plumage lies), hanging a little toward the ground's down whichever way she's turned; cupped
+    // across, its edges toward her
+    let g = vec3f(0.0, -1.0, 0.0);
+    let d0 = normalize(down + (g - n * dot(g, n)) * 0.6);
+    let sd = normalize(cross(n, d0));
+    let cv = max(lift * 1.8, 1e-3);
+    let a1 = lift - cv * v;
+    // (the shock's wind: away from the hide, never into her)
+    var wind = anchor - G.shock.xyz; wind.y *= 0.3; wind = normalize(wind + vec3f(1e-4, 0.0, 0.0));
+    wind -= n * min(0.0, dot(wind, n));
+    let sway = wind * push * (0.22 + 0.2 * seed) + sd * 0.05 * sin(t * (0.9 + seed) + seed * 17.0);
+    p = anchor + n * c.shape.y + (d0 * (sin(lift) - sin(a1)) + n * (cos(a1) - cos(lift))) * (L / cv)
+      + sd * (u * w) - n * (u * u * w * 0.3) + sway * (v * v * L);
+    // (out of her arms' way: draped over them, not through them; its root stays where it's sewn)
+    p = mix(p, clearOfHer(p, 0.006), smoothstep(0.0, 0.3, v));
+    along = normalize(d0 * cos(a1) + n * sin(a1) + sway * (2.0 * v));
+    nn = normalize(cross(along, sd) + sd * u * 0.45);
+    if (dot(nn, n) < 0.0) { nn = -nn; }
+    o.across = sd;
   }
+  if (kind == 3u || c.shape.x > 1.5) { o.across = side; }
+  o.along = along;
   o.wpos = p;
   o.pos = frame.viewProj * vec4f(p, 1.0);
   o.n = nn;
@@ -99,19 +142,72 @@ const ROWS = 7u;
   let nv = abs(dot(N, V));
   var col = vec3f(0.0);
   let uv = in.uv;
+  // (a feather's barbs run out from its shaft toward its tip: which barb this is, and how many pixels one takes — taken
+  // here, before any branch, as screen-space widths must be)
+  let bc = (uv.y - 0.3 * abs(uv.x)) * 46.0;
+  let bw = fwidth(bc);
+  let ew = fwidth(uv.x);
   if (in.kind == 0u) {
-    // a beetle's wing-case: a film over a dark body — violet, green, gold as it turns — a midrib, fine ribs
-    let rib = 1.0 - smoothstep(0.0, 0.06, abs(uv.x));
-    let ribs = 0.5 + 0.5 * sin((uv.y * 30.0 + abs(uv.x) * 8.0));
-    let thick = 400.0 + in.hue * 110.0 + uv.y * 60.0 + ribs * 20.0;
-    let film = thinFilm(nv, thick) * vec3f(0.85, 0.9, 1.0);
-    let base = vec3f(0.02, 0.026, 0.024) + film * film * 0.07;
-    let spec = ggx(N, V, L.keyL, 0.25) * L.key + ggx(N, V, L.drumL, 0.25) * L.drum;
-    col = base * (L.key * sat(dot(N, L.keyL)) + L.drum * sat(dot(N, L.drumL)) + L.amb * 1.5) + film * spec * 1.2;
-    col += film * film * L.rim * pow(1.0 - nv, 2.5) * 1.1;
-    col = mix(col, vec3f(0.5, 0.35, 0.1) * (L.key + L.drum) * 0.4, rib * 0.5);
-    // the edge's gold thread
-    col += vec3f(1.0, 0.6, 0.15) * (1.0 - smoothstep(0.0, 0.08, 1.0 - abs(uv.x) - (1.0 - uv.y) * 0.1)) * 0.05 * (1.0 + 3.0 * R.look.z);
+    // a feather: its shaft, its vane of barbs — ragged at the edge, parted here and there — coloured as birds' are: by
+    // its structure, so it turns with the eye (cobalt to turquoise, emerald, violet, a few amber), dark and downy at the
+    // root; the long ones of her skirt's train carry an eye
+    let style = floor(in.hue); let hue = fract(in.hue);
+    let v = uv.y; let au = abs(uv.x);
+    let vv = sat((v - 0.07) / 0.93);
+    let bi = floor(bc); let bf = fract(bc);
+    let bh = hash11(bi * 1.37 + in.seed * 91.0);
+    let fine = 1.0 - smoothstep(0.35, 0.9, bw);
+    // its outline
+    var f = pow(vv, 0.45) * sqrt(sat(1.0 - pow(vv, 2.4))) * (0.9 + 0.1 * mix(0.5, bh, fine));
+    let parted = step(mix(0.88, 0.7, style), hash11(bi * 0.731 + in.seed * 37.0)) * fine;
+    f *= 1.0 - parted * (0.2 + 0.3 * style) * (1.0 - abs(bf - 0.5) * 2.0);
+    let shaftW = 0.05 * (1.0 - 0.6 * v) + ew;
+    if (au > max(f, shaftW * step(v, 0.96))) { discard; }
+    // its colours, root to tip
+    var c0 = vec3f(0.006, 0.012, 0.07); var c1 = vec3f(0.012, 0.07, 0.42); var c2 = vec3f(0.0, 0.32, 0.36);
+    if (hue > 0.4) { c0 = vec3f(0.004, 0.03, 0.02); c1 = vec3f(0.01, 0.22, 0.09); c2 = vec3f(0.16, 0.4, 0.05); }
+    if (hue > 0.7) { c0 = vec3f(0.02, 0.006, 0.05); c1 = vec3f(0.14, 0.03, 0.36); c2 = vec3f(0.36, 0.07, 0.4); }
+    if (hue > 0.92) { c0 = vec3f(0.06, 0.012, 0.006); c1 = vec3f(0.42, 0.1, 0.015); c2 = vec3f(0.6, 0.36, 0.04); }
+    if (style > 0.5) { c0 = vec3f(0.004, 0.02, 0.016); c1 = mix(vec3f(0.01, 0.16, 0.1), vec3f(0.02, 0.1, 0.24), hue); c2 = mix(vec3f(0.12, 0.3, 0.05), vec3f(0.0, 0.26, 0.3), hue); }
+    var base = mix(mix(c0, c1, smoothstep(0.05, 0.45, v + 0.1 * (in.seed - 0.5))), c2, smoothstep(0.5, 0.95, v + 0.25 * au));
+    // (it turns with the eye: toward the next colour round as it's seen along)
+    base = hueShift(base, (1.0 - nv) * 0.9 - 0.25 + 0.3 * (in.seed - 0.5));
+    // (barb by barb a shade apart, and the dark between them)
+    base *= mix(1.0, (0.72 + 0.5 * bh) * (0.55 + 0.45 * smoothstep(0.0, 0.3, bf) * smoothstep(1.0, 0.7, bf)), fine);
+    var glint = 1.0;
+    // the eye near its tip: a dark heart, a ring of turquoise, of bronze, of gold-green
+    let eyed = (style > 0.5 && in.seed > 0.4) || (style < 0.5 && in.seed > 0.9);
+    if (eyed) {
+      let e = length(vec2f(uv.x * 0.8, (v - 0.74) * 4.2));
+      let ring = vec3f(0.005, 0.006, 0.04) * (1.0 - smoothstep(0.26, 0.3, e))
+        + vec3f(0.0, 0.3, 0.5) * smoothstep(0.26, 0.3, e) * (1.0 - smoothstep(0.42, 0.47, e))
+        + vec3f(0.42, 0.17, 0.03) * smoothstep(0.42, 0.47, e) * (1.0 - smoothstep(0.6, 0.66, e))
+        + vec3f(0.2, 0.32, 0.03) * smoothstep(0.6, 0.66, e) * (1.0 - smoothstep(0.76, 0.86, e));
+      let inEye = 1.0 - smoothstep(0.76, 0.86, e);
+      base = mix(base, hueShift(ring, (1.0 - nv) * 0.5 - 0.15) * (0.8 + 0.3 * bh * fine), inEye);
+      glint += 1.5 * inEye;
+    }
+    // (downy and dull at the root, where the next one lies over it)
+    let lap = smoothstep(0.0, 0.45, v);
+    base *= 0.35 + 0.65 * lap;
+    // its light: the vane's, a little through it from behind; a sheen along the barbs, in its own colour
+    let nk = dot(N, L.keyL); let nd = dot(N, L.drumL);
+    let drum = L.drum / (1.0 + 0.45 * luma(L.drum));
+    col = base * (L.key * sat(nk * 0.8 + 0.2) + drum * sat(nd * 0.8 + 0.2) + L.amb * 1.6);
+    col += base * (L.key * sat(-nk) + drum * sat(-nd)) * 0.45;
+    let A = normalize(in.along); let S = normalize(in.across);
+    let Tb = normalize(A * 0.75 + S * sign(uv.x) * 0.66);
+    let Hk = normalize(V + L.keyL); let Hd = normalize(V + L.drumL);
+    let shK = pow(sqrt(max(0.0, 1.0 - dot(Tb, Hk) * dot(Tb, Hk))), 34.0) * sat(nk + 0.3);
+    let shD = pow(sqrt(max(0.0, 1.0 - dot(Tb, Hd) * dot(Tb, Hd))), 34.0) * sat(nd + 0.3);
+    let lustre = (base * 3.5 + 0.02) * (0.6 + 0.8 * thinFilm(nv, 380.0 + 160.0 * hue));
+    col += lustre * (shK * L.key + shD * drum) * 0.5 * glint * lap * (0.6 + 0.4 * bh);
+    col += lustre * L.rim * pow(1.0 - nv, 2.5) * 0.7 * lap;
+    // (the stroke's flash catches in them)
+    col += lustre * R.look.z * 0.06 * lap;
+    // the shaft: pale horn, a thread of light down it
+    let sh = (1.0 - smoothstep(shaftW * 0.5, shaftW, au)) * step(v, 0.96);
+    col = mix(col, vec3f(0.5, 0.42, 0.3) * (L.key * sat(nk + 0.4) + drum * sat(nd + 0.4) + L.amb) * (0.5 + 0.5 * lap), sh * 0.85);
   } else if (in.kind == 1u) {
     // a leaf: deep green, its veins lighter, light through it from the drum
     let vein = 1.0 - smoothstep(0.0, 0.05, abs(uv.x)) + 0.5 * (1.0 - smoothstep(0.0, 0.04, abs(fract(uv.y * 6.0 - abs(uv.x) * 1.5) - 0.5)));
@@ -152,16 +248,27 @@ struct TubeOut {
   @location(4) tangent: vec3f,
 };
 const SIDES = 8u;
+/** how many pieces a strand's link is drawn in, along its curve */
+const TUBE_PIECES = 3u;
 @vertex fn vsTube(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> TubeOut {
   var o: TubeOut;
   let s = segs[ii];
   let A = pts[s.x]; let B = pts[s.y];
-  let quad = vi / 6u; let k = vi % 6u;
+  let ta = f32(s.w & 65535u) / 65535.0;
+  let tb = f32(s.w >> 16u) / 65535.0;
+  // (a link drawn as a curve through its neighbours — the chain's points are a strand's, not a rod's)
+  var P0 = A.xyz * 2.0 - B.xyz; var P3 = B.xyz * 2.0 - A.xyz;
+  if (ta > 0.0) { P0 = pts[s.x - 1u].xyz; }
+  if (tb < 1.0) { P3 = pts[s.y + 1u].xyz; }
+  let piece = vi / (6u * SIDES);
+  let quad = (vi / 6u) % SIDES; let k = vi % 6u;
   let corner = array<vec2u, 6>(vec2u(0u, 0u), vec2u(1u, 0u), vec2u(0u, 1u), vec2u(1u, 0u), vec2u(1u, 1u), vec2u(0u, 1u))[k];
-  let side = (quad + corner.x) % SIDES;
-  let end = corner.y;
-  let ax = B.xyz - A.xyz;
-  let T = normalize(ax + vec3f(0.0, 1e-6, 0.0));
+  let side = quad + corner.x;
+  let u = f32(piece + corner.y) / f32(TUBE_PIECES);
+  let u2 = u * u; let u3 = u2 * u;
+  let Pc = 0.5 * (2.0 * A.xyz + (B.xyz - P0) * u + (2.0 * P0 - 5.0 * A.xyz + 4.0 * B.xyz - P3) * u2 + (3.0 * A.xyz - P0 - 3.0 * B.xyz + P3) * u3);
+  let dP = 0.5 * ((B.xyz - P0) + 2.0 * (2.0 * P0 - 5.0 * A.xyz + 4.0 * B.xyz - P3) * u + 3.0 * (3.0 * A.xyz - P0 - 3.0 * B.xyz + P3) * u2);
+  let T = normalize(dP + vec3f(0.0, 1e-6, 0.0));
   var X = normalize(cross(T, select(vec3f(0.0, 1.0, 0.0), vec3f(1.0, 0.0, 0.0), abs(T.y) > 0.9)));
   var Y = cross(T, X);
   let kind = s.z;
@@ -173,15 +280,11 @@ const SIDES = 8u;
   }
   let a = f32(side) / f32(SIDES) * TAU;
   let off = X * cos(a) * rx + Y * sin(a) * ry;
-  let P = select(A, B, end == 1u);
-  // (each end overlaps its neighbour a little: no cracks at the bends)
-  let ext = select(-T, T, end == 1u) * P.w * 0.5;
-  o.wpos = P.xyz + off * P.w + ext;
+  let rad = mix(A.w, B.w, u);
+  o.wpos = Pc + off * rad;
   o.pos = frame.viewProj * vec4f(o.wpos, 1.0);
   o.n = normalize(X * cos(a) / max(rx, 0.05) + Y * sin(a) / max(ry, 0.05));
-  let ta = f32(s.w & 65535u) / 65535.0;
-  let tb = f32(s.w >> 16u) / 65535.0;
-  o.t = vec2f(select(ta, tb, end == 1u), a);
+  o.t = vec2f(mix(ta, tb, u), a);
   o.kind = kind;
   o.tangent = T;
   return o;
@@ -195,8 +298,11 @@ const SIDES = 8u;
   var col = vec3f(0.0);
   if (in.kind == 0u) {
     // a rope lock: twisted, near-black with a blue cast, a sheen along it
-    let tw = 0.5 + 0.5 * sin(in.t.y * 2.0 + in.t.x * 140.0);
-    let base = vec3f(0.02, 0.018, 0.028) * (0.6 + 0.6 * tw);
+    let ph = in.t.y * 3.0 + in.t.x * 170.0;
+    let tw = abs(sin(ph * 0.5));
+    // (three strands twisted: each rounds out from the grooves between them)
+    N = normalize(N + T * cos(ph * 0.5) * sign(sin(ph * 0.5)) * 0.55 * (1.0 - tw));
+    let base = vec3f(0.022, 0.017, 0.034) * (0.25 + 0.95 * smoothstep(0.0, 0.5, tw));
     let H = normalize(L.keyL + V);
     let sh = pow(sqrt(max(0.0, 1.0 - dot(T, H) * dot(T, H))), 60.0);
     col = base * (L.key * sat(dot(N, L.keyL) + 0.3) + L.drum * sat(dot(N, L.drumL) + 0.3) + L.amb) + vec3f(0.25, 0.3, 0.5) * sh * L.key * 0.12;

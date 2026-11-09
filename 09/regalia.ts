@@ -1,7 +1,7 @@
 // Her regalia, laid on her at run time (the ceremonial dress's layers the Blender build doesn't make):
 //   - cards anchored to points of her mesh (their bind position, normal, bones and weights taken from the DNC1
-//     vertex there) and skinned on the GPU by the same bones: a mantle of beetle-wing scales and leaves over her
-//     shoulders, chest and back; tiers of long scales down the skirt, shingled; glowing flowers in the vines; a crown
+//     vertex there) and skinned on the GPU by the same bones: a mantle of feathers and leaves over her
+//     shoulders, chest and back; tiers of long feathers down the skirt, shingled; glowing flowers in the vines; a crown
 //     of leaves round her head.
 //   - strands (hair.ts, on src/rig/strands.ts) rooted on her bones: rope locks with glass and gold beads, gold coils and
 //     bone pins down her back, bead strings from her diadem's temples, seed pods on cords from the mantle's front, the
@@ -47,8 +47,8 @@ export class Regalia {
       picked.push(a.p);
       const u = (a.p[1] - bottom) / (top - bottom);
       const r = rand();
-      const kind = r < 0.68 ? KIND.scale : r < 0.95 ? KIND.leaf : KIND.flower;
-      list.push({ a, kind, L: kind === KIND.leaf ? 0.13 + 0.05 * rand() : 0.1 + 0.04 * rand() + 0.04 * (1 - u), W: kind === KIND.flower ? 0.016 : kind === KIND.leaf ? 0.03 : 0.028,
+      const kind = r < 0.8 ? KIND.scale : r < 0.95 ? KIND.leaf : KIND.flower;
+      list.push({ a, kind, L: kind === KIND.leaf ? 0.13 + 0.05 * rand() : 0.1 + 0.04 * rand() + 0.04 * (1 - u), W: kind === KIND.flower ? 0.016 : kind === KIND.leaf ? 0.03 : 0.03 + 0.008 * rand(),
         lift: 0.18 + 0.15 * rand(), out: 0.008 + 0.012 * (1 - u), hue: rand() });
     }
     // ---------------------------------------------------------------- the skirt: tiers of long scales, shingled
@@ -69,7 +69,7 @@ export class Regalia {
       }
       for (const a of bins.values()) {
         const r = rand();
-        list.push({ a, kind: r < 0.9 ? KIND.scale : r < 0.97 ? KIND.leaf : KIND.flower, L: tier * 1.28, W: 0.036, lift: 0.04 + 0.05 * rand(), out: 0.006 + 0.002 * k, hue: rand() });
+        list.push({ a, kind: r < 0.9 ? KIND.scale : r < 0.97 ? KIND.leaf : KIND.flower, L: tier * (1.3 + 0.25 * rand()), W: 0.04, lift: 0.04 + 0.05 * rand(), out: 0.006 + 0.002 * k, hue: (r < 0.9 ? 1 : 0) + rand() * 0.999 });
       }
     }
     // ---------------------------------------------------------------- the crown of leaves (on her head's bone): rising from
@@ -152,8 +152,8 @@ export class Regalia {
 
   draw(pass: RenderPass) {
     const bind = { R: this.U, DQ: this.dq, cards: this.cards, pts: this.ptsBuf, segs: this.segs, beads: this.beadsBuf } as never;
-    pass.draw(regaliaShader, { label: 'regalia.cards', vertex: 'vsCard', fragment: 'fsCard', cull: 'none', count: 6 * 2 * 6, instances: this.nCards, bind });
-    pass.draw(regaliaShader, { label: 'regalia.strands', vertex: 'vsTube', fragment: 'fsTube', cull: 'none', count: 6 * 8, instances: this.nSegs, bind });
+    pass.draw(regaliaShader, { label: 'regalia.cards', vertex: 'vsCard', fragment: 'fsCard', cull: 'none', count: 6 * 2 * 8, instances: this.nCards, bind });
+    pass.draw(regaliaShader, { label: 'regalia.strands', vertex: 'vsTube', fragment: 'fsTube', cull: 'none', count: 6 * 8 * 3, instances: this.nSegs, bind });
     this.ornaments.draw(pass);
     pass.draw(regaliaShader, { label: 'regalia.beads', vertex: 'vsBead', fragment: 'fsBead', cull: 'back', count: 6 * 8 * 6, instances: this.nBeads, bind });
   }

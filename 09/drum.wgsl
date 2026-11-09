@@ -29,10 +29,12 @@ struct DrumU {
   // the glass's front: xy where the hide was struck (its frame: a across, b up; m), z how far out the front's got (m),
   // w how soft its edge is (m)
   front: vec4f,
-  // x the hide's breath's own clock (s: slow and steady, to the end), y the flight down the realm's way (its ribs,
-  // added to its own steady flow: the camera flying in), z the portal (0..1: the camera at the glass, the hide's own
-  // surface gone, only the realm), w spare
+  // x the hide's breath's own clock (s: slow and steady, to the end), y the flight through the realm (m, added to its
+  // own steady drift: the camera flying in), z the portal (0..1: the camera at the glass, the hide's own surface gone,
+  // only the realm), w the flight's shutter (m: how far it flies either side of the frame's instant, its blur)
   breath: vec4f,
+  // x the flight's leap at its end (0, 1 by the fade, and on past it)
+  realm: vec4f,
 }
 @group(2) @binding(0) var<uniform> D: DrumU;
 // the drum rocked on its stand by a stroke: turned about the stand's foot (z through it)
@@ -250,7 +252,7 @@ fn innerRead(uvIn: vec2f) -> vec3f {
     let nv = sat(dot(N, V));
     let tr = clamp(veil * (0.95 + 0.6 * stretch) * (1.0 - 0.35 * paint) * (1.0 - 0.4 * pow(1.0 - nv, 4.0)), 0.0, 0.97);
     // (the thinner the hide, the less light it scatters back of its own; a breath of its warmth over the realm)
-    let through = realm * mix(vec3f(1.0, 0.86, 0.72), vec3f(1.0), 0.6 + 0.35 * veil) + backlit * 0.2 * (1.0 - veil);
+    let through = realm * mix(vec3f(0.8, 0.9, 1.0), vec3f(1.0), 0.6 + 0.35 * veil) + backlit * 0.2 * (1.0 - veil);
     col = mix(col * (1.0 - 0.55 * veil), through, tr);
     if (D.trip.w > 0.5) { col = realm; }
     let irid = thinFilm(nv, 320.0 + 2600.0 * slope + 900.0 * in.disp) * sat(slope * 18.0) * (0.35 + 0.65 * D.trip.x);
@@ -362,7 +364,7 @@ struct FuzzOut {
   col += vec3f(0.35, 0.85, 0.8) * shockAt(in.wpos) * 0.3 * tip;
   // (the down thins with the hide as it turns to a veil)
   let abF = (in.uv - 0.5) * 2.0 * D.sim.x;
-  a *= 1.0 - 0.8 * D.glass.x * (1.0 - smoothstep(D.front.z - D.front.w, D.front.z, length(abF - D.front.xy)));
+  a *= 1.0 - min(1.0, 1.05 * D.glass.x) * (1.0 - smoothstep(D.front.z - D.front.w, D.front.z, length(abF - D.front.xy)));
   // (and none at all with the camera at the glass)
   a *= 1.0 - D.breath.z;
   if (a < 0.002) { discard; }

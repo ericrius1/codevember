@@ -24,8 +24,11 @@ struct Globals {
   // the ripples on it: up to 8 events — xyz where on it (from the centre; its length the ripple's strength), w when (on
   // the ripples' own clock; < 0 none): 0–2 the pulse's strokes, 3–5 the great stroke's, 6–7 the trip's
   waves: array<vec4f, 8>,
-  // the shaman's glow: x her lines' pulse (0..), y the stroke's light running up her arm (0..1 of the way), z, w
+  // the shaman's glow: x her lines' pulse (0..), y how many of the capsules below are set, z, w
   glow: vec4f,
+  // what casts shadows on the stage — her body and the beater, as capsules: pairs of (one end, w the radius) and
+  // (the other end, w free)
+  caps: array<vec4f, 24>,
 }
 @group(0) @binding(1) var<uniform> G: Globals;
 
@@ -80,6 +83,44 @@ fn ggx(N: vec3f, V: vec3f, L: vec3f, rough: f32) -> f32 {
   return D * vis * nl * 0.25;
 }
 
+/** how much of a light toward rd (unit; `far` to it, metres) reaches p past the stage's capsules — her body, the
+ *  beater: a soft shadow, softer the lower k (the light's own size). A surface inside a capsule's own skin isn't
+ *  shadowed by it: its turning from the light is its own N·L's to tell */
+fn capShadow(p: vec3f, rd: vec3f, k: f32, far: f32) -> f32 {
+  var s = 1.0;
+  let n = u32(G.glow.y);
+  for (var i = 0u; i < n; i++) {
+    let a = G.caps[2u * i]; let b = G.caps[2u * i + 1u];
+    let ba = b.xyz - a.xyz; let oa = p - a.xyz;
+    let baba = dot(ba, ba); let oaba = dot(oa, ba);
+    let own = smoothstep(1.15, 1.9, length(oa - ba * sat(oaba / baba)) / a.w);
+    if (own <= 0.0) { continue; }
+    // (the nearest the ray and the capsule's axis come)
+    let oad = dot(oa, rd); let dba = dot(rd, ba);
+    let h = sat((oaba - oad * dba) / max(baba - dba * dba, 1e-7));
+    let c = a.xyz + ba * h - p;
+    let t = clamp(dot(c, rd), 1e-3, far);
+    let d = length(c - rd * t) - a.w;
+    let v = sat(k * d / t + 0.5);
+    s = min(s, mix(1.0, v * v * (3.0 - 2.0 * v), own));
+  }
+  return s;
+}
+/** how much of the sky they hide from a surface at p facing N (0..1: the dark where her arm's against her, under
+ *  her on the dais) */
+fn capOcclusion(p: vec3f, N: vec3f) -> f32 {
+  var o = 1.0;
+  let n = u32(G.glow.y);
+  for (var i = 0u; i < n; i++) {
+    let a = G.caps[2u * i]; let b = G.caps[2u * i + 1u];
+    let ba = b.xyz - a.xyz; let pa = p - a.xyz;
+    let d = pa - ba * sat(dot(pa, ba) / dot(ba, ba));
+    let l = max(length(d), a.w * 0.6);
+    o *= 1.0 - sat(max(0.0, dot(-d, N)) * a.w * a.w / (l * l * l));
+  }
+  return o;
+}
+
 /** what lights a surface on the stage at p with normal N: the key, the drum's glow (its hide's light, falling off),
  *  the great membrane's shimmer from the sky (a rim), the ambient (sky above, the island's warm bounce below) */
 struct StageLight { key: vec3f, keyL: vec3f, drum: vec3f, drumL: vec3f, rim: vec3f, amb: vec3f };
@@ -93,9 +134,13 @@ fn stageLight(p: vec3f, N: vec3f) -> StageLight {
   // (the hide is a big disc: its light falls off over its own size, and only on its front side)
   let face = sat(dot(-o.drumL, vec3f(-1.0, 0.0, 0.0)) * 1.5 + 0.2);
   o.drum = G.drumCol.rgb * G.drumLight.w * face / (1.0 + dl * dl * 0.9) * (1.0 + 0.5 * G.drumCol.w);
-  o.rim = G.rimCol.rgb * G.rimCol.w;
+  // (the shadows she and the beater cast: the key's fairly sharp, the hide's — a broad disc of light — soft)
+  o.key *= capShadow(p, o.keyL, 7.0, 1e3);
+  o.drum *= mix(1.0, capShadow(p, o.drumL, 0.9, dl), 0.6);
+  let occ = capOcclusion(p, N);
+  o.rim = G.rimCol.rgb * G.rimCol.w * mix(1.0, occ, 0.5);
   let up = N.y * 0.5 + 0.5;
-  o.amb = mix(vec3f(0.12, 0.07, 0.05) * G.ambient.w, G.ambient.rgb, up);
+  o.amb = mix(vec3f(0.12, 0.07, 0.05) * G.ambient.w, G.ambient.rgb, up) * occ;
   return o;
 }
 

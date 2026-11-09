@@ -41,6 +41,7 @@ export interface Globals {
   wall: Vec4;
   waves: ArrayLike<number> | Vec4[];
   glow: Vec4;
+  caps: ArrayLike<number> | Vec4[];
 }
 export interface StageLight {
   key: Vec3;
@@ -73,6 +74,8 @@ export interface CardOut {
   kind: number;
   seed: number;
   hue: number;
+  along: Vec3;
+  across: Vec3;
 }
 export interface TubeOut {
   pos: Vec4;

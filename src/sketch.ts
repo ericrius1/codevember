@@ -66,7 +66,8 @@ export async function sketch(meta: SketchMeta, setup: (ctx: Ctx) => Promise<Fram
 
   let kit: Kit;
   try {
-    kit = await createKit(canvas, { maxPixelRatio: render ? ss : 2 });
+    // (an HDR film, ?render&hdr: a float canvas whatever the display, its frames read back at 16 bits a channel)
+    kit = await createKit(canvas, { maxPixelRatio: render ? ss : 2, ...(render && params.has('hdr') ? { hdr: 'force' as const } : {}) });
   } catch (e) {
     document.body.classList.add('nogpu');
     hud.setMode('film');
@@ -214,22 +215,55 @@ async function film(kit: Kit, meta: SketchMeta, fps: number, size: number, setN:
     await post(`hud?name=${name}`, await hudPng(meta, size));
   }
   const [w, h] = kit.size.canvas;
-  await post(`start?name=${name}&w=${w}&h=${h}&fps=${fps}&size=${size}&hud=${withHud ? 1 : 0}`);
+  // (an HDR film: the sketch's last pass writes the HLG signal, BT.2020, to the float canvas; each frame goes to the
+  // sink as 16-bit RGB)
+  const hdr = new URLSearchParams(location.search).has('hdr');
+  if (hdr && !kit.hdr.enabled) throw new Error('no float canvas here: an HDR film needs one');
+  await post(`start?name=${name}&w=${w}&h=${h}&fps=${fps}&size=${size}&hud=${withHud ? 1 : 0}&hdr=${hdr ? 1 : 0}`);
   const ws = new WebSocket(`${location.origin.replace(/^http/, 'ws')}/__render/frames`);
   ws.binaryType = 'arraybuffer';
   await new Promise((ok, no) => { ws.onopen = ok; ws.onerror = no; });
   const sent = () => new Promise<void>((ok, no) => { ws.onmessage = (e) => (e.data === 'ok' ? ok() : no(new Error(String(e.data)))); });
   const t0 = performance.now();
   for (let i = 0; i < total; i++) {
-    const img = await cap.step(1 / fps);
+    const data = hdr ? await stepHdr(kit, 1 / fps) : (await cap.step(1 / fps)).data;
     const ack = sent();
-    ws.send(img.data);
+    ws.send(data);
     await ack;
     if (i % 30 === 0) status(`frame ${i}/${total}`);
   }
   ws.close();
   const r = await (await post('end')).json();
   (window as any).__render = { status: 'done', out: r.out, code: r.code, frames: total, seconds: (performance.now() - t0) / 1000 };
+}
+
+/** one frame stepped by hand and read back from the float canvas as 16-bit RGB (rgb48le), top row first: the signal as
+ *  the last pass wrote it, 0..1 */
+let halfTo16: Uint16Array | null = null;
+async function stepHdr(kit: Kit, dt: number): Promise<Uint16Array> {
+  if (!halfTo16) {
+    halfTo16 = new Uint16Array(65536);
+    for (let i = 0; i < 65536; i++) {
+      const e = (i >> 10) & 31, m = i & 1023;
+      const v = i & 0x8000 ? 0 : e === 0 ? m * 2 ** -24 : e === 31 ? (m ? 0 : 1) : (1 + m / 1024) * 2 ** (e - 15);
+      halfTo16[i] = Math.round(Math.min(1, v) * 65535);
+    }
+  }
+  kit.step(dt);
+  const tex = kit.context.getCurrentTexture();
+  const w = tex.width, h = tex.height, row = Math.ceil((w * 8) / 256) * 256;
+  const buf = kit.device.createBuffer({ label: 'capture.hdr', size: row * h, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+  const enc = kit.device.createCommandEncoder({ label: 'capture.hdr' });
+  enc.copyTextureToBuffer({ texture: tex }, { buffer: buf, bytesPerRow: row }, [w, h]);
+  kit.queue.submit([enc.finish()]);
+  await buf.mapAsync(GPUMapMode.READ);
+  const src = new Uint16Array(buf.getMappedRange()), out = new Uint16Array(w * h * 3), t = halfTo16;
+  for (let y = 0, d = 0; y < h; y++) {
+    for (let x = 0, q = (y * row) / 2; x < w; x++, q += 4) { out[d++] = t[src[q]]; out[d++] = t[src[q + 1]]; out[d++] = t[src[q + 2]]; }
+  }
+  buf.unmap();
+  buf.destroy();
+  return out;
 }
 
 /** the film's HUD: the title top left, the address bottom left, as a transparent PNG the size of the film */

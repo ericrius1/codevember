@@ -2,8 +2,9 @@
 // strokes, the hide ringing, then the wind-up and the great stroke, the last: the downswing whips through and time falls
 // away under it to a two-hundredth as it lands, her arm driving on through, the hide takes it and its rings crawl out
 // across it, the universe's membrane ripples with it at once and tears open on the deep beyond it (cosmos.wgsl), and
-// the hide turns to glass on an ocean's way down without end (inner.wgsl). Time lifts only to a dream's pace and stays
-// there; the camera draws back round to behind her as she watches, and it all fades to black.
+// the hide turns to deep blue glass on a garden without end, folded through a fourth dimension (inner.wgsl). Time lifts
+// to a dream's pace; the camera draws back a little, then flies in over her shoulder through the glass and down through
+// that world as time comes back, leaping at the last, and it all fades to black. (?hdr on a render: the HLG film.)
 //
 // Her: Boulder's town pipeline built her (09/character), Boulder's rig poses her (src/rig: the body solver, the arm
 // fit, the fingers), the strokes are src/rig/strike.ts's. The hide: a membrane simulated on the GPU (membrane.wgsl),
@@ -12,7 +13,7 @@
 import { FrameBudget, type RunEntry } from '@ericrius1/weft';
 import { day } from '../src/days';
 import { sketch } from '../src/sketch';
-import { LOOP, story, rate, BIG, ACT, STORY_LOOP } from './score';
+import { LOOP, story, rate, BIG, ACT, STORY_LOOP, TRIP_SPAN } from './score';
 import { Shaman } from './shaman';
 import { STYLE } from './style';
 import { soundtrack } from './media';
@@ -98,7 +99,7 @@ sketch({ ...day(9), loop: LOOP, filmLoops: 1, warm: 1, hint: 'Space to pause · 
   }
   const out = kit.pass({ label: 'final', color: [{ target: 'screen', clear: [0, 0, 0, 1] }] });
   out.fullscreen(postShader, { fragment: 'fs_final', bind: { P, src: hdr, bloomTex: bloom.mip(0) } as never,
-    constants: { HDR: 0, P3: 0, ...(skyTex ? { ZOOM_TAPS: 10, RAY_TAPS: 16 } : {}) } as never });
+    constants: { HDR: ctx.render && ctx.params.has('hdr') && kit.hdr.enabled ? 1 : 0, P3: 0, ...(skyTex ? { ZOOM_TAPS: 10, RAY_TAPS: 16 } : {}) } as never });
 
   // ---------------------------------------------------------------- the world, each frame
   // (?cam=x,y,z,tx,ty,tz,fov: a fixed camera, for looking at her poses)
@@ -128,6 +129,8 @@ sketch({ ...day(9), loop: LOOP, filmLoops: 1, warm: 1, hint: 'Space to pause · 
   ];
   while (WAVES.length < 8) WAVES.push([1, 0, 0, -1]);
   const WR = 140;
+  const CAPS: number[][] = Array.from({ length: 24 }, () => [0, 0, 0, 1]);
+  let capN = 0;
   const FRONT_NEAR = WR - Math.hypot(W[0] - DRUM.c[0], W[1] - DRUM.c[1], W[2] - DRUM.c[2]);
   // the glass: the hide turns clear behind the great stroke's ripple as it spreads from where it was struck, at the
   // hide's own wave speed on its own clock (drum.ts membranePace, tabulated here), almost wholly, for good (the pulse's
@@ -139,16 +142,22 @@ sketch({ ...day(9), loop: LOOP, filmLoops: 1, warm: 1, hint: 'Space to pause · 
   const glassAt = (t: number) => t < big
     ? { amount: 0, front: [0, 0, 0] as [number, number, number] }
     : { amount: STYLE.glass, front: [bigA, bigB, 100 * 0.92 * (memAt(t) - memAt(big))] as [number, number, number] };
-  // the trip: 0 till the great stroke, deepening to the end
-  const tripAt = (t: number) => Math.pow(smooth(big, ACT.fade, t), 0.75);
+  // the trip: 0 till the great stroke, deepening over its own span (whenever the fade comes)
+  const tripAt = (t: number) => Math.pow(smooth(big, big + TRIP_SPAN, t), 0.75);
   // the great stroke's ripple through the whole picture (the rim light, the wall's troughs), held
   const rippleAt = (t: number) => smooth(big, big + 0.8, t);
   // the fade: in from black at the loop's start, out to it at its end
   const fadeAt = (t: number) => smooth(0, 0.9, t) * (1 - smooth(ACT.fade, ACT.black, t));
-  // the flight in: the camera's own way down the realm's (ribs, added to its steady flow), from as it leaves its pull-back
-  // (STYLE.fly.go), quickening into the glass, then on with time as it comes back toward its own pace. Tabulated once.
-  const FLY = STYLE.fly, flyGo = big + FLY.go, flyIn = big + FLY.in;
-  const flySpeed = (x: number) => x < flyIn ? FLY.speedIn * smooth(flyGo, flyIn, x) : FLY.speedIn + (FLY.speedEnd - FLY.speedIn) * smooth(flyIn, ACT.fade, x);
+  // the flight in: the camera's own way through the realm (m), from as it leaves its pull-back (STYLE.fly.go),
+  // quickening into the glass, on to a cruise with time coming back toward its own pace — and its last second, the
+  // leap: twice over, each some five times the speed before it (the lens opening, the picture streaking: `hyperAt`),
+  // and on up into the dark. Tabulated once.
+  const FLY = STYLE.fly, flyGo = big + FLY.go, flyIn = big + FLY.in, flyHyper = big + FLY.hyper;
+  const leap = (x: number) => { const u = x - flyHyper, span = ACT.fade - flyHyper; return u <= 0 ? 0 : 0.5 * smooth(0, 0.45 * span, u) + 0.5 * smooth(0.5 * span, span, u) + 0.35 * Math.max(0, u / span - 1); };
+  const flySpeed = (x: number) => x < flyIn ? FLY.speedIn * smooth(flyGo, flyIn, x)
+    : (FLY.speedIn + (FLY.speedCruise - FLY.speedIn) * smooth(flyIn, flyHyper, x)) * Math.pow(FLY.speedEnd / FLY.speedCruise, leap(x));
+  /** the leap, 0..1 by the fade (and past 1 into the dark) */
+  const hyperAt = (x: number) => leap(x);
   const FLY_STEP = 1 / 240, flight = new Float64Array(Math.ceil(LOOP / FLY_STEP) + 2);
   for (let i = 1; i < flight.length; i++) flight[i] = flight[i - 1] + flySpeed((i - 0.5) * FLY_STEP) * FLY_STEP;
   const flightAt = (x: number) => { const f = Math.max(0, x) / FLY_STEP, i = Math.min(flight.length - 2, Math.floor(f)); return flight[i] + (flight[i + 1] - flight[i]) * (f - i); };
@@ -186,6 +195,26 @@ sketch({ ...day(9), loop: LOOP, filmLoops: 1, warm: 1, hint: 'Space to pause · 
     const bs = M.beater;
     const held = hold.place(bs, aimAt(bs.since));
     beater.place(held.hand, held.shaft, held.side);
+    // what casts shadows (common.wgsl capShadow): her head, her trunk, her arms, her skirt; the beater's shaft and head
+    {
+      const B = shaman.asset.bones, I = shaman.asset.index, at = (n: string, f: number, o: V3 = [0, 0, 0]): V3 => {
+        const b = B[I[n]];
+        return shaman.bonePoint(n, [b.head[0] + (b.tail[0] - b.head[0]) * f + o[0], b.head[1] + (b.tail[1] - b.head[1]) * f + o[1], b.head[2] + (b.tail[2] - b.head[2]) * f + o[2]]);
+      };
+      const mid = (a: V3, b: V3): V3 => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
+      const head = at('head', 0.5, [0, 0, 0.015]);
+      const list: [V3, V3, number][] = [
+        [head, [head[0], head[1] + 1e-3, head[2]], 0.1],
+        [at('pelvis', 0), at('chest', 0.7), 0.125],
+        [at('uarmL', 0), at('uarmL', 1), 0.048], [at('farmL', 0), at('handL', 0.6), 0.04],
+        [at('uarmR', 0), at('uarmR', 1), 0.048], [at('farmR', 0), at('handR', 0.6), 0.04],
+        [at('pelvis', 0, [0, -0.08, 0]), mid(at('shinL', 0.45), at('shinR', 0.45)), 0.19],
+        [held.hand, bs.head, 0.011],
+        [bs.head, [bs.head[0], bs.head[1] + 1e-3, bs.head[2]], BEATER.headR],
+      ];
+      list.forEach(([a, b, r], i) => { CAPS[2 * i] = [...a, r]; CAPS[2 * i + 1] = [...b, 0]; });
+      capN = list.length;
+    }
     // ---------------------------------------------------------------- the hide: its steps through this frame
     drum.advance(dt, r, s0, s, (sk) => {
       const x = strokes.at(sk).st;
@@ -200,7 +229,9 @@ sketch({ ...day(9), loop: LOOP, filmLoops: 1, warm: 1, hint: 'Space to pause · 
     const cam0 = camOverride ?? shot(t, ctx.orbit);
     const toHide = Math.hypot(cam0.eye[0] - DRUM.c[0], cam0.eye[1] - DRUM.c[1], cam0.eye[2] - DRUM.c[2]);
     const portal = gl.amount > 0 && cam0.eye[0] < DRUM.c[0] ? 1 - smooth(0.11, 0.32, toHide) : 0;
-    drum.glass(veilQ ?? gl.amount, t, veilQ !== null ? [0, 0, 9] : gl.front, trip, t, 0.0032 * trip * trip, 0.3 * t, flightAt(t), portal);
+    // (the flight's blur: how far it flies while a frame's shutter is open, half the frame)
+    const flyQ = ctx.params.has('fly') ? Number(ctx.params.get('fly')) : null;
+    drum.glass(veilQ ?? gl.amount, t, veilQ !== null ? [0, 0, 9] : gl.front, trip, t, 0.0032 * trip * trip, 0.3 * t, flyQ ?? flightAt(t), portal, 0.5 * flySpeed(t) * Math.min(dt, 1 / 30), hyperAt(t));
     // ---------------------------------------------------------------- the light, the shock, the cosmos
     // the shock's front: barely moving through the dilated moment, then racing out as time lifts
     const shockR = t > big ? 0.5 * Math.pow(t - big, 1.5) + 40 * Math.pow(Math.max(0, t - ACT.shock), 2) : 0;
@@ -231,7 +262,8 @@ sketch({ ...day(9), loop: LOOP, filmLoops: 1, warm: 1, hint: 'Space to pause · 
       cosmos: [1, 0.3 + 0.7 * rip, trip * STYLE.sky.heave, drift] as never,
       wall: [...W, WR] as never,
       waves: WAVES as never,
-      glow: [M.flash, 0, 0, 0] as never,
+      glow: [M.flash, capN, 0, 0] as never,
+      caps: CAPS as never,
     });
     K.set({ open: [reveal, 0.0003 * (1 + 0.5 * trip), domeAt(t), 0] as never,
       front: [big + 0.02, FRONT_NEAR, 18 + 22 * smooth(big + 1, big + 5, t), 1.0] as never,
@@ -248,11 +280,11 @@ sketch({ ...day(9), loop: LOOP, filmLoops: 1, warm: 1, hint: 'Space to pause · 
     // (the hide's middle on screen, for the light pouring out of the glass)
     const toD = sub3(DRUM.c, ce), pz = dot3(toD, fw);
     const px = 0.5 + (dot3(toD, rt) / Math.max(pz, 1e-3)) / (th * asp) * 0.5, py = 0.5 - (dot3(toD, upv) / Math.max(pz, 1e-3)) / th * 0.5;
-    const gr = STYLE.grade;
+    const gr = STYLE.grade, hyper = hyperAt(t);
     P.set({ look: [fadeAt(t) * gr.exp, (0.9 + 0.35 * trip) * gr.bloom, 1.2, 0.02] as never,
-      look2: [0.2 + 1.2 * deepK * deepK + 0.8 * trip, 0.015 * deepK * deepK * deepK, 0.55 + 0.1 * trip, (1.0 + 0.2 * deepK + 0.12 * trip) * (1 + (gr.sat - 1) * smooth(big, big + 3, t))] as never,
+      look2: [(0.2 + 1.2 * deepK * deepK + 0.8 * trip) * (1 - 0.7 * portal) + 2.5 * hyper, 0.015 * deepK * deepK * deepK + 0.1 * hyper, 0.55 + 0.1 * trip, (1.0 + 0.2 * deepK + 0.12 * trip) * (1 + (gr.sat - 1) * smooth(big, big + 3, t))] as never,
       grade: [gr.cool, 0, 0, 0] as never,
-      rays: [px, py, pz > 0 ? STYLE.rays * trip * (1 - 0.6 * portal) : 0, 0.55] as never,
+      rays: [px, py, pz > 0 ? STYLE.rays * trip * (1 - portal) : 0, 0.55] as never,
       shock: [sx, sy, ringA, ringK * 0.9] as never,
       misc: [0, 0.1 * trip * trip * Math.sin(t * 0.23) * gr.drift, smooth(big - 0.05, big + 1.5, t) * (0.8 + 0.5 * trip), 0] as never });
     PF.set({ look: [1.0, 0.9, 1.2, 0.035] as never, look2: [0, 0, 0, 1] as never, shock: [0.5, 0.5, 0, 0] as never, misc: [1, 0, 0, 0] as never, grade: [1, 0, 0, 0] as never, rays: [0, 0, 0, 0] as never });

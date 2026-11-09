@@ -1,4 +1,4 @@
-// 09 / Membrane, the soundtrack: node 09/audio/render.ts writes film/09.wav (48 kHz, 24-bit, exactly one 22 s loop)
+// 09 / Membrane, the soundtrack: node 09/audio/render.ts writes film/09.wav (48 kHz, 24-bit, exactly one loop, score.ts LOOP)
 // and 09/assets/membrane.m4a (the same, AAC, for the live page), and prints what it measured.
 //
 // It follows the score (../score.ts) as the picture does. The drum is simulated, not sampled: every stroke is the hide
@@ -21,6 +21,8 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { STROKES, BIG, LOOP, ACT, rate } from '../score.ts';
+import { shot } from '../camera.ts';
+import { struckPoint } from '../stage.ts';
 import { HIDE, COSMOS, type StrikeSpec, type UniverseSpec, type Drive } from './membrane.ts';
 import { run } from './sims.ts';
 import { voice } from './voice.ts';
@@ -129,14 +131,21 @@ const fadeOut = (x: Buf, seconds: number) => { const f = Math.round(seconds * SR
 const both = (s: Stereo, fn: (x: Buf) => Buf): Stereo => ({ l: fn(s.l), r: fn(s.r) });
 
 log('the strokes');
+/** when a stroke is heard: its contact, and the sound's way from the struck point to where we stand (the camera, at
+ *  343 m/s) — a few milliseconds from close by, a dozen from across the dais; the eye knows the difference */
+const heard = (s: (typeof STROKES)[number]) => {
+  const e = shot(s.t, { yaw: 0, pitch: 0 }).eye, p = struckPoint(s);
+  return s.t + Math.hypot(e[0] - p[0], e[1] - p[1], e[2] - p[2]) / 343;
+};
+STROKES.forEach((s) => log(`  stroke at ${s.t} s heard ${((heard(s) - s.t) * 1000).toFixed(1)} ms after its contact`));
 const voices: Stereo[] = STROKES.map((s, i) => voice(sims[i], { seed: 11 + i, slap: s.big ? 1.3 : 1 }));
 // (each of the pulse louder than the last: the harder stroke's own louder ring, and a little more on top)
 const PULSE_GAIN = [0.9, 1.18];
 STROKES.forEach((s, i) => {
   if (s.big) return;
   const g = PULSE_GAIN[i] ?? 1;
-  place('drum', voices[i], s.t, MIX.stroke[0] * g, MIX.stroke[1], MIX.stroke[2]);
-  place('rattle', rattle(s.v, 100 + i), s.t, MIX.rattle[0] * g, MIX.rattle[1], MIX.rattle[2]);
+  place('drum', voices[i], heard(s), MIX.stroke[0] * g, MIX.stroke[1], MIX.stroke[2]);
+  place('rattle', rattle(s.v, 100 + i), heard(s), MIX.rattle[0] * g, MIX.rattle[1], MIX.rattle[2]);
   const w = whoosh(s.t, s.v, 0.24, 200 + i);
   place('air', w.s, w.at, ...MIX.whoosh);
 });
@@ -150,16 +159,16 @@ const bigMono = mono(big);
 const settleRing = (t: number) => 0.26 + 0.74 * Math.exp(-t / 0.22);
 // (and gone with the picture, into the dark)
 for (let i = 0; i < big.l.length; i++) { const g = settleRing(i / SR) * (1 - smooth(ACT.fade - BIG.t, RING - 0.05, i / SR)); big.l[i] *= g; big.r[i] *= g; }
-place('big', big, BIG.t, ...MIX.big);
+place('big', big, heard(BIG), ...MIX.big);
 // its weight: the strike an octave down and two down (cut short, they're the blow, not the ring), a sub falling under
 const head = (s: Stereo, seconds: number) => both(s, (x) => fadeOut(x.slice(0, Math.round(seconds * SR)), seconds * 0.6));
 const decaying = (x: Buf, tau: number) => { for (let i = 0; i < x.length; i++) x[i] *= Math.exp(-i / SR / tau); return x; };
 const oct = both(head(big, 2.4), (x) => decaying(filt(varispeed(x, 0.5), new Biquad('lp', 520, 0.7)), 0.38));
 const oct2 = both(head(big, 1.8), (x) => decaying(filt(varispeed(x, 0.25), new Biquad('hp', 23, 0.7), new Biquad('lp', 240, 0.7)), 0.6));
-place('big', oct, BIG.t, ...MIX.octave);
-place('big', oct2, BIG.t, ...MIX.octave2);
+place('big', oct, heard(BIG), ...MIX.octave);
+place('big', oct2, heard(BIG), ...MIX.octave2);
 const sub = subDrop(54, 26, 6, 1.6);
-place('big', { l: sub, r: sub }, BIG.t, ...MIX.sub);
+place('big', { l: sub, r: sub }, heard(BIG), ...MIX.sub);
 // the downswing's whoosh, slowing as time does
 const bw = whoosh(BIG.t, BIG.v, 0.26, 210);
 place('air', bw.s, bw.at, ...MIX.bigWhoosh);

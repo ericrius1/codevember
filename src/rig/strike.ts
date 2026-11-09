@@ -140,8 +140,10 @@ export class Stroke {
     this.shaft = norm(rej(s.shaft, this.dir));
     // the swing plane's normal: turning about it carries the head along dir at contact
     this.axis = norm(cross(this.shaft, this.dir));
-    // the head's centre at contact: its surface on the struck point
-    const headC = sub(s.at, scale(this.dir, tool.headR));
+    // the head's centre at contact: a head's radius off the surface over the struck point, so its felt first touches
+    // the surface there and then, whatever the slant it comes in on (set back along its own way instead, a slanting
+    // head is already through the surface at its contact, and has been pushing it in for a while)
+    const headC = add(s.at, scale(norm(s.normal), tool.headR));
     this.handC = sub(headC, scale(this.shaft, tool.reach));
     this.shaftTop = rotateAxis(this.shaft, this.axis, -s.cock);
     // ω at contact = p·cock/down must give the shaft's share of the speed: reach·ω = (1 − handShare)·speed — but never
@@ -270,7 +272,7 @@ export class Stroke {
       const f = this.followEnd;
       hand = S.after ? this.afterAt(t).p : hermite5v(this.handC, scale(this.dir, this.vHand), Z, f.p, f.v, Z, f.t - S.t, since / (f.t - S.t)).p;
       // (the shaft keeps the head where the surface puts it)
-      const head = add(sub(S.at, scale(this.dir, T.headR)), scale(this.dir, S.depth * press));
+      const head = add(add(S.at, scale(norm(S.normal), T.headR)), scale(this.dir, S.depth * press));
       shaft = norm(sub(head, hand));
       return { phase, hand, shaft, head, vel: scale(this.dir, S.speed * Math.cos(Math.PI * k)), coil, swing, settle, press, since };
     } else {

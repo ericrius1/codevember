@@ -57,8 +57,9 @@ and `veil=0..1` / `trip=0..1` to hold the hide's thinning and the trip (the worl
 `inner=1` shows only that world wherever the hide's thinned). A
 stateful sketch's stills want `--q 'lead=3'`: each still's last 3 s stepped first, uncaptured, so its simulations (09's
 hide) are where the film would have them. 09/design holds its look references (`node 09/design/refs.mjs`: Codex's
-image generation, handed the concepts and a frame of the film); `refs.mjs ocean_ring,ocean_wall,ocean_core` paints the
-realm inside the drum (design/realms/ocean, its three layers), and `dais,dais_top,dais_rock` the summit she stands on.
+image generation, handed the concepts and a frame of the film); `dais,dais_top,dais_rock` paints the summit she stands
+on. The realm inside the drum takes its panes from one painted mosaic (design/realms/garden/mosaic.webp, `gen-image`);
+design/realms/ocean is the realm it was before (`refs.mjs ocean_ring,ocean_wall,ocean_core`).
 
 09 is one telling, filmed 16:9 (its numbers in `09/style.ts`). The pulse is struck twice — ordinary strokes: the
 universe's membrane doesn't answer them and the hide doesn't open — then the great stroke, struck hard: the heavy beater
@@ -71,14 +72,20 @@ flown down through like a portal, faster as time comes back (09/camera.ts; the f
 drum.wgsl). `node 09/lab/run.mjs 09/lab/camera.ts` checks the path against her posed bones, the beater and the drum. Our universe's membrane tears open on the deep (cosmos.wgsl
 `deepSky`): not a painting but shells out to forever, each a third again as far and its strands a third again as large,
 long strands of light (sea-teal, deep blue, leaf-green) flowing each shell its own way and strands of dark that hide all
-behind them, a cold light far down past the drum. The glass opens on a deep ocean without end (inner.wgsl `deepWay`,
-design/realms/ocean, painted by Codex): a way down ribbed with rings of bioluminescent veils and coral, flown down for
-ever, and between the rings a volume marched through front to back (`wayMedium`) — torn veils of glowing dust from
-ridged spiral noise, darker where they thicken, lit by a light deep down the axis — its feeling of glowing depth after
-the volumetric nebulae of fragcoord.xyz and Duke's "Dusty nebula 4" (shadertoy.com/view/MsVXWW, CC BY-NC-SA 3.0). She
+behind them, a cold light far down past the drum. The hide turns to deep blue glass and opens on a garden without end (inner.wgsl `garden`): a
+living lattice of leaf-thin stained-glass skins, an Apollonian fold one dimension up (after iq's "Apollonian",
+shadertoy.com/view/4ds3zn) of which we see the three-dimensional slice we're in, turning slowly through the fourth so
+its vaults open, split and close as we fly; its panes a painted mosaic (design/realms/garden, painted by Codex), its
+haze the deep's blue, a white sun far down the way. She
 stands on a summit (summit.ts): a mountain's top torn up and floating, its top a carved stone circle
 (assets/dais-top.webp), ragged cliffs in strata to an inverted spire (assets/dais-rock.webp), roots hanging into the
-void, standing stones on its far side, shards drifting round it — painted by Codex (design/summit-concept.jpg). 24.4 s.
+void, standing stones on its far side, shards drifting round it — painted by Codex (design/summit-concept.jpg). 23.4 s.
+The drum's sound reaches us late by the distance from the struck point to the camera (media.ts); `node 09/lab/run.mjs
+09/lab/contact.ts` measures the beater's head against the hide at the stroke's frame.
+
+`--hdr` (render.mjs) films in HDR: the final pass keeps the SDR picture up to paper white (203 nits) and lets its
+highlights climb to 1000 (post.wgsl `pastWhite`), written as HLG / BT.2020 to a float canvas (weft's `hdr: 'force'`),
+read back as half floats (sketch.ts `stepHdr`) and encoded 10-bit HEVC (vite.config.ts) — `film/NN<tag>.mp4`, hvc1.
 
 ```bash
 node --experimental-strip-types 09/audio/render.ts   # the soundtrack: film/09.wav + 09/assets/membrane.m4a

@@ -24,6 +24,8 @@ struct PostU {
 @group(2) @binding(1) var src: texture_2d<f32>;
 @group(2) @binding(2) var bloomTex: texture_2d<f32>;
 
+// (an HDR film, tools/render.mjs --hdr: the picture's lights let past paper white, and the signal written as HLG in
+// BT.2020, which the film sink encodes as it comes)
 override HDR: bool = false;
 // (the zoom blur's and the light's rays' taps: fewer live on a laptop's GPU, each pixel's start jittered either way)
 override ZOOM_TAPS: i32 = 16;
@@ -63,6 +65,25 @@ fn tap(uv: vec2f) -> vec3f { return sane(textureSampleLevel(src, samp_linear, uv
     + 2.0 * (tap(uv + ts * vec2f(0.0, -1.0)) + tap(uv + ts * vec2f(0.0, 1.0)) + tap(uv + ts * vec2f(-1.0, 0.0)) + tap(uv + ts * vec2f(1.0, 0.0)))
     + 4.0 * tap(uv);
   return vec4f(s / 16.0 * 0.85, 1.0);
+}
+
+/** the HDR picture from the scene's light `c` and its SDR picture `s` (paper white 1 in both): the same picture up to
+ *  its lights, which keep climbing past white — and keep their colour — up to HDR_PEAK × white */
+const HDR_PEAK = 4.93;   // 1000 nits over a 203 nit white
+fn pastWhite(c: vec3f, s: vec3f) -> vec3f {
+  let top = max(c.r, max(c.g, c.b));
+  let t = max(mix(luma(c), top, 0.5) - 0.55, 0.0);
+  let k = t * t / (t * t + 3.0 * t + 1.5);
+  let hue = mix(c / max(top, 1e-4), vec3f(1.0), 0.3 * k);
+  return s + hue * (HDR_PEAK - 1.0) * k;
+}
+/** display light (linear, Rec.709 primaries, 1 = a 203 nit white) as the HLG signal in BT.2020, for a 1000 nit screen */
+fn hlg(c: vec3f) -> vec3f {
+  let w = mat3x3f(0.6274, 0.0691, 0.0164, 0.3293, 0.9195, 0.0880, 0.0433, 0.0114, 0.8956) * c * (203.0 / 1000.0);
+  // (the screen's light back to the scene's: HLG's system gamma, 1.2 at 1000 nits, undone)
+  let y = max(dot(w, vec3f(0.2627, 0.6780, 0.0593)), 1e-6);
+  let e = clamp(w * pow(y, (1.0 - 1.2) / 1.2), vec3f(0.0), vec3f(1.0));
+  return select(0.17883277 * log(max(12.0 * e - 0.28466892, vec3f(1e-6))) + 0.55991073, sqrt(3.0 * e), e <= vec3f(1.0 / 12.0));
 }
 
 fn hdrAt(uv: vec2f) -> vec3f { return sane(textureSampleLevel(src, samp_linear, uv, 0.0).rgb); }
@@ -125,11 +146,13 @@ fn hdrAt(uv: vec2f) -> vec3f { return sane(textureSampleLevel(src, samp_linear, 
   let l = luma(c);
   c = mix(vec3f(l), c, P.look2.w);
   var m = aces(c * 0.8);
+  if (HDR) { m = pastWhite(c * 0.8, m); }
   // vignette, grain
   let v = 1.0 - P.look2.z * dot(toC, toC) * 1.6;
   m *= v;
   // (the grain: brightness only, finer in the dark than in the light — the dark sky doesn't boil)
   let g = (hash12(i.pos.xy + fract(G.clock.x * 13.7) * 100.0) - 0.5) * P.look.w;
   m += g * (0.2 + 0.8 * sqrt(max(luma(m), 0.0)));
+  if (HDR) { return vec4f(hlg(max(m, vec3f(0.0))), 1.0); }
   return vec4f(canvasEncode(max(m, vec3f(0.0)), P3), 1.0);
 }

@@ -41,6 +41,7 @@ export interface Globals {
   wall: Vec4;
   waves: ArrayLike<number> | Vec4[];
   glow: Vec4;
+  caps: ArrayLike<number> | Vec4[];
 }
 export interface StageLight {
   key: Vec3;

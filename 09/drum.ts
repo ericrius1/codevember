@@ -199,7 +199,7 @@ export class Drum {
     this.propU.set({ model: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] as never });
     this.U = kit.uniforms(drumShader.structs.DrumU, 'drum');
     this.U.set({ sim: [R, H, lam2, mu2] as never, sim2: [0, 0, 0, Number(new URLSearchParams(globalThis.location?.search ?? '').get('hidegain') ?? 1)] as never, center: [...DRUM.c, 0] as never, look: [3, 1, 0, 1] as never,
-      glass: [0, 0.16, FUZZ_LEN, 0] as never, trip: [0, 0, 0, 0] as never, front: [0, 0, 0, 0.12] as never, breath: [0, 0, 0, 0] as never });
+      glass: [0, 0.16, FUZZ_LEN, 0] as never, trip: [0, 0, 0, 0] as never, front: [0, 0, 0, 0.12] as never, breath: [0, 0, 0, 0] as never, realm: [0, 0, 0, 0] as never });
   }
 
   async loadTextures() {
@@ -251,7 +251,7 @@ export class Drum {
   live(scale: number, fuzzShells: number) {
     this.innerTex = this.kit.texture({ label: 'drum.inner', format: 'rgba16float', size: 'render', scale, usage: ['render', 'sample'] });
     this.innerPass = this.kit.pass({ label: 'drum.inner', color: [{ target: this.innerTex, clear: [0, 0, 0, 1] }] });
-    this.innerPass.fullscreen(drumShader, { label: 'drum.inner', fragment: 'fsInner', constants: { INNER_SCALE: scale } as never,
+    this.innerPass.fullscreen(drumShader, { label: 'drum.inner', fragment: 'fsInner', constants: { INNER_SCALE: scale, REALM_STEPS: 80, REALM_SKINS: 4 } as never,
       bind: { D: this.U, realmFar: this.realm[0], realmMid: this.realm[1], realmNear: this.realm[2] } as never });
     this.fuzzShells = fuzzShells;
   }
@@ -272,11 +272,12 @@ export class Drum {
   }
   /** how far the hide's seen through behind its front (0..1), the down's breeze clock; the front: where it was struck
    *  (the hide's frame, m) and how far out it's spread (m); the trip: how deep (0..1), the realm's clock, how far the
-   *  hide breathes on its own (m) and its breath's clock (s); the camera's flight down the realm's way (its ribs) and
-   *  the portal (0..1: the camera at the glass, the hide's own surface gone) */
-  glass(through: number, t: number, front: [number, number, number], trip = 0, clock = t, breath = 0, breathClock = clock, flight = 0, portal = 0) {
+   *  hide breathes on its own (m) and its breath's clock (s); the camera's flight through the realm (m), the portal
+   *  (0..1: the camera at the glass, the hide's own surface gone), the flight's shutter (m either side of the frame's
+   *  instant) and its leap at the end (0..1 by the fade) */
+  glass(through: number, t: number, front: [number, number, number], trip = 0, clock = t, breath = 0, breathClock = clock, flight = 0, portal = 0, shutter = 0, leap = 0) {
     this.U.set({ glass: [through, 0.16, FUZZ_LEN, t] as never, front: [...front, 0.12] as never, trip: [trip, clock, breath, INNER_ONLY] as never,
-      breath: [breathClock, flight, portal, 0] as never });
+      breath: [breathClock, flight, portal, shutter] as never, realm: [leap, 0, 0, 0] as never });
   }
   /** the drum's look this frame: the inner light's flicker, the time */
   look(t: number, glow: number, rock = 0) {

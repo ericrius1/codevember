@@ -1,15 +1,13 @@
-// The other realm, inside the drum: what the hide shows where it turns to glass — a deep ocean without end (its three
-// painted layers: design/realms/ocean, painted by Codex's image generation, 09/design/refs.mjs ocean_ring, ocean_wall,
-// ocean_core). (Included by drum.wgsl, after common.)
+// The other realm, inside the drum: what the hide shows where it turns to glass, and what the camera flies into — a
+// garden without end, in one dimension more than ours (its two painted layers: design/realms/garden, painted by Codex's
+// image generation). (Included by drum.wgsl, after common.)
 
 @group(2) @binding(9) var realmFar: texture_2d<f32>;
 @group(2) @binding(10) var realmMid: texture_2d<f32>;
 @group(2) @binding(11) var realmNear: texture_2d<f32>;
 
-fn realmRot(a: f32) -> mat2x2f { let c = cos(a); let s = sin(a); return mat2x2f(c, s, -s, c); }
-
-/** a layer's colour at q (its own units: ±1 its picture's extent), mirrored past its edges so they never show; lod from
- *  how many of its texels a pixel covers */
+/** a painting's colour at q (its own units: ±1 its picture's extent), mirrored past its edges so they never show; lod
+ *  from how many of its texels a pixel covers */
 fn realmTap(tex: texture_2d<f32>, q: vec2f, lod: f32) -> vec3f {
   var uv = q * 0.5 + 0.5;
   uv = 1.0 - abs(1.0 - (uv - 2.0 * floor(uv * 0.5)));
@@ -18,207 +16,243 @@ fn realmTap(tex: texture_2d<f32>, q: vec2f, lod: f32) -> vec3f {
 }
 
 /** the realm seen along a ray from the hide: ro, rd in the world, T its clock (s), trip 0..1, px the pixel's angle */
-fn innerWorld(ro: vec3f, rd: vec3f, T: f32, trip: f32, px: f32) -> vec3f { return innerInfinite(ro, rd, T, trip, px); }
+fn innerWorld(ro: vec3f, rd: vec3f, T: f32, trip: f32, px: f32) -> vec3f { return garden(ro, rd, T, trip, px); }
 
-// ---------------------------------------------------------------- the endless deep
-// Where the glass opens: a deep ocean without end (design/realms/ocean, painted by Codex: refs.mjs ocean_ring,
-// ocean_wall, ocean_core;). A way
-// down whose wall starts just inside the rim, narrows over its first metres and then runs on for ever — so its far
-// reaches close only in perspective, to a point of cold light — ribbed with rings of bioluminescent veils and coral,
-// flown down for ever. The blue thickens with depth: the near wall dark, everything further down paler and brighter,
-// till far down it's all one glow (the eye falls toward it), and a mist of folded light is marched through it. The glass
-// bends the view in toward the way's axis, as water bends a diver's, and the way leans to meet whoever looks in — so
-// from any side you look down it, its end in sight, its rings sliding against each other and the rim as you move. A
-// second way opens first at the struck point, as wide as the glass has spread.
+// ---------------------------------------------------------------- the garden without end
+// Where the glass opens: a living lattice with no end in any direction — leaf-thin skins of backlit stained glass,
+// lace where their panes are dark, light along their folds, hung in a deep blue haze with a white sun far down
+// the way. Its shape is a four-dimensional one: an Apollonian lattice (fold space into cells, turn each inside out
+// through its sphere, again and again — iq's "Apollonian", shadertoy.com/view/4ds3zn, one dimension up) of which we see
+// only the three-dimensional slice we're in, and the slice turns slowly through the fourth: so its vaults open, split,
+// bud and close as nothing in three dimensions can, never the same twice across it (a slice askew through a lattice is
+// a quasicrystal). Flown through: it parts round whoever flies (its skins dissolve within arm's reach), rolling slowly.
+// From outside, the glass bends the view in toward the drum's axis and the realm leans to meet whoever looks in; at the
+// glass both let go, and it's simply there, as wide as the eye.
 var<private> INNER_JIT: f32;
-// (the glass's index: how hard it bends the view toward the way's axis; how far the way's axis leans toward the eye)
+/** marching: steps a ray, folds a point, skins a ray may pass through (fewer live: drum.ts) */
+override REALM_STEPS: i32 = 110;
+override REALM_FOLDS: i32 = 8;
+override REALM_SKINS: i32 = 5;
+// (the glass's index from outside: how hard it bends the view toward the axis; how far the realm leans toward the eye)
 const WAY_N = 2.2;
 const WAY_AIM = 0.85;
-// (m: past this the ray's in the light at the end; the blue's depth — e⁻¹ of what's there shows through each this much)
-const WAY_FAR = 90.0;
-const WAY_FOG = 6.5;
-/** the way's radius at depth z (m): R0 at its mouth, narrowing over the first few L to a third of that, then for ever */
-fn wayR(R0: f32, L: f32, z: f32) -> f32 { return R0 * (0.34 + 0.66 * exp(-z / L)); }
-/** the blue at depth z (m): near, the dark of the deep; far down, the glow of the light at the end */
-fn wayHaze(z: f32) -> vec3f { return mix(vec3f(0.004, 0.016, 0.045), vec3f(0.11, 0.34, 0.6), smoothstep(1.5, 28.0, z)); }
-/** how much of what's at depth z shows through the blue in front of it */
-fn wayClear(z: f32) -> f32 { return exp(-z / WAY_FOG); }
-/** how dark the dust has got along the ray, at its accumulated density (0..1): it hides what's behind it */
-fn wayDust(dens: f32) -> f32 { return 0.7 * dens * dens; }
-/** a stretch of the way's water, dz long about depth z (m): the light it gives (rgb), and the dust's density gathered
- *  along the ray so far (w) — after the volumetric nebulae of fragcoord.xyz / shadertoy (Duke's "Dusty nebula 4",
- *  otaviogood's spiral noise): ridged spiral noise for the veils, density accumulated front to back and coloured by it
- *  (pale where it's thin and near the light, deep where it's thick), a light far down the axis glowing through it */
-fn wayMedium(o: vec2f, slope: vec2f, R0: f32, L: f32, z: f32, dz: f32, flow: f32, S: f32, T: f32, densIn: f32) -> vec4f {
-  let R = wayR(R0, L, z);
-  let u = (o + slope * z) / R;
-  // (its own frame flies with the ribs: a fixed veil keeps its place among them as they come up the way)
-  let along = z / S + flow;
-  var q = vec3f(u * 1.7, along * 0.55);
-  q = nebWiggle(q, T * 0.35);
-  // (clear down the middle so the eye goes on; the veils thicken toward the wall)
-  let field = 4.5 + 1.8 * (1.0 - length(u)) - nebSpiralC(q * 2.0) + nebSpiralC(q.zxy * 1.02 + 100.0) * 4.0 - nebSpiral3(q * 2.0);
-  let d = abs(field * 0.5) + 0.03;
-  var dens = densIn;
-  var c = vec3f(0.0);
-  // the light deep inside: on the axis, two widths of the mouth down, its glow on everything near it
-  let zL = 2.2 * L;
-  let lv = vec3f(u * 0.9, (z - zL) / L);
-  let ld2 = max(dot(lv, lv), 0.02);
-  let stepK = dz / (0.25 * L);
-  c += vec3f(0.35, 0.62, 1.0) * (0.022 / ld2) * stepK;
-  if (d < 0.1) {
-    let local = 0.1 - d;
-    dens += (1.0 - dens) * local * stepK * 1.6;
-    let thin = mix(vec3f(0.78, 0.95, 1.0), vec3f(0.06, 0.12, 0.32), dens);
-    let lit = mix(5.0 * vec3f(0.6, 0.85, 1.0), 1.3 * vec3f(0.32, 0.26, 0.75), min(sqrt(ld2) / 1.6, 1.0));
-    c += thin * lit * local * 1.1 * stepK * (1.0 - dens * 0.6);
+// (m to a lattice unit: its cells two of these across; how far a ray's followed; the haze's depth — e⁻¹ shows through)
+const GARDEN_SC = 2.2;
+const GARDEN_FAR = 70.0;
+const GARDEN_FOG = 15.0;
+// (m: nothing nearer the flier than this; its skins fade in over the next stretch)
+const GARDEN_CLEAR = 0.95;
+// (the sun: far down the way, a little up and aside)
+const GARDEN_SUN = vec3f(0.1961, 0.2942, 0.9354);
+
+// the slice's place in the fourth dimension, set once a ray: its two turns (cos, sin), its depth in w, the sphere's size
+var<private> GD_T1: vec2f;
+var<private> GD_T2: vec2f;
+var<private> GD_W: f32;
+var<private> GD_S: f32;
+// what the last gardenMap left: the fold's traps (the nearest the point came to the cell's three planes, and its
+// centre), the point in a coarse and a fine cell (for the paintings), and how far each had shrunk
+var<private> GD_ORB: vec4f;
+
+/** how far p (m, the realm's frame) is from the lattice's nearest skin */
+fn gardenMap(p: vec3f) -> f32 {
+  // (the whole lattice swaying, as if grown rather than built)
+  let pw = p + vec3f(1.3 * sin(0.21 * p.z + 0.7), 1.1 * sin(0.17 * p.z) + 0.5 * sin(0.33 * p.x + 0.4), 0.0);
+  var q = vec4f(pw / GARDEN_SC, GD_W);
+  q = vec4f(GD_T1.x * q.x - GD_T1.y * q.w, q.y, q.z, GD_T1.y * q.x + GD_T1.x * q.w);
+  q = vec4f(q.x, GD_T2.x * q.y - GD_T2.y * q.w, q.z, GD_T2.y * q.y + GD_T2.x * q.w);
+  var scale = 1.0;
+  var orb = vec4f(1000.0);
+  for (var i = 0; i < REALM_FOLDS; i++) {
+    q = -1.0 + 2.0 * fract(0.5 * q + 0.5);
+    let r2 = dot(q, q);
+    orb = min(orb, vec4f(abs(q.xyz), r2));
+    let k = GD_S / r2;
+    q *= k;
+    scale *= k;
   }
-  // (swallowed by the blue with depth, like everything in it)
-  return vec4f(c * wayClear(z) + wayHaze(z) * 0.02 * stepK, dens);
-}
-/** one way down (rgb): o the ray's start in the hide's plane, slope its slant per metre of depth (both m, about the
- *  way's axis); R0 its mouth's radius and L how fast it narrows (m) */
-fn deepWay(o: vec2f, slope: vec2f, R0: f32, L: f32, T: f32, trip: f32, px: f32, camD: f32) -> vec3f {
-  let texN = f32(textureDimensions(realmMid).x);
-  // (flown down at a steady pace, and the camera's own flight down it as it comes in through the glass: D.breath.y)
-  let flow = T * 0.2 + D.breath.y;
-  // where the ray meets the wall: steps growing with depth, then halved down onto it
-  var zh = WAY_FAR;
-  var zp = 0.0;
-  for (var i = 1; i <= 52; i++) {
-    let z = 0.03 * L * f32(i * i);
-    if (z >= WAY_FAR) { break; }
-    if (length(o + slope * z) > wayR(R0, L, z)) { zh = z; break; }
-    zp = z;
-  }
-  if (zh < WAY_FAR) {
-    var a = zp; var b = zh;
-    for (var j = 0; j < 7; j++) { let m = 0.5 * (a + b); if (length(o + slope * m) > wayR(R0, L, m)) { b = m; } else { a = m; } }
-    zh = b;
-  }
-  var col = vec3f(0.0);
-  var trans = 1.0;
-  // the ribs: rings hugging the wall at an even step, flown down for ever (each coming up out of the blue, passing out
-  // through the mouth), each further one paler and dimmer in the blue, till far down they're only its glow. Between
-  // them the water is a medium marched through and gathered front to back (wayMedium): veils of glowing dust, darker
-  // where they thicken, lit by a light deep inside — so the way is a volume the eye falls through, not a picture
-  let S = 0.5 * L;
-  let ph = fract(flow);
-  let base = floor(flow);
-  var mz = 0.03 * L * (0.3 + 0.7 * INNER_JIT);
-  var md = 0.0;
-  for (var k = 0; k < 34; k++) {
-    let kk = f32(k) + 1.0 - ph;
-    let dk = S * kk;
-    // (the water up to this rib)
-    let to = min(dk, zh);
-    for (var st = 0; st < 3; st++) {
-      if (mz >= to || trans < 0.02) { break; }
-      let dz = min((to - mz) / f32(3 - st), 0.35 * L + mz * 0.15);
-      let mm = wayMedium(o, slope, R0, L, mz + dz * 0.5, dz, flow, S, T, md);
-      md = mm.w;
-      col += trans * mm.rgb;
-      trans *= exp(-wayDust(md) * dz / L);
-      mz += dz;
-    }
-    if (dk > zh) { break; }
-    let Rk = wayR(R0, L, dk) * 1.04;
-    let id = f32(k) + base;
-    let spin = id * 2.39996 + T * 0.03 * select(-1.0, 1.0, (i32(id) & 1) == 0) * (1.0 + trip);
-    let uvr = realmRot(spin) * (o + slope * dk) / Rk;
-    let lod = log2(max(1.0, (camD + dk) * px * texN / (2.0 * Rk)));
-    let inside = 1.0 - smoothstep(0.96, 1.0, max(abs(uvr.x), abs(uvr.y)));
-    var c = realmTap(realmMid, uvr, lod) * inside;
-    let clear = wayClear(dk);
-    let a = smoothstep(0.06, 0.3, luma(sqrt(c))) * smoothstep(0.0, 0.8, kk) * 0.92 * (0.15 + 0.85 * clear);
-    c = mix(wayHaze(dk) * 1.5, c * 2.2, clear);
-    col += trans * a * c;
-    trans *= 1.0 - a * 0.85;
-  }
-  // past the ribs: the wall where the ray meets it (dim, glowing from within, swallowed by the blue the further down it
-  // is) — or, where the ray runs on past every wall, the light at the end
-  var back: vec3f;
-  if (zh < WAY_FAR) {
-    let p = o + slope * zh;
-    let th = atan2(p.y, p.x);
-    var wu = vec2f(th / PI * 1.5, (zh - flow * S) / L * 0.9);
-    wu = 1.0 - abs(1.0 - (wu - 2.0 * floor(wu * 0.5)));
-    let w = realmTap(realmNear, wu * 2.0 - 1.0, 1.5 + log2(1.0 + zh / L)) * 0.9;
-    back = mix(wayHaze(zh), w, wayClear(zh));
-  } else {
-    back = wayHaze(WAY_FAR);
-  }
-  // (and the source itself, far down where the slant runs out: by direction alone, so it can't be reached)
-  let so = realmRot(-T * 0.04) * slope * 4.5;
-  let src = realmTap(realmFar, so, 0.5) * (1.0 - smoothstep(0.9, 1.0, max(abs(so.x), abs(so.y)))) * 1.6
-    + vec3f(0.55, 0.85, 1.0) * exp(-dot(so, so) * 14.0) * 0.7;
-  back += src * (1.0 - wayClear(zh * 0.5));
-  return col + trans * back;
-}
-fn innerInfinite(roW: vec3f, rdW: vec3f, T: f32, trip: f32, px: f32) -> vec3f {
-  let C = D.center.xyz;
-  // (in the way's own frame: x across the hide, y up, z down the drum's axis, in)
-  let rd = normalize(vec3f(rdW.z, rdW.y, rdW.x));
-  let ro = vec2f(roW.z - C.z, roW.y - C.y);
-  let camD = length(frame.camPos - roW);
-  // the view bent in toward the axis as it enters the glass, and the way leaning toward the eye (the slant of the line
-  // from the eye to the hide's middle, bent the same way, taken off)
-  let tIn = rd.xy / WAY_N;
-  var slope = tIn / sqrt(max(1.0 - dot(tIn, tIn), 0.1));
-  let cv = C - frame.camPos;
-  let dC = normalize(vec3f(cv.z, cv.y, max(cv.x, 0.05)));
-  let tC = dC.xy / WAY_N;
-  slope -= WAY_AIM * tC / sqrt(max(1.0 - dot(tC, tC), 0.1));
-  // the way down from the rim
-  var way = deepWay(ro, slope, 0.84, 1.8, T, trip, px, camD);
-  // and from where she struck: a well opening there first, as wide as the glass has spread, giving way to the rim's as
-  // the glass reaches it
-  let hit = D.front.xy;
-  let mouth = clamp(D.front.z * 0.85, 0.05, 0.6);
-  let wellK = (1.0 - smoothstep(0.55, 1.5, D.front.z)) * (1.0 - smoothstep(mouth * 0.7, mouth, length(ro - hit)));
-  if (wellK > 0.001) {
-    let well = deepWay(ro - hit, slope, mouth, 1.0, T + 7.0, trip, px, camD);
-    way = mix(way, well, wellK);
-  }
-  return way;
+  GD_ORB = orb;
+  return 0.25 * abs(q.w) / scale * GARDEN_SC;
 }
 
-// ---------------------------------------------------------------- the dust's noise (wayMedium's)
-// After "Dusty nebula 4" by Duke (shadertoy.com/view/MsVXWW, CC BY-NC-SA 3.0), itself after otaviogood's spiral noise
-// ("Alien Beacon"); its wiggling warp as Eric's fragcoord.xyz variant ("Nebula Fun") has it.
-const NEB_NUDGE = 0.739513;
-const NEB_NORM = 0.80392; // 1/√(1 + NUDGE²)
-/** otaviogood's spiral noise: sines added while rotating and raising the frequency — ridged (abs) */
-fn nebSpiralC(pIn: vec3f) -> f32 {
-  var p = pIn; var n = 0.0; var it = 1.0;
-  for (var i = 0; i < 8; i++) {
-    n += -abs(sin(p.y * it) + cos(p.x * it)) / it;
-    p = vec3f((p.xy + vec2f(p.y, -p.x) * NEB_NUDGE) * NEB_NORM, p.z);
-    let xz = (p.xz + vec2f(p.z, -p.x) * NEB_NUDGE) * NEB_NORM;
-    p = vec3f(xz.x, p.y, xz.y);
-    it *= 1.733733;
+/** the garden's colours round its wheel: teal, emerald, lime, gold, coral, orchid, violet, and round again */
+fn gardenHue(hIn: f32) -> vec3f {
+  let h = fract(hIn) * 7.0;
+  let i = floor(h);
+  let f = smoothstep(0.0, 1.0, h - i);
+  var a: vec3f; var b: vec3f;
+  switch (i32(i)) {
+    case 0 { a = vec3f(0.02, 0.5, 0.52); b = vec3f(0.03, 0.55, 0.2); }
+    case 1 { a = vec3f(0.03, 0.55, 0.2); b = vec3f(0.42, 0.85, 0.1); }
+    case 2 { a = vec3f(0.42, 0.85, 0.1); b = vec3f(1.0, 0.68, 0.14); }
+    case 3 { a = vec3f(1.0, 0.68, 0.14); b = vec3f(1.0, 0.32, 0.22); }
+    case 4 { a = vec3f(1.0, 0.32, 0.22); b = vec3f(0.9, 0.16, 0.6); }
+    case 5 { a = vec3f(0.9, 0.16, 0.6); b = vec3f(0.36, 0.2, 0.95); }
+    default { a = vec3f(0.36, 0.2, 0.95); b = vec3f(0.02, 0.5, 0.52); }
   }
-  return n;
+  return mix(a, b, f);
 }
-fn nebSpiral3(pIn: vec3f) -> f32 {
-  var p = pIn; var n = 0.0; var it = 1.0;
-  for (var i = 0; i < 5; i++) {
-    n += (sin(p.y * it) + cos(p.x * it)) / it;
-    let xz = (p.xz + vec2f(p.z, -p.x) * NEB_NUDGE) * NEB_NORM;
-    p = vec3f(xz.x, p.y, xz.y);
-    it *= 1.33733;
+
+/** c's colours turned round the wheel by a (radians, about grey) */
+fn hueTurn(c: vec3f, a: f32) -> vec3f {
+  let k = vec3f(0.57735);
+  let ca = cos(a);
+  return c * ca + cross(k, c) * sin(a) + k * dot(k, c) * (1.0 - ca);
+}
+
+/** the haze's own light along dir: the deep's blue — near black away from the sun, ultramarine round it, pale azure
+ *  at it */
+fn gardenHaze(dir: vec3f) -> vec3f {
+  let mu = dot(dir, GARDEN_SUN);
+  var c = mix(vec3f(0.004, 0.01, 0.05), vec3f(0.008, 0.04, 0.14), smoothstep(-0.7, 0.45, mu));
+  c = mix(c, vec3f(0.012, 0.07, 0.3), smoothstep(0.45, 0.9, mu));
+  c = mix(c, vec3f(0.08, 0.26, 0.7), smoothstep(0.9, 0.997, mu));
+  return c;
+}
+
+/** what's past everything along dir: the sun, and round it a flower of light opening out of its heart for ever — the
+ *  mosaic folded twelve ways about the sun's axis and drawn out along the logarithm of the angle from it, so it wells up
+ *  from the middle at every size at once */
+fn gardenSky(dir: vec3f, T: f32, trip: f32) -> vec3f {
+  let mu = dot(dir, GARDEN_SUN);
+  var c = gardenHaze(dir);
+  // (about the sun's axis: how far off it, and round it)
+  let side = normalize(cross(vec3f(0.0, 1.0, 0.0), GARDEN_SUN));
+  let up = cross(GARDEN_SUN, side);
+  let v = vec2f(dot(dir, side), dot(dir, up));
+  let r = max(length(v) / max(mu + 1.0, 0.05), 1e-4);
+  let N = 6.0;
+  var th = atan2(v.y, v.x) / TAU * N + T * 0.003;
+  th = abs(fract(th) - 0.5) * 2.0;
+  let lr = log(r) * 0.72 - T * (0.05 + 0.05 * trip) - 0.02 * D.breath.y;
+  var petal = realmTap(realmFar, vec2f(th * 1.3 + 0.21 * lr, lr * 1.1), 1.0 + 2.5 * smoothstep(0.3, 0.02, r));
+  // (its petals turning round the wheel from its heart to its rim)
+  petal = max(hueTurn(petal, -2.6 * smoothstep(0.03, 0.7, r) + 0.5 * sin(lr * 2.0)), vec3f(0.0));
+  let ring = smoothstep(0.012, 0.06, r) * (1.0 - smoothstep(0.15, 0.7, r)) * exp(-r * 2.5);
+  c += petal * 0.8 * ring;
+  let leap = D.realm.x;
+  c += mix(vec3f(0.66, 0.88, 1.0), vec3f(1.0, 0.94, 0.8), 0.7 * D.breath.z) * (1.6 * exp(-r * r * 3000.0 / (1.0 + 30.0 * leap * leap)) + (0.18 + 0.5 * leap) * exp(-r * 30.0 / (1.0 + 3.0 * leap)) + 0.02 * exp(-r * 5.0));
+  return c;
+}
+
+/** the mosaic laid over the lattice from three sides by a skin's facing N, `size` metres to the painting (so its big
+ *  surfaces show whole flowers, its beads a petal's colour); foot the pixel's footprint there (m) */
+fn gardenPaint(tex: texture_2d<f32>, p: vec3f, N: vec3f, size: f32, foot: f32) -> vec3f {
+  var w = pow(abs(N), vec3f(6.0));
+  w /= (w.x + w.y + w.z);
+  let lod = log2(max(1.0, foot / size * f32(textureDimensions(tex).x)));
+  let q = p * (2.0 / size);
+  return w.x * realmTap(tex, q.zy + vec2f(0.37, 0.11), lod) + w.y * realmTap(tex, q.xz + vec2f(0.83, 0.59), lod)
+    + w.z * realmTap(tex, q.xy, lod);
+}
+
+fn garden(roW: vec3f, rdW: vec3f, T: f32, trip: f32, px: f32) -> vec3f {
+  let C = D.center.xyz;
+  let portal = D.breath.z;
+  // (the realm's own frame: x across the hide, y up, z in along the drum's axis)
+  let rd0 = normalize(vec3f(rdW.z, rdW.y, rdW.x));
+  let o = vec2f(roW.z - C.z, roW.y - C.y);
+  // the view bent in toward the axis as it enters the glass, and the realm leaning toward the eye — both from outside
+  // only: let go as the camera comes to the glass
+  let n = mix(WAY_N, 1.0, portal);
+  let tIn = rd0.xy / n;
+  var slope = tIn / sqrt(max(1.0 - dot(tIn, tIn), 0.03));
+  let cv = C - frame.camPos;
+  let dC = normalize(vec3f(cv.z, cv.y, max(cv.x, 0.05)));
+  let tC = dC.xy / n;
+  slope -= WAY_AIM * (1.0 - portal) * tC / sqrt(max(1.0 - dot(tC, tC), 0.1));
+  var dir = normalize(vec3f(slope, 1.0));
+  // the flight: on down the way (a steady drift, and the camera's own — blurred across the frame's shutter), rolling
+  let F = T * 0.22 + D.breath.y + (INNER_JIT - 0.5) * 2.0 * D.breath.w;
+  let roll = 0.045 * (T * 0.22 + D.breath.y) + 0.35;
+  let cr = cos(roll); let sr = sin(roll);
+  let R = mat2x2f(cr, sr, -sr, cr);
+  dir = vec3f(R * dir.xy, dir.z);
+  let home = vec3f(0.31, -0.42, F);
+  let P0 = home + vec3f(R * o, 0.0);
+  // the slice through the fourth dimension: turning slowly, deeper as the trip deepens
+  let a1 = 0.21 + 0.05 * sin(T * 0.11) + 0.06 * trip;
+  let a2 = -0.13 + 0.05 * cos(T * 0.083);
+  GD_T1 = vec2f(cos(a1), sin(a1));
+  GD_T2 = vec2f(cos(a2), sin(a2));
+  GD_W = 0.27 + T * 0.05 + 0.006 * F;
+  GD_S = 1.32 + 0.1 * sin(T * 0.07 + 1.0);
+
+  var col = vec3f(0.0);
+  var trans = 1.0;
+  var t = 0.05 + 0.25 * INNER_JIT;
+  var skins = 0;
+  var glow = 0.0;
+  for (var i = 0; i < REALM_STEPS; i++) {
+    let p = P0 + dir * t;
+    let dm = gardenMap(p);
+    let near = length(p - home);
+    let d = max(dm, GARDEN_CLEAR - near);
+    let eps = max(0.002, px * t * 1.3);
+    // (the air near a skin glows a little with it)
+    glow += trans * exp(-dm * 9.0) * exp(-t / GARDEN_FOG) * 0.0012;
+    if (d < eps) {
+      let orb = GD_ORB;
+      // the skin's facing
+      let e = max(eps, 0.003);
+      let k1 = vec3f(1.0, -1.0, -1.0); let k2 = vec3f(-1.0, -1.0, 1.0); let k3 = vec3f(-1.0, 1.0, -1.0); let k4 = vec3f(1.0, 1.0, 1.0);
+      var N = normalize(k1 * gardenMap(p + k1 * e) + k2 * gardenMap(p + k2 * e) + k3 * gardenMap(p + k3 * e) + k4 * gardenMap(p + k4 * e));
+      if (dot(N, dir) > 0.0) { N = -N; }
+      // its panes: the mosaic at two sizes, each chamber in its own season — the painting's colours turned round the
+      // wheel by where in the lattice it stands
+      let foot = px * t;
+      let big = gardenPaint(realmMid, p, N, 3.4, foot);
+      let fine = luma(gardenPaint(realmNear, p.yzx, N.yzx, 0.62, foot));
+      let season = 3.0 * sin(2.6 * orb.w + 1.7 * orb.x - 0.9 * orb.z + 0.11 * t + 0.04 * T + 1.2 * trip + 2.2 * D.realm.x);
+      var alb = max(hueTurn(big * (0.55 + 2.2 * fine), season), vec3f(0.0));
+      alb = max(mix(vec3f(luma(alb)), alb, 1.5), vec3f(0.0)) * 1.15;
+      // lit: the sun on its face or through it (a leaf held up to the light), the air's own light from all round —
+      // teal from above, violet from below — and its hollows in shade
+      let ao = 0.1 + 0.9 * pow(sat(orb.w * 1.7), 1.6);
+      let ndl = dot(N, GARDEN_SUN);
+      let sunC = mix(vec3f(0.62, 0.84, 1.0), vec3f(1.0, 0.9, 0.7), 0.75 * portal) * 1.5;
+      let amb = mix(vec3f(0.07, 0.06, 0.3), mix(vec3f(0.04, 0.2, 0.4), vec3f(0.05, 0.27, 0.3), portal), 0.5 + 0.5 * N.y);
+      var c = alb * ao * (amb * 1.3 + sunC * (0.75 * sat(ndl) + 0.55 * sat(-ndl)));
+      c += alb * alb * sunC * sat(-ndl) * 0.9 * ao;
+      // gold along its folds; bright veins running over it, the wheel's colours, a pulse of light travelling down them
+      let fold = min(orb.x, orb.z);
+      let seam = 1.0 - smoothstep(0.0, 0.03, fold);
+      let vein = 1.0 - smoothstep(0.0, 0.07, abs(fract(orb.y * 9.0 + orb.w * 3.0 + T * 0.09) - 0.5));
+      let pulse = 0.55 + 0.45 * sin(orb.y * 23.0 - T * 1.3 + orb.w * 9.0);
+      let fres = pow(1.0 - abs(dot(N, dir)), 3.0);
+      c += mix(vec3f(0.3, 0.75, 1.0), vec3f(1.0, 0.7, 0.24), portal * 0.7) * seam * (0.5 + 0.5 * fres);
+      // (and its rim alight where the sun's behind it)
+      c += alb * sunC * pow(fres, 1.5) * pow(sat(dot(dir, GARDEN_SUN)), 2.0) * 1.2;
+      c += gardenHue(orb.w * 1.6 - T * 0.04 + 0.5 + 0.3 * trip) * vein * pulse * 0.6;
+      // (its sheen: the sun's glint and the air's light glancing off it)
+      let rf = reflect(dir, N);
+      c += sunC * pow(sat(dot(rf, GARDEN_SUN)), 28.0) * 0.5 * ao + gardenHaze(rf) * fres * 0.4;
+      // how solid: lace where the mosaic's dark, whole along the gold and the veins; dissolving near the flier
+      var a = smoothstep(0.02, 0.085, luma(big));
+      a = max(a, max(seam, vein * 0.8));
+      a *= smoothstep(GARDEN_CLEAR, GARDEN_CLEAR + 0.9, near);
+      let fog = exp(-t / GARDEN_FOG);
+      col += trans * a * mix(gardenHaze(dir), c, fog);
+      trans *= 1.0 - a;
+      skins++;
+      if (skins >= REALM_SKINS || trans < 0.03) { break; }
+      t += max(eps * 3.0, 0.03);
+      continue;
+    }
+    t += max(d * 0.75, eps * 0.5);
+    if (t > GARDEN_FAR) { break; }
   }
-  return n;
-}
-/** the slow wiggle through its strands */
-fn nebWiggle(pIn: vec3f, t: f32) -> vec3f {
-  var p = pIn;
-  let s = 0.5 + 0.5 * sin(2.0 * nebSpiral3(p * 1.6) + t * 0.7);
-  let w = vec3f(sin(p.y * 2.2 + t * 0.55) + 0.6 * sin(p.z * 3.1 - t * 1.1),
-                sin(p.z * 2.6 + t * 0.66) + 0.6 * sin(p.x * 3.7 + t * 0.99),
-                sin(p.x * 2.0 - t * 0.44) + 0.6 * sin(p.y * 3.4 + t * 1.21));
-  p += 0.08 * s * w;
-  p += 0.04 * vec3f(sin(p.y * 6.0 + t * 1.7), sin(p.z * 6.5 - t * 1.9), sin(p.x * 5.5 + t * 1.8));
-  return p;
+  // past the last skin: the haze thickening to the sky's own light
+  let sky = gardenSky(dir, T, trip);
+  col += trans * sky;
+  col += vec3f(0.35, 0.75, 1.0) * glow;
+  // the deep: all of it steeped in one blue — ultramarine in its shadows, azure to a pale cyan in its lights — seen
+  // through the glass that blue is nearly all there is; flown into, its own colours come up through it
+  let l = luma(col);
+  // (its darks let down to navy, its lights lifted: depth, not a wash)
+  let lc = l * l / (l + 0.22);
+  let deep = mix(vec3f(0.01, 0.06, 0.55), vec3f(0.07, 0.42, 1.0), sat(lc * 0.85)) * lc * 3.0 + vec3f(0.5, 0.88, 1.0) * max(lc - 0.8, 0.0) * 0.9;
+  let in01 = smoothstep(0.0, 1.0, portal);
+  col = mix(col, deep, mix(0.86, 0.16, in01)) * mix(0.8, 1.0, in01);
+  return col;
 }
