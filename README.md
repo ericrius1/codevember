@@ -46,8 +46,11 @@ the stroke's plan only round contact), so it never floats off the fingers where 
 and bend, one joint frame by frame, the beater's plan, the grip's error). Skinning in
 WGSL is weft's (`#include "weft/skin"`).
 
-A day with sound gives its meta an `audio` file one loop long: the HUD gets a Sound button, and while it plays the
-loop's clock is the sound's. Its film takes `film/<dd>.wav` under it if there is one (tools/render.mjs).
+A day with sound opens at its threshold (src/sketch.ts buildHud, src/sketch.css `.begin-*`): the day's number, its
+name, its sentence over a darkened still of the piece, a round Begin button rippling slowly (the day's accent), the
+day's tellings to choose from, Sound on. Begin (the gesture a browser needs before it plays sound) bursts a ring out
+over the page and starts the piece from zero with its sound; the HUD comes up after. Sound can be muted; Space pauses.
+The picture follows the audio clock, including buffering. Switching Live / Film pauses the other audio source.
 
 `--q 'cam=x,y,z,tx,ty,tz,fov'` (render.mjs) passes the page parameters through: 09 takes a fixed camera, for looking,
 and `veil=0..1` / `trip=0..1` to hold the hide's thinning and the trip (the world inside the drum, 09/inner.wgsl;
@@ -58,24 +61,37 @@ image generation, handed the concepts and a frame of the film); `refs.mjs realm,
 realm's three layers (a deep scene, two of glowing things on black), saved as 09/assets/realm-*.webp and parallaxed
 inside the drum by 09/inner.wgsl.
 
-09 has styles (09/style.ts): other tellings of the same act for films side by side on the footage page — each its own
-length after the great stroke, realm (painted by `refs.mjs <style>_far,<style>_mid,<style>_near`, kept in
-09/design/realms/<style>/, loaded only on the dev server), grade, sky, light. A style's film:
+09's tellings (the threshold's chips, the HUD's Style menu) are Orbit · 360°, Original, Vision, Abyss, Cathedral,
+Nocturne, Dawn, Lumen and Mycelium. Choosing one reloads at the threshold with its own timing, realm, grade, light and
+sound. Direct links use `?style=<id>`.
+All realm layers and browser soundtracks are bundled for production by `09/media.ts`.
+
+Orbit is bullet time with the camera as a dancer (09/camera.ts `orbitPose`): from the instant of the great stroke,
+close on the struck point, it steps back into a spiral, goes once all the way round her and the drum (wide and high
+behind the drum) and on to behind her, about 413° in all, and drifts in toward the glass, every channel one smooth
+curve, never stopping; the world holds at 1/200 through the turn. The universe's membrane there opens on a dimension of
+its own (design/beyond, painted by `refs.mjs beyond_far,beyond_mid,beyond_near`): three wide layers on spheres round the
+dais at their own distances (so they slide against each other as the camera goes round), refracted through the
+ripples with a colour split, through the tears and a little through the whole membrane. 29.4 s.
 
 ```bash
-STYLE=lumen node --experimental-strip-types 09/audio/render.ts     # film/09-lumen.wav (the live m4a untouched)
-node tools/render.mjs 09 --tag -lumen --q style=lumen               # film/09-lumen.mp4
-node ~/codeprojects/footage/publish.mjs film/09-lumen.mp4 --id 09-lumen --title "09 / Membrane: Lumen" …
+STYLE=orbit node --experimental-strip-types 09/audio/render.ts  # matching WAV + browser M4A
+STYLE=orbit node 09/lab/run.mjs 09/lab/orbit.ts                 # closure, clearance, continuity and slow-motion checks
+node tools/render.mjs 09 --tag -orbit --q style=orbit          # 1080 square, 60fps, 2× supersampled
 ```
+
+Render another style with the same commands and its ID. `09/audio/render.ts` writes `film/09-<style>.wav` and
+`09/assets/membrane-<style>.m4a` (`a` uses the original unsuffixed names). The renderer picks the soundtrack from
+`--q style=<id>`, independently of the output tag; `--audio <path>` can override it.
 
 ## The films
 
 `tools/render.mjs` starts a dev server of its own (no reloads, so editing while it films can't break it) and opens the
 day in headless Chrome (WebGPU on Metal, muted) at `?render`: the loop is stepped exactly 1/fps a frame from u = 0,
 each frame read back from the swapchain at 2× (weft's `Capture`) and posted raw to the server's film sink
-(vite.config.ts), which pipes it into ffmpeg: lanczos down to 1080×1080, the HUD laid over (a PNG the page draws in
-its own fonts), x264 `-preset slow -crf 15` (capped at 18 Mbit/s), `+faststart`. Square at 1080 for X; a 16 s loop
-is ~20–35 MB.
+(vite.config.ts), which pipes it into ffmpeg: lanczos down to 1080×1080, an optional HUD (`--hud`; clean picture by default), x264 `-preset slow -crf 15` (capped at 18 Mbit/s), `+faststart`. Camera, simulation and capture use deterministic frame steps and a fixed random seed.
+Final approved MP4s go in `/Users/eric/videos/my creations/codevember/renders/`; render logs, probes and intermediate
+files stay in `film/`.
 
 Posting one, so the gallery tile and the day's Film tab play it (they look it up in footage.json by the day, `--id 04`):
 

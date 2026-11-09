@@ -55,7 +55,17 @@ const STYLE_REALMS = {
 for (const [k, scene] of Object.entries(STYLE_REALMS)) {
   SHOTS[`${k}_far`] = SHOTS[`${k}_mid`] = SHOTS[`${k}_near`] = k;
 }
+// the dimension beyond our universe's membrane (the sky's tears, cosmos.wgsl): wide panoramas, the far one filled, the
+// nearer two glowing things on black — another world than the one inside the drum
+const BEYOND = 'Another dimension seen through a tear in the membrane of our universe: not outer space, not planets, not stars. A vast flowing ocean of liquid light folding into itself in fractal spirals and veils, colossal iridescent forms like the inside of a soap bubble the size of a galaxy, mother-of-pearl and oil-slick colours — ultraviolet, deep teal, rose gold, emerald, pale gold — on deep velvety darkness, streams of light pouring through it, a sense of immense depth and of something ancient and alive. Psychedelic, awe-inspiring, painterly-photographic, subtle gradients, never neon, never kitsch, no geometric tiling, no hexagons, no grids, no symmetry.';
+const BEYOND_LAYERS = {
+  beyond_far: `${BEYOND} This is the FAR layer, a wide panorama: fill the whole image edge to edge (no border, no vignette), its left and right edges continuing into each other seamlessly, the brightest flows across the middle band.`,
+  beyond_mid: `${BEYOND} This is a MIDDLE LAYER for compositing, a wide panorama: only colossal translucent fractal spirals, veils and ribbons of iridescent light, spread across the picture with wide gaps between them, on a PURE BLACK background (#000000 everywhere there is nothing, no haze, no gradient in the black), its left and right edges continuing into each other.`,
+  beyond_near: `${BEYOND} This is the NEAREST LAYER for compositing, a wide panorama: only sparse floating iridescent droplets and bubbles of light, fine luminous threads and specks, soft and a little out of focus, on a PURE BLACK background (#000000 everywhere there is nothing, no haze, no gradient in the black).`,
+};
+for (const k of Object.keys(BEYOND_LAYERS)) SHOTS[k] = k;
 const LAYERS = {
+  ...BEYOND_LAYERS,
   ...Object.fromEntries(Object.entries(STYLE_REALMS).flatMap(([k, scene]) => [
     [`${k}_far`, `${scene} This is the far, deep layer: fill the whole square edge to edge with the scene (no frame, no border, no vignette to black at the edges), its source of light exactly at the centre.`],
     [`${k}_mid`, `${scene} This is a MIDDLE LAYER for compositing: only the largest forms of the scene (the beings, the arches, the great threads), glowing, spread round the picture with the centre left mostly empty, on a PURE BLACK background (#000000, completely black everywhere there is nothing) — it will be added over a deeper picture by its light, so no haze, no gradient in the black.`],
@@ -70,7 +80,7 @@ async function make(id) {
   const out = `${work}ref_${id}.png`;
   if (LAYERS[id]) {
     const p = ['Use case: a texture layer for a real-time WebGPU piece (painted, luminous, extremely detailed).', LAYERS[id],
-      'Square 1:1, 1024x1024 or larger. No text, no logos, no watermark, no drum, no person, no frame. Output the image only, fully opaque.'].join('\n\n');
+      (id.startsWith('beyond') ? 'Wide landscape 3:2, 1536x1024 or larger.' : 'Square 1:1, 1024x1024 or larger.') + ' No text, no logos, no watermark, no drum, no person, no frame. Output the image only, fully opaque.'].join('\n\n');
     writeFileSync(`${work}${id}_prompt.txt`, p);
     const task = `Use your built-in image generation (the imagegen skill, built-in image_gen tool) to make this one image, then copy the generated PNG to exactly ${out} (overwrite it). Do nothing else.\n\n${p}`;
     const t0 = Date.now();

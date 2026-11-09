@@ -35,9 +35,9 @@ import {
 const T0 = performance.now();
 const N = Math.round(LOOP * SR);
 const ROOT = new URL('../../', import.meta.url);
-// (another style's soundtrack goes beside its film, film/09-<style>.wav; only style a's is the live page's)
+// Every style has its own picture-locked WAV and live AAC; style a keeps the original filenames.
 const STYLED = STYLE.id !== 'a';
-const WAV = fileURLToPath(new URL(STYLED ? `film/09-${STYLE.id}.wav` : 'film/09.wav', ROOT)), M4A = fileURLToPath(new URL('09/assets/membrane.m4a', ROOT));
+const WAV = fileURLToPath(new URL(STYLED ? `film/09-${STYLE.id}.wav` : 'film/09.wav', ROOT)), M4A = fileURLToPath(new URL(`09/assets/membrane${STYLED ? `-${STYLE.id}` : ''}.m4a`, ROOT));
 const log = (s: string) => console.log(s);
 const secs = () => ((performance.now() - T0) / 1000).toFixed(1);
 
@@ -324,7 +324,7 @@ log(`\nmaster: gain ${todb(M.gain).toFixed(1)} dB, ${M.lufs.toFixed(2)} LUFS, pe
 }
 {
   // where the limiters work: their deepest gain reduction (dB) in each half second
-  const cut = (tr: Float32Array) => Array.from({ length: Math.round(LOOP * 2) }, (_, k) => { let m = 1; for (let i = k * SR / 2; i < (k + 1) * SR / 2; i++) m = Math.min(m, tr[i]); return (-20 * Math.log10(m)).toFixed(0); }).join(' ');
+  const cut = (tr: Float32Array) => Array.from({ length: Math.round(LOOP * 2) }, (_, k) => { let m = 1; for (let i = k * SR / 2; i < Math.min(tr.length, (k + 1) * SR / 2); i++) m = Math.min(m, tr[i]); return (-20 * Math.log10(m)).toFixed(0); }).join(' ');
   log('  limiting by half second, all: ' + cut(M.trace));
 }
 const prof = loudnessProfile(out);
@@ -358,9 +358,9 @@ const ebu = (p: string) => {
 // again a little quieter
 const encode = (trim: number) => execFileSync('ffmpeg', ['-y', '-v', 'error', '-i', WAV, ...(trim ? ['-af', `volume=${trim.toFixed(2)}dB`] : []), '-c:a', 'aac', '-b:a', '160k', '-ar', '48000', '-movflags', '+faststart', M4A]);
 let trim = 0;
-if (!STYLED) for (; trim > -1.5; trim -= 0.15) { encode(trim); if (ebu(M4A).TP <= -1) break; }
+for (; trim > -1.5; trim -= 0.15) { encode(trim); if (ebu(M4A).TP <= -1) break; }
 const probe = (p: string) => execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration:stream=sample_rate,channels,bit_rate', '-of', 'compact', p]).toString().trim().replace(/\n/g, ' | ');
 log(`\nwrote ${WAV}: ${probe(WAV)}`);
-if (!STYLED) log(`wrote ${M4A}: ${probe(M4A)}${trim ? ` (${trim.toFixed(2)} dB, the encoder's overshoot taken back)` : ''}`);
-for (const p of STYLED ? [WAV] : [WAV, M4A]) { const m = ebu(p); log(`  ffmpeg ebur128 ${p.split('/').pop()}: ${m.I} LUFS, true peak ${m.TP} dBTP`); }
+log(`wrote ${M4A}: ${probe(M4A)}${trim ? ` (${trim.toFixed(2)} dB, the encoder's overshoot taken back)` : ''}`);
+for (const p of [WAV, M4A]) { const m = ebu(p); log(`  ffmpeg ebur128 ${p.split('/').pop()}: ${m.I} LUFS, true peak ${m.TP} dBTP`); }
 log(`rendered in ${secs()} s`);

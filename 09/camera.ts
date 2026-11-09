@@ -128,11 +128,90 @@ const EYE = channels((k) => k.eye);
 const AT = channels((k) => k.at);
 const FOV = new Channel(ts, keys.map((k) => Math.log(k.fov)), LOOP);
 
+// The orbit telling (style.ts orbit): bullet time, the camera a dancer. From the instant of the stroke, close on the
+// struck point, it lingers a breath as the glass starts to spread, then steps back — and the stepping back is already
+// the start of the turn: it spirals out as it gathers speed, swings wide and high as it passes behind the drum (the
+// whole torn membrane over the dais), sweeps round her other side, slows as it comes round behind her, and drifts in
+// toward the glass beyond her into the dark. One gesture: every channel (azimuth, elevation, distance about the drum,
+// the point it looks at, the lens) a smooth curve through its keys, monotone between them (no overshoot) and eased by
+// a Gaussian (no corners anywhere), its speed never stopping; and over it a slow breath, a sway too slow to read as a
+// hand. The keys in seconds after the stroke, stretched to the style's moment. Film time, never story.
+const TAU_END = 17.8;
+const OK: { tau: number; az: number; el: number; r: number; at: V3; fov: number }[] = [
+  { tau: 0.0, az: -126.9, el: 25.7, r: 0.83, at: [0.0, 1.42, 0.36], fov: 46 },
+  { tau: 0.9, az: -127.6, el: 24.0, r: 1.0, at: [0.0, 1.41, 0.34], fov: 47 },
+  { tau: 2.6, az: -138, el: 15, r: 2.6, at: [0.0, 1.35, 0.15], fov: 50 },
+  { tau: 4.2, az: -180, el: 10, r: 3.6, at: [-0.2, 1.4, 0.1], fov: 52 },
+  { tau: 6.4, az: -270, el: 12, r: 4.4, at: [-0.3, 1.5, 0.1], fov: 54 },
+  { tau: 8.8, az: -360, el: 20, r: 5.4, at: [-0.2, 1.85, 0.1], fov: 58 },
+  { tau: 11.2, az: -450, el: 14, r: 4.8, at: [-0.1, 1.6, 0.05], fov: 54 },
+  { tau: 13.6, az: -525, el: 9, r: 4.4, at: [0.1, 1.45, 0.05], fov: 48 },
+  { tau: 15.6, az: -537, el: 7, r: 4.0, at: [0.1, 1.4, 0.0], fov: 45 },
+  { tau: 17.8, az: -540, el: 6, r: 3.4, at: [0.05, 1.3, 0.0], fov: 42 },
+];
+/** a channel through keys (seconds after the stroke): monotone cubic, held at its ends, eased by a Gaussian */
+class Smooth {
+  private m: number[];
+  constructor(private ts: number[], private ys: number[], private sigma: number) {
+    const n = ts.length, d = ts.slice(1).map((t, i) => (ys[i + 1] - ys[i]) / (t - ts[i]));
+    this.m = ts.map((_, i) => {
+      if (i === 0 || i === n - 1) return 0;
+      if (d[i - 1] * d[i] <= 0) return 0;
+      const h0 = ts[i] - ts[i - 1], h1 = ts[i + 1] - ts[i], w0 = 2 * h1 + h0, w1 = h1 + 2 * h0;
+      return (w0 + w1) / (w0 / d[i - 1] + w1 / d[i]);
+    });
+  }
+  raw(t: number) {
+    const ts = this.ts, ys = this.ys, n = ts.length;
+    if (t <= ts[0]) return ys[0];
+    if (t >= ts[n - 1]) return ys[n - 1];
+    let i = 0; while (ts[i + 1] < t) i++;
+    const h = ts[i + 1] - ts[i], u = (t - ts[i]) / h, u2 = u * u, u3 = u2 * u;
+    return (2 * u3 - 3 * u2 + 1) * ys[i] + (u3 - 2 * u2 + u) * this.m[i] * h + (-2 * u3 + 3 * u2) * ys[i + 1] + (u3 - u2) * this.m[i + 1] * h;
+  }
+  at(t: number) {
+    let s = 0, w = 0;
+    for (let j = -12; j <= 12; j++) { const d = (j / 12) * 3 * this.sigma, k = Math.exp(-0.5 * (d / this.sigma) ** 2); s += this.raw(t + d) * k; w += k; }
+    return s / w;
+  }
+}
+const deg = Math.PI / 180;
+const otau = OK.map((k) => k.tau);
+const OAZ = new Smooth(otau, OK.map((k) => k.az * deg), 0.5), OEL = new Smooth(otau, OK.map((k) => k.el * deg), 0.5);
+const OR = new Smooth(otau, OK.map((k) => Math.log(k.r)), 0.5), OFOV = new Smooth(otau, OK.map((k) => Math.log(k.fov)), 0.5);
+const OAT = [0, 1, 2].map((c) => new Smooth(otau, OK.map((k) => k.at[c]), 0.5));
+/** the orbit's span (film s): the stroke, the turn under way, the turn done */
+const OSCALE = (ACT.black - BIG.t) / TAU_END;
+export const ORBIT = { pull: BIG.t, start: BIG.t + 2.6 * OSCALE, end: BIG.t + 15.6 * OSCALE };
+const clamp = (x: number) => Math.max(0, Math.min(1, x));
+const ease = (x: number) => { x = clamp(x); return x * x * x * (x * (x * 6 - 15) + 10); };
+const lerp3 = (a: V3, b: V3, k: number): V3 => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
+/** the dancer's pose at film time tt */
+function orbitPose(tt: number): { e: Polar; at: V3; fov: number } {
+  const tau = (tt - BIG.t) / OSCALE;
+  // (its breath: a slow sway in height and in what it looks at, too slow and small to read as a hand)
+  const br = Math.sin(tau * 0.62) * 0.5 + Math.sin(tau * 0.37 + 1.3) * 0.5, on = ease(tau / 2.5);
+  return {
+    e: [OAZ.at(tau), OEL.at(tau) + 0.012 * br * on, OR.at(tau)],
+    at: [OAT[0].at(tau), OAT[1].at(tau) + 0.025 * br * on, OAT[2].at(tau) + 0.02 * Math.sin(tau * 0.29) * on],
+    fov: Math.exp(OFOV.at(tau)),
+  };
+}
+
 /** where the camera is at film time t (and the user's drag on top) */
 export function shot(t: number, orbit: { yaw: number; pitch: number }) {
   const tt = ((t % LOOP) + LOOP) % LOOP;
-  const e = EYE.map((s) => s.at(tt)) as Polar;
-  const a = AT.map((s) => s.at(tt)) as Polar;
+  let e = EYE.map((s) => s.at(tt)) as Polar;
+  let at = fromPolar(AT.map((s) => s.at(tt)) as Polar);
+  let fov = Math.exp(FOV.at(tt));
+  if (STYLE.orbit && tt >= BIG.t - 0.4 && tt <= ACT.black) {
+    // (the keys' swoop handing over to the dancer round the moment of the stroke, both moving: no stop between them)
+    const o = orbitPose(tt);
+    const k = ease((tt - (BIG.t - 0.4)) / 1.2);
+    const from = toPolar(fromPolar(e), o.e[0]);
+    e = from.map((v, i) => v + (o.e[i] - v) * k) as Polar;
+    at = lerp3(at, o.at, k); fov += (o.fov - fov) * k;
+  }
   e[0] += orbit.yaw; e[1] = Math.max(-1.2, Math.min(1.4, e[1] + orbit.pitch));
-  return { eye: fromPolar(e), at: fromPolar(a), fov: Math.exp(FOV.at(tt)) };
+  return { eye: fromPolar(e), at, fov };
 }

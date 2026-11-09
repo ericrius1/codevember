@@ -16,8 +16,9 @@ import { day } from '../src/days';
 import { sketch } from '../src/sketch';
 import { LOOP, story, rate, BIG, ACT, STORY_LOOP, STROKES } from './score';
 import { Shaman } from './shaman';
-import { STYLE } from './style';
-import { Drum, Beater, DRUM, membranePace } from './drum';
+import { STYLE, STYLE_OPTIONS } from './style';
+import { styleAudio, beyondUrls } from './media';
+import { Drum, Beater, DRUM, membranePace, loadImage } from './drum';
 import { moment, BEATER, strokes, drive, struckAt } from './perform';
 import { GripHold, aimAt } from './grip';
 import { shot } from './camera';
@@ -35,7 +36,8 @@ const norm3 = (a: V3): V3 => { const l = Math.hypot(a[0], a[1], a[2]) || 1; retu
 const scale3 = (a: V3, k: number): V3 => [a[0] * k, a[1] * k, a[2] * k];
 const smooth = (a: number, b: number, x: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
-sketch({ ...day(9), loop: LOOP, filmLoops: 1, warm: 1, hint: 'Sound on, for the drum · Space to pause · drag to turn', audio: new URL('./assets/membrane.m4a', import.meta.url).href }, async (ctx) => {
+sketch({ ...day(9), loop: LOOP, filmLoops: 1, warm: 1, hint: 'Space to pause · drag to turn · choose a telling', audio: new URLSearchParams(location.search).has('render') ? undefined : styleAudio(),
+  styles: { selected: STYLE.id, options: STYLE_OPTIONS }, filmId: STYLE.id === 'a' ? '09' : `09-${STYLE.id}` }, async (ctx) => {
   const { kit } = ctx;
   const G = kit.uniforms(cosmosShader.structs.Globals, 'globals');
   kit.setGlobals(G);
@@ -54,10 +56,13 @@ sketch({ ...day(9), loop: LOOP, filmLoops: 1, warm: 1, hint: 'Sound on, for the 
   const beater = new Beater(kit, BEATER.reach, BEATER.headR);
   const regalia = new Regalia(kit, shaman.rig, shaman.dq);
   const K = kit.uniforms(cosmosShader.structs.CosmosU, 'cosmos');
+  // the dimension beyond the membrane (a style's; else the realm's layers stand in, unseen)
+  const bu = beyondUrls();
+  const beyondTex = bu ? await Promise.all(bu.map((u) => loadImage(kit, u))) : drum.realm;
 
   // ---------------------------------------------------------------- passes
   const scene = kit.pass({ label: 'scene', color: [{ target: hdr, clear: [0, 0, 0, 1] }], depth: { target: depth, clear: 0 } });
-  scene.fullscreen(cosmosShader, { label: 'sky', fragment: 'fsSky', bind: { K } as never });
+  scene.fullscreen(cosmosShader, { label: 'sky', fragment: 'fsSky', bind: { K, beyondFar: beyondTex[0], beyondMid: beyondTex[1], beyondNear: beyondTex[2] } as never });
   drum.draw(scene);
   beater.draw(scene, drum);
   shaman.draw(scene);
@@ -99,7 +104,9 @@ sketch({ ...day(9), loop: LOOP, filmLoops: 1, warm: 1, hint: 'Sound on, for the 
   // wall and the hide ripple together, in the same slowed moment), quickening as time lifts to its dream pace. Tabulated
   // once.
   const big = BIG.t;
-  const domePace = (x: number) => 0.75 - 0.4 * smooth(big - 0.25, big + 0.2, x) + 0.75 * smooth(ACT.shock - 1, ACT.trip + 3, x);
+  const domePace = (x: number) => STYLE.orbit
+    ? 0.75 - 0.53 * smooth(big - 0.25, big + 0.2, x) + 0.30 * smooth(big + 4, ACT.fade, x)
+    : 0.75 - 0.4 * smooth(big - 0.25, big + 0.2, x) + 0.75 * smooth(ACT.shock - 1, ACT.trip + 3, x);
   const DOME_STEP = 1 / 120, dome = new Float64Array(Math.ceil(LOOP / DOME_STEP) + 2);
   for (let i = 1; i < dome.length; i++) dome[i] = dome[i - 1] + domePace((i - 0.5) * DOME_STEP) * DOME_STEP;
   const domeAt = (x: number) => { const f = Math.max(0, x) / DOME_STEP, i = Math.min(dome.length - 2, Math.floor(f)); return dome[i] + (dome[i + 1] - dome[i]) * (f - i); };
@@ -198,7 +205,7 @@ sketch({ ...day(9), loop: LOOP, filmLoops: 1, warm: 1, hint: 'Sound on, for the 
     const rip = rippleAt(t);
     // the worlds beyond: the faces opening behind the great stroke's front as it sweeps the dome, and staying open
     // (wide open at first, then held part way: the membrane's own film and its rings over the worlds through the trip)
-    const reveal = smooth(big + 0.3, big + 3.5, t) * (1 - 0.38 * smooth(big + 3.5, ACT.trip, t)) * STYLE.sky.reveal;
+    const reveal = smooth(big + 0.3, big + 3.5, t) * (1 - (STYLE.orbit ? 0.12 : 0.38) * smooth(big + 3.5, ACT.trip, t)) * STYLE.sky.reveal;
     // (the sky's colour drifting while time's out of joint, wandering further as the trip deepens — the sky's alone: the
     // stage keeps its own)
     // (never far: past ±0.45 rad the violets go olive)
@@ -230,9 +237,10 @@ sketch({ ...day(9), loop: LOOP, filmLoops: 1, warm: 1, hint: 'Sound on, for the 
     const only = worldOnly ?? -1;
     const seams = Math.max(0.35 * rip, reveal) * (1 + 0.4 * trip);
     K.set({ worlds: [only >= 0 ? 1 : reveal, seams, t * 0.6, 1.0] as never, aux: [0.0003 * (1 + 0.5 * trip), only, domeAt(t), 0] as never,
-      front: [only >= 0 ? -1 : big + 0.02, FRONT_NEAR, 30 + 50 * smooth(big + 2, ACT.shock, t), 1.0] as never,
+      front: [only >= 0 ? -1 : big + 0.02, FRONT_NEAR, (STYLE.orbit ? 18 + 22 * smooth(big + 1, big + 5, t) : 30 + 50 * smooth(big + 2, ACT.shock, t)), 1.0] as never,
       front2: [lastPulse < 0 ? -1 : lastPulse + 0.02, FRONT_NEAR, 70, 0.45 + 0.2 * pulses.findIndex((k) => k.t === lastPulse)] as never,
-      trip: [0.16, 0.9, trip, STYLE.sky.hue] as never, kinds: [STYLE.sky.kinds[0] ?? 0, STYLE.sky.kinds[1] ?? 0, STYLE.sky.kinds[2] ?? 0, STYLE.sky.kinds.length] as never, look: [dkSky, 0, 0, 0] as never });
+      trip: [STYLE.orbit ? 0.045 : 0.16, 0.9, trip, STYLE.sky.hue] as never, kinds: [STYLE.sky.kinds[0] ?? 0, STYLE.sky.kinds[1] ?? 0, STYLE.sky.kinds[2] ?? 0, STYLE.sky.kinds.length] as never, look: [dkSky, 0, 0, 0] as never,
+      beyond: [STYLE.beyondMix ? STYLE.beyondMix[0] : 0, STYLE.beyondMix?.[1] ?? 1, (STYLE.beyondMix?.[2] ?? 0) * (STYLE.orbit ? smooth(big + 0.3, big + 4, t) : trip), t] as never });
     // the motes: the sparks' own clock (the membrane's pace: they spray slowly through the dilation, then fly)
     let burstAge = 0;
     if (t > big) { const n = 40; for (let k = 0; k < n; k++) { const tk = big + (t - big) * (k + 0.5) / n; burstAge += membranePace(rate(tk)) * 14 * (t - big) / n; } }

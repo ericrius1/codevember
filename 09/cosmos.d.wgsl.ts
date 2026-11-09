@@ -62,6 +62,7 @@ export interface CosmosU {
   trip: Vec4;
   kinds: Vec4;
   look: Vec4;
+  beyond: Vec4;
 }
 export interface Facet {
   i: number;
@@ -70,5 +71,5 @@ export interface Facet {
   node: number;
 }
 
-declare const shader: Shader<{ Frame: Frame; Globals: Globals; StageLight: StageLight; FullscreenOut: FullscreenOut; CosmosU: CosmosU; Facet: Facet }, 'frame' | 'G' | 'K' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
+declare const shader: Shader<{ Frame: Frame; Globals: Globals; StageLight: StageLight; FullscreenOut: FullscreenOut; CosmosU: CosmosU; Facet: Facet }, 'frame' | 'G' | 'K' | 'beyondFar' | 'beyondMid' | 'beyondNear' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;
 export default shader;

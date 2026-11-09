@@ -9,6 +9,7 @@ import { MeshBuilder, type Kit, type RenderPass, type StorageBuffer, type Textur
 import type { V3 } from '../src/rig/hero/math';
 import drumShader from './drum.wgsl';
 import { STYLE } from './style';
+import { realmUrls } from './media';
 import membraneShader from './membrane.wgsl';
 
 import { DRUM, DAIS } from './stage';
@@ -56,12 +57,18 @@ function teardrop(b: MeshBuilder, at: V3, len: number, rad: number, phase: numbe
   for (let i = 0; i < seg; i++) for (let k = 0; k < P - 1; k++) { const a = base + i * P + k, c = a + P; b.tri(a, c, a + 1).tri(a + 1, c, c + 1); }
 }
 
-/** the realm's three layers: style a's are in the build (assets/); another style's are found beside the sketch at run
- *  time (its folder isn't looked into by the build: those are for its films, made on the dev server) */
-function realmUrls(): string[] {
-  if (STYLE.realm === 'assets') return [new URL('./assets/realm-far.webp', import.meta.url).href, new URL('./assets/realm-mid.webp', import.meta.url).href, new URL('./assets/realm-near.webp', import.meta.url).href];
-  const dir = './' + STYLE.realm + '/';
-  return ['far', 'mid', 'near'].map((k) => new URL(dir + 'realm-' + k + '.webp', import.meta.url).href);
+/** an image as a texture, its mips made */
+export async function loadImage(kit: Kit, url: string): Promise<Texture> {
+  const name = url.split('/').pop()!;
+  const blob = await (await fetch(url)).blob();
+  const bmp = await createImageBitmap(blob);
+  const t = kit.texture({ label: name, format: 'rgba8unorm', size: [bmp.width, bmp.height], mips: 'full', usage: ['sample', 'copy-dst', 'render'] });
+  t.writeImage(bmp);
+  // (its mips made once their pipeline's compiled: a run before then is passed over, and they'd stay black)
+  const mips = new MipChain(kit, t);
+  await kit.ready([mips]);
+  kit.run([mips]);
+  return t;
 }
 
 export class Drum {
@@ -212,18 +219,7 @@ export class Drum {
   }
 
   async loadTextures() {
-    const load = async (url: string) => {
-      const name = url.split('/').pop()!;
-      const blob = await (await fetch(url)).blob();
-      const bmp = await createImageBitmap(blob);
-      const t = this.kit.texture({ label: name, format: 'rgba8unorm', size: [bmp.width, bmp.height], mips: 'full', usage: ['sample', 'copy-dst', 'render'] });
-      t.writeImage(bmp);
-      // (its mips made once their pipeline's compiled: a run before then is passed over, and they'd stay black)
-      const mips = new MipChain(this.kit, t);
-      await this.kit.ready([mips]);
-      this.kit.run([mips]);
-      return t;
-    };
+    const load = (url: string) => loadImage(this.kit, url);
     const [hide, rim, ...realm] = await Promise.all([
       load(new URL('./assets/hide.jpg', import.meta.url).href), load(new URL('./assets/rim.jpg', import.meta.url).href),
       ...realmUrls().map(load),

@@ -27,6 +27,9 @@ export interface SketchMeta {
   /** the loop's sound (a file exactly one loop long): a Sound button in the HUD, and while it plays the loop's clock
    *  is the sound's, so the picture keeps time with it; the film plays it too */
   audio?: string;
+  /** Filmed tellings share the harness but restart with their own score and assets. */
+  styles?: { selected: string; options: { id: string; label: string }[] };
+  filmId?: string;
 }
 
 export interface Ctx {
@@ -71,6 +74,8 @@ export async function sketch(meta: SketchMeta, setup: (ctx: Ctx) => Promise<Fram
     document.body.classList.add('nogpu');
     hud.setMode('film');
     hud.say(`This one needs WebGPU (${(e as Error).message}). Here's the film.`);
+    hud.begin(async () => { hud.started = true; hud.film.muted = !hud.soundOn; await hud.film.play(); });
+    hud.sound((on) => { hud.film.muted = !on; });
     return;
   }
 
@@ -89,38 +94,72 @@ export async function sketch(meta: SketchMeta, setup: (ctx: Ctx) => Promise<Fram
   await kit.ready();
 
   let t = 0, n = 0, paused = false;
-  // the sound: off until asked for (a browser won't play it before a gesture anyway); playing, it keeps the clock
-  const sound = meta.audio && !render ? new Audio(meta.audio) : null;
+  const sound = meta.audio && !render && !params.has('perf') ? new Audio(meta.audio) : null;
+  const controlled = render || params.has('perf') || params.has('u');
+  let begun = !sound || controlled, previewDrawn = false, drawnSize = '';
+  const playSound = () => {
+    if (!sound || !hud.soundOn || paused || !begun || hud.mode !== 'live') return Promise.resolve();
+    sound.currentTime = t % meta.loop;
+    return sound.play();
+  };
   if (sound) {
-    sound.loop = true; sound.preload = 'auto';
+    sound.loop = true; sound.preload = 'auto'; sound.className = 'sketch-audio';
+    document.body.append(sound);
+    hud.soundState(true);
     hud.sound((on) => {
-      if (on) { sound.currentTime = t % meta.loop; sound.play().catch(() => hud.soundState(false)); }
-      else sound.pause();
       hud.film.muted = !on;
+      if (!on) sound.pause();
+      else playSound().catch(() => { hud.soundState(false); hud.say('Sound could not start. Tap Sound to try again.'); });
+    });
+    if (!controlled) hud.begin(async () => {
+      t = 0; n = 0; paused = false; begun = true; hud.started = true;
+      try {
+        if (hud.mode === 'film') { hud.film.muted = !hud.soundOn; await hud.film.play(); }
+        else await playSound();
+      } catch (e) { begun = false; hud.started = false; throw e; }
     });
   }
-  // (?perf: stepped by hand like a film, for tools/perf.mjs to time)
+  hud.onModeChange = (mode) => {
+    sound?.pause();
+    if (mode === 'live') playSound().catch(() => hud.soundState(false));
+  };
   if (render || params.has('perf')) kit.manual = true;
   (window as any).__kit = kit;
   kit.loop(({ dt }) => {
+    const frameSize = kit.size.render.join('x');
+    if (!controlled && (!begun || paused || hud.mode === 'film')) {
+      // One quiet preview; the performance and simulation wait for the user's gesture.
+      if (hud.mode === 'live' && (!previewDrawn || drawnSize !== frameSize)) {
+        const heldTime = begun ? t : 0.65;
+        kit.run(frameFn({ t: heldTime, u: heldTime / meta.loop, dt: 0, frame: n }));
+        previewDrawn = true; drawnSize = frameSize;
+      }
+      return;
+    }
     if (render) t = (n / fps) % meta.loop;
     else if (params.has('u')) t = Number(params.get('u')) * meta.loop;
     else {
-      if (sound && !sound.paused && sound.readyState >= 2) t = sound.currentTime % meta.loop;
-      else if (!paused) t = (t + dt) % meta.loop;
-      // let a turned view settle back
+      if (sound && hud.soundOn) {
+        // Buffering freezes picture with audio instead of allowing the clocks to drift.
+        if (sound.readyState < 2 || sound.paused) return;
+        t = sound.currentTime % meta.loop;
+      } else t = (t + dt) % meta.loop;
       if (!pointer.down) { const k = 1 - Math.exp(-dt * 1.6); orbit.yaw -= orbit.yaw * k; orbit.pitch -= orbit.pitch * k; }
     }
     n++;
     kit.run(frameFn({ t, u: t / meta.loop, dt: render ? 1 / fps : dt, frame: n }));
+    previewDrawn = true; drawnSize = frameSize;
   });
 
   addEventListener('keydown', (e) => {
-    if (e.code === 'Space') {
-      paused = !paused; e.preventDefault();
-      if (sound && hud.soundOn) { if (paused) sound.pause(); else { sound.currentTime = t % meta.loop; sound.play().catch(() => {}); } }
+    if ((e.target as HTMLElement)?.closest('button, select, input, textarea, [contenteditable]')) return;
+    if (e.code === 'Space' && begun) {
+      e.preventDefault();
+      if (hud.mode === 'film') { if (hud.film.paused) hud.film.play().catch(() => {}); else hud.film.pause(); return; }
+      paused = !paused;
+      if (paused) sound?.pause(); else playSound().catch(() => hud.soundState(false));
     }
-    if (e.key === 'f') hud.setMode(hud.mode === 'film' ? 'live' : 'film');
+    if (e.key === 'f' && hud.film.getAttribute('src')) hud.setMode(hud.mode === 'film' ? 'live' : 'film');
   });
   document.body.classList.add('ready');
 
@@ -164,11 +203,14 @@ async function film(kit: Kit, meta: SketchMeta, fps: number, size: number, setN:
   const total = loops * perLoop;
   // (the HUD is hidden when filming, so nothing on the page has asked for its font yet; and its @font-face rules
   // arrive with the stylesheet's @import, which may not have yet)
-  for (let i = 0; i < 200 && ![...document.fonts].some((f) => f.family.includes('IBM Plex Mono')); i++) await new Promise((r) => setTimeout(r, 25));
-  await Promise.all(['500 17px "IBM Plex Mono"', '400 14px "IBM Plex Mono"'].map((f) => document.fonts.load(f)));
-  await post(`hud?name=${name}`, await hudPng(meta, size));
+  const withHud = new URLSearchParams(location.search).get('hud') === '1';
+  if (withHud) {
+    for (let i = 0; i < 200 && ![...document.fonts].some((f) => f.family.includes('IBM Plex Mono')); i++) await new Promise((r) => setTimeout(r, 25));
+    await Promise.all(['500 17px "IBM Plex Mono"', '400 14px "IBM Plex Mono"'].map((f) => document.fonts.load(f)));
+    await post(`hud?name=${name}`, await hudPng(meta, size));
+  }
   const [w, h] = kit.size.canvas;
-  await post(`start?name=${name}&w=${w}&h=${h}&fps=${fps}&size=${size}`);
+  await post(`start?name=${name}&w=${w}&h=${h}&fps=${fps}&size=${size}&hud=${withHud ? 1 : 0}`);
   const ws = new WebSocket(`${location.origin.replace(/^http/, 'ws')}/__render/frames`);
   ws.binaryType = 'arraybuffer';
   await new Promise((ok, no) => { ws.onopen = ok; ws.onerror = no; });
@@ -236,6 +278,7 @@ function buildHud(meta: SketchMeta) {
       <div class="hint">${meta.hint ?? 'Drag to turn · Space to pause'}</div>
     </div>
     <div class="tr">
+      ${meta.styles ? '<label class="style-picker">Style <select aria-label="Style"></select></label>' : ''}
       ${meta.audio ? '<button class="sound" aria-pressed="false" hidden>Sound</button>' : ''}
       <div class="seg" role="tablist">
         <button data-mode="live" class="on">Live</button><button data-mode="film" disabled>Film</button>
@@ -245,6 +288,39 @@ function buildHud(meta: SketchMeta) {
     <div class="br"><a href="../">All days</a></div>
     <div class="msg"></div>`;
   document.body.append(el);
+  const selector = el.querySelector<HTMLSelectElement>('.style-picker select');
+  if (selector && meta.styles) {
+    for (const option of meta.styles.options) selector.add(new Option(option.label, option.id));
+    selector.value = meta.styles.selected;
+    selector.addEventListener('change', () => {
+      const next = new URL(location.href); next.searchParams.set('style', selector.value);
+      next.searchParams.delete('u'); next.searchParams.delete('mode');
+      location.assign(next.href);
+    });
+  }
+  // the way in: a day with sound waits at its threshold for a gesture (browsers won't play sound before one) — the day's
+  // name, its sentence, a drum of a button rippling slowly, the day's other tellings to choose from; struck, it ripples
+  // out over the whole page and opens on the piece, starting from its beginning with its sound
+  const gate = document.createElement('div'); gate.className = 'begin-gate';
+  const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+  gate.innerHTML = `
+    <div class="begin-card">
+      <div class="begin-kicker">Codevember 2026 <span>·</span> ${pad(meta.day)}</div>
+      <h1 class="begin-title">${esc(meta.title)}</h1>
+      ${meta.note ? `<p class="begin-sentence">${esc(meta.note)}</p>` : ''}
+      <button class="begin-drum" disabled aria-label="Begin"><i class="ring"></i><i class="ring"></i><i class="ring"></i><span class="begin-label">Loading</span></button>
+      ${meta.styles && meta.styles.options.length > 1 ? `<div class="begin-tellings"><span class="lbl">Telling</span>${meta.styles.options.map((o) =>
+        `<button data-style="${esc(o.id)}" class="${o.id === meta.styles!.selected ? 'on' : ''}">${esc(o.label)}</button>`).join('')}</div>` : ''}
+    </div>
+    <div class="begin-foot"><span class="begin-note"><i class="eq"><b></b><b></b><b></b></i>Sound on · headphones</span><span class="begin-keys">Space pauses · drag to look</span></div>`;
+  for (const b of gate.querySelectorAll<HTMLButtonElement>('.begin-tellings button')) b.addEventListener('click', () => {
+    if (b.classList.contains('on')) return;
+    const next = new URL(location.href); next.searchParams.set('style', b.dataset.style!);
+    next.searchParams.delete('u'); next.searchParams.delete('mode');
+    location.assign(next.href);
+  });
+  const showGate = !!meta.audio && !['render', 'perf', 'u'].some((k) => new URLSearchParams(location.search).has(k));
+  if (showGate) { document.body.append(gate); document.body.classList.add('gated'); }
   const video = document.createElement('video');
   Object.assign(video, { loop: true, muted: true, playsInline: true, preload: 'none' });
   video.className = 'film';
@@ -253,33 +329,59 @@ function buildHud(meta: SketchMeta) {
   const soundBtn = el.querySelector<HTMLButtonElement>('.sound');
   const api = {
     film: video,
-    soundOn: false,
+    soundOn: !!meta.audio,
+    started: !showGate,
+    onModeChange: (_mode: 'live' | 'film') => {},
+    begin(cb: () => Promise<void>) {
+      const button = gate.querySelector<HTMLButtonElement>('.begin-drum')!;
+      const label = button.querySelector('.begin-label')!;
+      button.disabled = false; label.textContent = 'Begin';
+      button.addEventListener('click', async () => {
+        button.disabled = true;
+        try {
+          await cb();
+          // (struck: its ripple runs out over the page as the threshold fades and the piece comes up)
+          gate.classList.add('leaving'); document.body.classList.remove('gated');
+          setTimeout(() => gate.remove(), 1400);
+        } catch {
+          button.disabled = false; label.textContent = 'Begin';
+          gate.querySelector('.begin-note')!.lastChild!.textContent = 'Could not start the sound · tap Begin again';
+        }
+      });
+    },
     /** the Sound button: shown, calling back with on/off */
     sound(cb: (on: boolean) => void) {
       if (!soundBtn) return;
       soundBtn.hidden = false;
       soundBtn.addEventListener('click', () => { api.soundState(!api.soundOn); cb(api.soundOn); });
     },
-    soundState(on: boolean) { api.soundOn = on; soundBtn?.classList.toggle('on', on); soundBtn?.setAttribute('aria-pressed', String(on)); },
+    soundState(on: boolean) {
+      api.soundOn = on; video.muted = !on;
+      soundBtn?.classList.toggle('on', on); soundBtn?.setAttribute('aria-pressed', String(on));
+      if (soundBtn) soundBtn.textContent = on ? 'Sound on' : 'Sound off';
+      gate.querySelector('.begin-note')!.lastChild!.textContent = on ? 'Sound on · headphones' : 'Sound off';
+    },
     mode: 'live' as 'live' | 'film',
     setMode(m: 'live' | 'film') {
       api.mode = m;
       document.body.classList.toggle('filming', m === 'film');
       for (const b of buttons) b.classList.toggle('on', b.dataset.mode === m);
-      if (m === 'film' && video.src) video.play().catch(() => {}); else video.pause();
+      if (m === 'film' && video.src && api.started) video.play().catch(() => {}); else video.pause();
+      api.onModeChange(m);
     },
     say(s: string) { const m = el.querySelector('.msg')!; m.textContent = s; m.classList.add('on'); },
   };
   for (const b of buttons) b.addEventListener('click', () => api.setMode(b.dataset.mode as 'live' | 'film'));
   // the film, if it's been posted (public/footage/footage.json: id is the day)
   fetch(`${import.meta.env.BASE_URL}footage/footage.json`).then((r) => r.json()).then((list: Film[]) => {
-    const f = list.find((x) => x.id === pad(meta.day));
+    const f = list.find((x) => x.id === (meta.filmId ?? pad(meta.day)));
     if (!f) return;
     video.src = f.video;
     video.poster = f.poster;
     buttons[1].disabled = false;
-    if (api.mode === 'film') video.play().catch(() => {});
+    if (api.mode === 'film' && api.started) video.play().catch(() => {});
   }).catch(() => {});
+  api.soundState(api.soundOn);
   if (new URLSearchParams(location.search).get('mode') === 'film') api.setMode('film');
   return api;
 }

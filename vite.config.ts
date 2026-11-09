@@ -34,13 +34,13 @@ function renderSink(): Plugin {
     if (url.pathname === '/start') {
       const [w, h, fps, size] = ['w', 'h', 'fps', 'size'].map((k) => Number(q(k)));
       out = join(dir, `${name}.mp4`);
-      const hasHud = existsSync(hud);
-      const filter = `[0:v]scale=${size}:${size}:flags=lanczos+accurate_rnd+full_chroma_int,format=rgba[v]` +
+      const hasHud = q('hud') === '1' && existsSync(hud);
+      const filter = `[0:v]scale=${size}:${size}:flags=lanczos+accurate_rnd+full_chroma_int,setsar=1,format=rgba[v]` +
         (hasHud ? `;[v][1:v]overlay=0:0:format=auto,format=yuv420p[o]` : `;[v]format=yuv420p[o]`);
       ff = spawn('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'rawvideo', '-pix_fmt', 'rgba', '-s', `${w}x${h}`, '-r', String(fps), '-i', '-',
         ...(hasHud ? ['-i', hud] : []), '-filter_complex', filter, '-map', '[o]',
         '-c:v', 'libx264', '-preset', 'slow', '-crf', '15', '-maxrate', '18M', '-bufsize', '36M', '-profile:v', 'high', '-tune', 'film',
-        '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-movflags', '+faststart', out], { stdio: ['pipe', 'inherit', 'inherit'] });
+        '-g', String(Math.round(fps * 2)), '-keyint_min', String(Math.round(fps * 2)), '-sc_threshold', '0', '-color_range', 'tv', '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-movflags', '+faststart', out], { stdio: ['pipe', 'inherit', 'inherit'] });
       done = new Promise((ok) => ff!.on('close', (c) => ok(c ?? 1)));
       res.end('ok');
       return;

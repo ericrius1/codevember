@@ -29,10 +29,12 @@ const browser = await chromium.launch({
     '--disable-background-timer-throttling', '--disable-renderer-backgrounding'],
 });
 const page = await browser.newPage({ viewport: { width: size, height: size }, deviceScaleFactor: ss });
+await page.addInitScript(() => { let seed = 902026; Math.random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; }; });
 page.on('pageerror', (e) => console.error('page:', e.stack ?? e.message));
 page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') console.error(`page ${m.type()}:`, m.text()); });
 const q = new URLSearchParams({ render: '', size: String(size), ss: String(ss), fps: String(fps), name });
 if (stills) q.set('stills', stills);
+if (argv.includes('--hud')) q.set('hud', '1');
 // (--q 'a=1&b=2': more of the page's own parameters, a debug camera say)
 for (const [k, v] of new URLSearchParams(flag('q', ''))) q.set(k, v);
 await page.goto(`${ORIGIN}/codevember/${day}/?${q}`);
@@ -41,6 +43,7 @@ let last = '';
 for (;;) {
   const r = await page.evaluate(() => window.__render ?? null);
   if (r?.status === 'done') {
+    if (r.code) throw new Error(`ffmpeg failed: ${r.code}`);
     if (r.out) console.log(`${r.out}: ${r.frames} frames in ${r.seconds.toFixed(0)} s (ffmpeg ${r.code})`);
     else console.log(`${r.stills} stills`);
     break;
@@ -52,12 +55,15 @@ for (;;) {
 await browser.close();
 server.kill();
 // the day's sound (film/<day>.wav, one loop long, made by the day's own tools): laid under the film, AAC
-if (!stills && existsSync(`film/${day}.wav`)) {
+const style = q.get('style');
+const soundtrack = flag('audio', `film/${day}${style && style !== 'a' ? `-${style}` : ''}.wav`);
+if (!stills && existsSync(soundtrack)) {
   const out = `film/${name}.mp4`, tmp = `film/${name}.av.mp4`;
-  execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', out, '-stream_loop', '-1', '-i', `film/${day}.wav`, '-map', '0:v', '-map', '1:a',
-    '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', tmp]);
+  execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', out, '-stream_loop', '-1', '-i', soundtrack, '-map', '0:v', '-map', '1:a',
+    '-c:v', 'copy', '-bsf:v', 'h264_metadata=sample_aspect_ratio=1/1:video_full_range_flag=0:colour_primaries=1:transfer_characteristics=1:matrix_coefficients=1',
+    '-color_primaries', 'bt709', '-color_trc', 'bt709', '-colorspace', 'bt709', '-color_range', 'tv', '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', tmp]);
   renameSync(tmp, out);
-  console.log(`${out}: with film/${day}.wav`);
+  console.log(`${out}: with ${soundtrack}`);
 }
 if (stills && stills.split(',').length > 1) {
   const n = stills.split(',').length, cols = Math.min(n, 4);

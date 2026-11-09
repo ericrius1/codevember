@@ -30,8 +30,48 @@ struct CosmosU {
   kinds: vec4f,
   // x our own sky's brightness (×: a style can darken it)
   look: vec4f,
+  // the dimension beyond (a style's: design/beyond): x how much it shows where the membrane's open (0: the worlds), y its
+  // refraction through the ripples (×), z how far it shows through the whole membrane, w its clock (s)
+  beyond: vec4f,
 }
 @group(2) @binding(0) var<uniform> K: CosmosU;
+@group(2) @binding(1) var beyondFar: texture_2d<f32>;
+@group(2) @binding(2) var beyondMid: texture_2d<f32>;
+@group(2) @binding(3) var beyondNear: texture_2d<f32>;
+
+// ---------------------------------------------------------------- the dimension beyond
+// Three painted layers (wide panoramas: a far one filled, two of glowing things on black) on spheres round the dais at
+// their own distances — the far one all but at infinity, the middle 45 m out, the near 16 m — each met by the view's
+// ray where it crosses its sphere, so as the camera moves they slide against each other; each turning slowly its own
+// way. A panorama goes round the sphere twice, mirrored (so it has no seam), its middle band at the horizon.
+fn beyondUV(d: vec3f, spin: f32) -> vec2f {
+  // (its mirror lines off to the sides, ±z: never where the eye looks across the dais, along x)
+  var az = atan2(d.z, d.x) / PI + 0.5 + spin;
+  az = abs(az - 2.0 * floor(az * 0.5 + 0.5));
+  let el = asin(clamp(d.y, -1.0, 1.0));
+  let v = 0.5 - el / 2.4;
+  return vec2f(az, 1.0 - abs(1.0 - abs(v) % 2.0));
+}
+fn beyondHit(ro: vec3f, rd: vec3f, r: f32) -> vec3f {
+  let c = vec3f(-0.3, 1.0, 0.2);
+  let h = sphereHit(ro, rd, c, r);
+  return normalize(ro + rd * max(h.y, 0.0) - c);
+}
+fn beyondTap(tex: texture_2d<f32>, uv: vec2f) -> vec3f {
+  let c = textureSampleLevel(tex, samp_linear, uv, 0.0).rgb;
+  return c * c;
+}
+/** the beyond along a ray (ro, rd: the ray, bent by the membrane; split: how far its colours part) */
+fn beyond(ro: vec3f, rd: vec3f, split: vec3f) -> vec3f {
+  let tm = K.beyond.w;
+  // (the far layer's colours each bent a little differently: the membrane a prism where it ripples)
+  let dr = normalize(rd + split);
+  let db = normalize(rd - split);
+  let far = vec3f(beyondTap(beyondFar, beyondUV(dr, tm * 0.004)).r, beyondTap(beyondFar, beyondUV(rd, tm * 0.004)).g, beyondTap(beyondFar, beyondUV(db, tm * 0.004)).b);
+  let mid = beyondTap(beyondMid, beyondUV(beyondHit(ro, rd, 45.0), -tm * 0.009 + 0.37));
+  let near = beyondTap(beyondNear, beyondUV(beyondHit(ro, rd, 16.0), tm * 0.015 + 0.71));
+  return far * 0.5 + mid * 0.75 + near * 0.8;
+}
 
 // ---------------------------------------------------------------- the wall's ripples
 /** the height of the ripples at a point (unit n from the sphere's centre, radius R) from one event (xyz where on the
@@ -709,7 +749,16 @@ fn frontAt(q: vec3f, F: vec4f, fadeRate: f32) -> vec3f {
   let th = mix(0.86, 0.5, reveal);
   let tear = smoothstep(th - 0.015, th + 0.06, tn);
   let open = sat(smoothstep(0.3, 1.0, -hr) * 0.25 * G.cosmos.y + reveal) * tear * inner;
-  if (open > 0.002) {
+  // the beyond, refracted through the ripples (strongly: where the membrane's folded the dimension behind it swims)
+  let bendB = normalize(rd + (dh * amp * 0.0014 + bendF * 1.0) * K.beyond.y);
+  let splitB = (dh * amp * 0.0007 + vec3f(0.0015, 0.0, -0.0015) * (0.3 + abs(hr))) * K.beyond.y;
+  var bey = vec3f(0.0);
+  if (K.beyond.x > 0.0 && (open > 0.002 || K.beyond.z > 0.002)) { bey = beyond(ro, bendB, splitB) * K.worlds.w; }
+  // (through the whole membrane, a little, as the trip deepens: the film itself turning to a window)
+  col = mix(col, col * 0.5 + bey, K.beyond.z * (0.4 + 0.6 * smoothstep(0.0, 0.8, abs(hr))));
+  if (open > 0.002 && K.beyond.x >= 1.0) {
+    col = col * (1.0 - open) + bey * open;
+  } else if (open > 0.002) {
     // (its world, and near the border with the next place that one's too, the two dissolving into each other — half
     // and half at the border itself, so a tear across it shows no edge)
     let lw = (ro - W) / R * 3.0;
@@ -722,7 +771,7 @@ fn frontAt(q: vec3f, F: vec4f, fadeRate: f32) -> vec3f {
       let w2 = world(facetKind(fc.j), vec3f(dot(lw, M2[0]), dot(lw, M2[1]), dot(lw, M2[2])), vec3f(dot(bentW, M2[0]), dot(bentW, M2[1]), dot(bentW, M2[2])), K.worlds.z);
       w = mix(w, w2, near);
     }
-    col = col * (1.0 - open) + w * K.worlds.w * open;
+    col = col * (1.0 - open) + mix(w * K.worlds.w, bey, K.beyond.x) * open;
   }
   // the film over it all: its colours, strongest where it's rippled and edge-on
   let c = abs(dot(n, rd));

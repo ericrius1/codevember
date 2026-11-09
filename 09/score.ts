@@ -46,7 +46,7 @@ export const SLOWEST = 0.005, DREAM = 0.35;
  *  dark of the loop's seam) — film seconds. It snaps in late — a speed ramp: the downswing whips through at the
  *  world's own speed and time falls away under it in the last few tenths of a second before contact, so the beater
  *  is still visibly travelling as it meets the hide — holds deep for three seconds, and lifts slowly */
-export const DILATE = { from: GREAT - 0.65, deep: GREAT + 0.02, lift: GREAT + 0.33 * AFTER, dream: GREAT + 0.74 * AFTER, back: GREAT + AFTER + 0.4, home: GREAT + AFTER + 1.4 };
+export const DILATE = { from: GREAT - 0.65, deep: GREAT + 0.02, lift: GREAT + (STYLE.orbit ? 0.82 : 0.33) * AFTER, dream: GREAT + (STYLE.orbit ? 0.98 : 0.74) * AFTER, back: GREAT + AFTER + 0.4, home: GREAT + AFTER + 1.4 };
 
 /** the world's rate against film time: 1 normally, SLOWEST at the deepest, DREAM after. Falls and rises
  *  log-smoothly, so the slowing reads as an exponential settling, not a ramp */

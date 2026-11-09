@@ -4,6 +4,12 @@
 // hide turns to glass on (its three painted layers: 09/design/refs.mjs <id>_far,<id>_mid,<id>_near), and the grade.
 export interface Style {
   id: string;
+  /** the camera goes once round her and the drum through the slowed moment after the great stroke (camera.ts) */
+  orbit?: boolean;
+  /** the dimension beyond our universe's membrane: a folder (relative to 09/) of beyond-{far,mid,near}.webp, shown
+   *  through the sky's tears instead of the worlds; and its mix: how much, its refraction (×), how far it shows through
+   *  the whole membrane (× the trip) */
+  beyond?: string; beyondMix?: [number, number, number];
   /** seconds from the great stroke to the fade */
   after: number;
   /** the realm's layers: a folder (relative to 09/) holding realm-{far,mid,near}.webp */
@@ -29,7 +35,14 @@ export interface Style {
   dark?: { key: number; amb: number; sky: number };
 }
 
-const STYLES: Record<string, Style> = {
+export const STYLES: Record<string, Style> = {
+  // bullet time: the great stroke, a breath on the struck point, then time all but stopped while the camera draws back
+  // and goes once all the way round her and the drum and on to behind her — the glass spreading across the hide behind
+  // its ripple, the universe's membrane torn open on a dimension of its own (design/beyond: liquid light, parallaxed
+  // and refracted through the ripples)
+  orbit: { id: 'orbit', orbit: true, after: 16.5, realm: 'assets', realmMix: [0.65, 1.0, 1.0], realmFly: 0.014, realmTwist: 1.1,
+    grade: { sat: 1.05, exp: 1, bloom: 1.05, drift: 0.4, cool: 1.1 }, sky: { reveal: 0.82, heave: 1.4, hue: 0, kinds: [] },
+    glass: 0.98, light: [0.85, 0.7, 1.0], spill: 1.6, rays: 0.9, beyond: 'design/beyond', beyondMix: [1, 1, 0.42] },
   a: { id: 'a', after: 9.1, realm: 'assets', realmMix: [0.6, 1.0, 0.8], realmFly: 0.022, realmTwist: 1,
     grade: { sat: 1, exp: 1, bloom: 1, drift: 1, cool: 1 }, sky: { reveal: 1, heave: 1, hue: 0, kinds: [] }, glass: 0.97, light: [1.0, 0.55, 0.22], spill: 0.5, rays: 0 },
   // the serpent realm of 'a' with everything since: its light spilling on her, pouring out as rays, a longer moment,
@@ -60,3 +73,6 @@ const STYLES: Record<string, Style> = {
 const fromPage = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('style') : null;
 const fromEnv = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.STYLE;
 export const STYLE: Style = STYLES[fromPage ?? fromEnv ?? 'a'] ?? STYLES.a;
+export const STYLE_OPTIONS = Object.keys(STYLES).map((id) => ({
+  id, label: id === 'a' ? 'Original' : id === 'orbit' ? 'Orbit · 360°' : id[0].toUpperCase() + id.slice(1),
+}));
