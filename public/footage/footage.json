@@ -1,5 +1,35 @@
 [
  {
+  "id": "09-nocturne",
+  "title": "09 / Membrane: Nocturne",
+  "sub": "Another telling of 09 / Membrane, at night: after the great stroke everything sinks into the dark but the glass, where a serpent of starlight coils through a black jungle. 25 seconds, WebGPU, the drum's sound simulated from its own physics.",
+  "date": "2026-11-09",
+  "created": "2026-11-09T04:55-08:00",
+  "seconds": 25,
+  "width": 1080,
+  "height": 1080,
+  "mb": 56.4,
+  "video": "https://footage.ericrius1.workers.dev/codevember/2d1adc575479ac29/09-nocturne.mp4",
+  "small": "https://footage.ericrius1.workers.dev/codevember/68af1df643531c9a/09-nocturne-720.mp4",
+  "poster": "https://footage.ericrius1.workers.dev/codevember/9297527b6fd76ef5/09-nocturne-poster.jpg",
+  "card": "https://footage.ericrius1.workers.dev/codevember/2b3820fb53531cae/09-nocturne-card.jpg"
+ },
+ {
+  "id": "09-dawn",
+  "title": "09 / Membrane: Dawn",
+  "sub": "Another telling of 09 / Membrane: after the great stroke the hide turns to glass onto an endless sea of cloud with a sun rising out of it, its light pouring through round her until it swallows everything. 24 seconds, WebGPU, the drum's sound simulated from its own physics.",
+  "date": "2026-11-09",
+  "created": "2026-11-09T04:51-08:00",
+  "seconds": 24,
+  "width": 1080,
+  "height": 1080,
+  "mb": 50.4,
+  "video": "https://footage.ericrius1.workers.dev/codevember/5a38b7c14ea05c64/09-dawn.mp4",
+  "small": "https://footage.ericrius1.workers.dev/codevember/7e4de490c3e2123a/09-dawn-720.mp4",
+  "poster": "https://footage.ericrius1.workers.dev/codevember/6337692276f59a39/09-dawn-poster.jpg",
+  "card": "https://footage.ericrius1.workers.dev/codevember/5a38e9e80ff549d5/09-dawn-card.jpg"
+ },
+ {
   "id": "09-vision",
   "title": "09 / Membrane: Vision",
   "sub": "Another telling of 09 / Membrane: the serpent realm of the first, with its light now spilling out over her and pouring through the glass, the moment after the great stroke held a little longer and the sky heaving harder as it tears open on other worlds. 24 seconds, WebGPU, the drum's sound simulated from its own physics.",
