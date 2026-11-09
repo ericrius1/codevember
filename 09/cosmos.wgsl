@@ -28,6 +28,8 @@ struct CosmosU {
   trip: vec4f,
   // the style's worlds: xyz the kinds its places open on (each place's own kind picks among them), w how many (0: all)
   kinds: vec4f,
+  // x our own sky's brightness (×: a style can darken it)
+  look: vec4f,
 }
 @group(2) @binding(0) var<uniform> K: CosmosU;
 
@@ -684,7 +686,7 @@ fn frontAt(q: vec3f, F: vec4f, fadeRate: f32) -> vec3f {
   let bent = normalize(rd + dh * amp * K.aux.x + bendF);
   let bentW = normalize(rd + dh * amp * K.aux.x * 0.12 + bendF * 0.7);
   // (the style's hue on our own sky only: the worlds beyond keep theirs)
-  var col = hueShift(nebula(bent), K.trip.w) + stars(bent) * 0.8;
+  var col = (hueShift(nebula(bent), K.trip.w) + stars(bent) * 0.8) * K.look.x;
   // the face it's on (its borders flexing with the ripples, a little wandering)
   // (its borders wandering at two scales, so the foam's faces are each their own shape, never a honeycomb)
   // (the worlds' places warped far — their edges curving like coastlines, so where a tear meets one it's never a straight

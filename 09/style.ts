@@ -25,6 +25,8 @@ export interface Style {
   rays: number;
   /** the end: how far the light swallows everything before the dark (0: a plain fade to black) */
   whiteout?: number;
+  /** the world going dark from the great stroke on, so the glass is the light (×: the key, the ambient, our own sky) */
+  dark?: { key: number; amb: number; sky: number };
 }
 
 const STYLES: Record<string, Style> = {
@@ -40,6 +42,10 @@ const STYLES: Record<string, Style> = {
   // a cathedral of gold light in mist: warm, bright, reverent; the sky opening wide
   cathedral: { id: 'cathedral', after: 10, realm: 'design/realms/cathedral', realmMix: [0.42, 0.6, 1.3], realmFly: 0.018, realmTwist: 0.5,
     grade: { sat: 0.9, exp: 1.0, bloom: 1.15, drift: 0.3, cool: 0.4 }, sky: { reveal: 0.85, heave: 0.8, hue: 1.9, kinds: [3, 0, 2] }, glass: 0.96, light: [1.0, 0.72, 0.38], spill: 2.2, rays: 1.2 },
+  // night: a serpent of starlight in a black jungle; everything but the glass sinks into the dark after the stroke
+  nocturne: { id: 'nocturne', after: 12, realm: 'design/realms/nocturne', realmMix: [1.7, 1.5, 1.4], realmFly: 0.012, realmTwist: 0.25,
+    grade: { sat: 0.8, exp: 1.0, bloom: 1.2, drift: 0.2, cool: 1.2 }, sky: { reveal: 0.3, heave: 0.8, hue: -0.3, kinds: [4, 6, 5] }, glass: 0.98,
+    light: [0.6, 0.78, 1.0], spill: 1.8, rays: 1.1, dark: { key: 0.3, amb: 0.35, sky: 0.4 } },
   // first light over an endless sea of cloud inside the drum: lumen's pouring light, warm, ending in a whiteout
   dawn: { id: 'dawn', after: 11, realm: 'design/realms/dawn', realmMix: [1.0, 0.45, 1.2], realmFly: 0.012, realmTwist: 0.15,
     grade: { sat: 0.85, exp: 1.0, bloom: 1.3, drift: 0.2, cool: 0.3 }, sky: { reveal: 0.5, heave: 0.9, hue: 0.9, kinds: [3, 0, 4] }, glass: 0.97, light: [1.0, 0.8, 0.6], spill: 2.2, rays: 2.0, whiteout: 1 },

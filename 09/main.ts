@@ -208,14 +208,17 @@ sketch({ ...day(9), loop: LOOP, filmLoops: 1, warm: 1, hint: 'Sound on, for the 
     // the latest stroke of the pulse, for its front
     let lastPulse = -1;
     for (const k of pulses) if (t > k.t) lastPulse = k.t;
+    // (a style's world going dark as the glass opens)
+    const dk = smooth(big, big + 2.5, t), dkS = STYLE.dark;
+    const dkKey = dkS ? 1 + (dkS.key - 1) * dk : 1, dkAmb = dkS ? 1 + (dkS.amb - 1) * dk : 1, dkSky = dkS ? 1 + (dkS.sky - 1) * dk : 1;
     G.set({
       clock: [t, s, r, t / LOOP] as never,
-      key: [-0.55, 0.62, -0.5, 1.9] as never, keyCol: [0.8, 0.74, 1.0, 0.3] as never,
+      key: [-0.55, 0.62, -0.5, 1.9 * dkKey] as never, keyCol: [0.8, 0.74, 1.0, 0.3 * dkAmb] as never,
       // (the drum's own light, and from the great stroke the realm's spilling out through the glass in its own colour)
       drumLight: [-0.4, DRUM.c[1], DRUM.c[2], 1.2 + 0.45 * M.flash + STYLE.spill * trip] as never,
       drumCol: [...mixc([1.0, 0.55, 0.22], STYLE.light, smooth(big, big + 3, t)), M.flash] as never,
       rimCol: [...mixc([0.45, 0.3, 0.9], [0.32, 0.78, 0.82], reveal), 0.35 + 0.6 * rip + 0.15 * reveal] as never,
-      ambient: [...mixc([0.09, 0.06, 0.15], [0.07, 0.11, 0.16], 0.6 * reveal), 0.7 + 0.08 * reveal] as never,
+      ambient: [...mixc([0.09, 0.06, 0.15], [0.07, 0.11, 0.16], 0.6 * reveal).map((x) => x * dkAmb), (0.7 + 0.08 * reveal) * dkAmb] as never,
       drum: [...DRUM.c, DRUM.r] as never, hit: [...M.hit, M.press] as never,
       shock: [...M.hit, shockR] as never, shock2: [t > big ? Math.exp(-(t - big) * 0.15) * 0.7 * smooth(big + 0.5, big + 1.3, t) : 0, 0.04 + shockR * 0.04, deepK, t > big ? Math.exp(-(t - big) * 0.2) : 0] as never,
       cosmos: [1, 0.3 + 0.7 * rip, trip * STYLE.sky.heave, drift] as never,
@@ -229,7 +232,7 @@ sketch({ ...day(9), loop: LOOP, filmLoops: 1, warm: 1, hint: 'Sound on, for the 
     K.set({ worlds: [only >= 0 ? 1 : reveal, seams, t * 0.6, 1.0] as never, aux: [0.0003 * (1 + 0.5 * trip), only, domeAt(t), 0] as never,
       front: [only >= 0 ? -1 : big + 0.02, FRONT_NEAR, 30 + 50 * smooth(big + 2, ACT.shock, t), 1.0] as never,
       front2: [lastPulse < 0 ? -1 : lastPulse + 0.02, FRONT_NEAR, 70, 0.45 + 0.2 * pulses.findIndex((k) => k.t === lastPulse)] as never,
-      trip: [0.16, 0.9, trip, STYLE.sky.hue] as never, kinds: [STYLE.sky.kinds[0] ?? 0, STYLE.sky.kinds[1] ?? 0, STYLE.sky.kinds[2] ?? 0, STYLE.sky.kinds.length] as never });
+      trip: [0.16, 0.9, trip, STYLE.sky.hue] as never, kinds: [STYLE.sky.kinds[0] ?? 0, STYLE.sky.kinds[1] ?? 0, STYLE.sky.kinds[2] ?? 0, STYLE.sky.kinds.length] as never, look: [dkSky, 0, 0, 0] as never });
     // the motes: the sparks' own clock (the membrane's pace: they spray slowly through the dilation, then fly)
     let burstAge = 0;
     if (t > big) { const n = 40; for (let k = 0; k < n; k++) { const tk = big + (t - big) * (k + 0.5) / n; burstAge += membranePace(rate(tk)) * 14 * (t - big) / n; } }

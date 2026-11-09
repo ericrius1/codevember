@@ -61,6 +61,7 @@ export interface CosmosU {
   front2: Vec4;
   trip: Vec4;
   kinds: Vec4;
+  look: Vec4;
 }
 export interface Facet {
   i: number;

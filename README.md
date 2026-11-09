@@ -58,6 +58,16 @@ image generation, handed the concepts and a frame of the film); `refs.mjs realm,
 realm's three layers (a deep scene, two of glowing things on black), saved as 09/assets/realm-*.webp and parallaxed
 inside the drum by 09/inner.wgsl.
 
+09 has styles (09/style.ts): other tellings of the same act for films side by side on the footage page — each its own
+length after the great stroke, realm (painted by `refs.mjs <style>_far,<style>_mid,<style>_near`, kept in
+09/design/realms/<style>/, loaded only on the dev server), grade, sky, light. A style's film:
+
+```bash
+STYLE=lumen node --experimental-strip-types 09/audio/render.ts     # film/09-lumen.wav (the live m4a untouched)
+node tools/render.mjs 09 --tag -lumen --q style=lumen               # film/09-lumen.mp4
+node ~/codeprojects/footage/publish.mjs film/09-lumen.mp4 --id 09-lumen --title "09 / Membrane: Lumen" …
+```
+
 ## The films
 
 `tools/render.mjs` starts a dev server of its own (no reloads, so editing while it films can't break it) and opens the
