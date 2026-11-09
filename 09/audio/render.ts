@@ -188,7 +188,9 @@ const drives: Drive[] = [];
   for (let i = 0; i < ring.length; i++) ring[i] *= 400 * Math.min(1, i / (0.8 * uSR));
   drives.push({ at: [0.05, -0.08], rad: 0.06, signal: ring });
   // the ripples the picture shows crossing it (main.ts's waves): each a swell of the strike an octave down
-  const WAVES: [number, number, number, number][] = [[1, 0.02, 0, ACT.cosmos - 0.6], [0.95, 0.25, 0.1, ACT.cosmos + 0.9], [0.9, -0.3, -0.2, ACT.cosmos + 2.6]];
+  // (the picture's ripple events, main.ts's G.waves: the first two now start where the shock's front first meets the
+  // wall, at 12.55 and 13.5)
+  const WAVES: [number, number, number, number][] = [[1, 0.02, 0, ACT.cosmos + 0.15], [0.95, 0.25, 0.1, ACT.cosmos + 1.1], [0.9, -0.3, -0.2, ACT.cosmos + 2.6]];
   const blow = dec(varispeed(fadeOut(bigMono.slice(0, Math.round(1.1 * SR)), 0.6), 0.5));
   for (const [a, x, y, t] of WAVES) {
     const lead = Math.round((t - U0 - 0.25) * uSR), sig = new Float32Array(lead + blow.length);

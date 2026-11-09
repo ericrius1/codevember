@@ -88,6 +88,7 @@ export interface BeadOut {
   n: Vec3;
   kind: number;
   seed: number;
+  local: Vec3;
 }
 
 declare const shader: Shader<{ Frame: Frame; Globals: Globals; StageLight: StageLight; RegU: RegU; Card: Card; SkinDQ: SkinDQ; CardOut: CardOut; TubeOut: TubeOut; BeadOut: BeadOut }, 'frame' | 'G' | 'R' | 'DQ' | 'cards' | 'pts' | 'segs' | 'beads' | 'samp_linear' | 'samp_repeat' | 'samp_nearest' | 'samp_shadow'>;

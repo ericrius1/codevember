@@ -22,7 +22,12 @@ struct PostU {
 override HDR: bool = false;
 override P3: bool = false;
 
-fn tap(uv: vec2f) -> vec3f { return textureSampleLevel(src, samp_linear, uv, 0.0).rgb; }
+// (a pixel gone infinite or NaN somewhere in the scene — a degenerate normal, a specular singularity — must never
+// reach the bloom, where one bad pixel becomes a white disc for a frame: such values are dropped, the rest held under
+// a ceiling far above anything lit)
+fn sane1(x: f32) -> f32 { return select(clamp(x, 0.0, 256.0), 0.0, (bitcast<u32>(x) & 0x7f800000u) == 0x7f800000u); }
+fn sane(c: vec3f) -> vec3f { return vec3f(sane1(c.r), sane1(c.g), sane1(c.b)); }
+fn tap(uv: vec2f) -> vec3f { return sane(textureSampleLevel(src, samp_linear, uv, 0.0).rgb); }
 
 @fragment fn fs_down(i: FullscreenOut) -> @location(0) vec4f {
   let ts = 1.0 / vec2f(textureDimensions(src));
@@ -52,7 +57,7 @@ fn tap(uv: vec2f) -> vec3f { return textureSampleLevel(src, samp_linear, uv, 0.0
   return vec4f(s / 16.0 * 0.85, 1.0);
 }
 
-fn hdrAt(uv: vec2f) -> vec3f { return textureSampleLevel(src, samp_linear, uv, 0.0).rgb; }
+fn hdrAt(uv: vec2f) -> vec3f { return sane(textureSampleLevel(src, samp_linear, uv, 0.0).rgb); }
 
 @fragment fn fs_final(i: FullscreenOut) -> @location(0) vec4f {
   var uv = i.uv;
@@ -66,13 +71,19 @@ fn hdrAt(uv: vec2f) -> vec3f { return textureSampleLevel(src, samp_linear, uv, 0
   uv += normalize(dv + vec2f(1e-5)) / vec2f(asp, 1.0) * bend;
   // dilation's smear toward the middle and the colour's fringe
   let toC = uv - 0.5;
-  let fr = P.look2.x * (0.002 + 0.01 * dot(toC, toC));
+  // (both nothing at the middle, where the eye is — the struck hide stays sharp — and growing toward the edges)
+  let r2 = dot(toC, toC);
+  let fr = P.look2.x * 0.012 * r2;
   var c = vec3f(hdrAt(uv - toC * fr).r, hdrAt(uv).g, hdrAt(uv + toC * fr).b);
   if (P.look2.y > 0.001) {
+    // (a zoom blur: 16 taps, each pixel's start jittered so its steps never show as ghost copies)
     var acc = c; var wsum = 1.0;
-    for (var k = 1; k < 8; k++) {
-      let w = 1.0 - f32(k) / 8.0;
-      acc += hdrAt(uv - toC * P.look2.y * f32(k) / 8.0) * w; wsum += w;
+    let j = hash12(i.pos.xy);
+    let amt = P.look2.y * smoothstep(0.0, 0.25, r2);
+    for (var k = 1; k < 16; k++) {
+      let f = (f32(k) - j) / 16.0;
+      let w = 1.0 - f;
+      acc += hdrAt(uv - toC * amt * f) * w; wsum += w;
     }
     c = acc / wsum;
   }
@@ -89,7 +100,8 @@ fn hdrAt(uv: vec2f) -> vec3f { return textureSampleLevel(src, samp_linear, uv, 0
   // vignette, grain
   let v = 1.0 - P.look2.z * dot(toC, toC) * 1.6;
   m *= v;
+  // (the grain: brightness only, finer in the dark than in the light — the dark sky doesn't boil)
   let g = (hash12(i.pos.xy + fract(G.clock.x * 13.7) * 100.0) - 0.5) * P.look.w;
-  m += g;
+  m += g * (0.2 + 0.8 * sqrt(max(luma(m), 0.0)));
   return vec4f(canvasEncode(max(m, vec3f(0.0)), P3), 1.0);
 }

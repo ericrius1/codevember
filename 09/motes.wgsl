@@ -28,13 +28,15 @@ struct MoteOut {
     // a spark: out of the hide in a cone round its normal (-x), falling a little, fading
     let age = MU.t.z;
     if (MU.t.w <= 0.0 || age <= 0.0) { o.pos = vec4f(0.0, 0.0, -2.0, 1.0); return o; }
-    let a = h.x * TAU; let c = mix(0.25, 1.0, h.y);
+    // (skimming out along the hide's face, a ring of embers riding away from the struck point — not into the lens: the
+    // hide's own ripples are what the close-up is for)
+    let a = h.x * TAU; let c = mix(0.04, 0.32, h.y * h.y);
     let dir = normalize(vec3f(-c, sqrt(1.0 - c * c) * sin(a), sqrt(1.0 - c * c) * cos(a)));
-    let v = mix(0.6, 3.5, h.z * h.z);
-    p = MU.burst.xyz + dir * v * age + vec3f(0.0, -0.3 * age * age, 0.0);
-    let life = 1.0 - smoothstep(0.4 + h2.x * 1.6, 2.6, age);
-    size = mix(0.003, 0.009, h2.y) * life;
-    col = mix(vec3f(1.0, 0.65, 0.2), vec3f(0.3, 1.0, 0.9), step(0.6, h2.z)) * 1.1 * life * MU.t.w;
+    let v = mix(0.5, 2.2, h.z * h.z);
+    p = MU.burst.xyz + dir * v * age + vec3f(0.0, -0.25 * age * age, 0.0);
+    let life = 1.0 - smoothstep(0.3 + h2.x * 1.4, 2.4, age);
+    size = mix(0.0015, 0.0045, h2.y) * life;
+    col = mix(vec3f(1.0, 0.62, 0.22), vec3f(0.3, 1.0, 0.9), step(0.6, h2.z)) * 0.55 * life * MU.t.w;
   } else {
     // a mote: round the dais, drifting on loops of the loop's own story length
     let r = mix(0.4, 5.5, sqrt(h.x));
@@ -52,7 +54,9 @@ struct MoteOut {
   }
   // (nothing right at the lens: what drifts too close fades and shrinks away)
   let dc = length(p - frame.camPos);
-  let near = smoothstep(0.25, 0.9, dc);
+  // (and nothing big and soft in front of everything: a mote fades over the last two and a half metres, a spark —
+  // seen up close at the hide — over the last half metre)
+  let near = select(smoothstep(0.4, 2.6, dc), smoothstep(0.12, 0.55, dc), ii < SPARKS);
   col *= near; size *= near;
   // a camera-facing quad
   let corner = array<vec2f, 6>(vec2f(-1.0, -1.0), vec2f(1.0, -1.0), vec2f(-1.0, 1.0), vec2f(1.0, -1.0), vec2f(1.0, 1.0), vec2f(-1.0, 1.0))[vi];

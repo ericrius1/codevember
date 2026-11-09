@@ -35,8 +35,10 @@ export const BIG = STROKES.find((s) => s.big)!;
 const smooth = (a: number, b: number, x: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 /** the slowest the world runs (at the stroke) */
 export const SLOWEST = 0.01;
-/** when the dilation sets in, bottoms out, starts to lift, and is gone (film seconds) */
-export const DILATE = { from: 7.9, deep: 9.35, lift: 11.6, gone: 20.5 };
+/** when the dilation sets in, bottoms out, starts to lift, and is gone (film seconds). It snaps in late — a speed
+ *  ramp: the downswing whips through at the world's own speed and time falls away under it in the last few tenths of
+ *  a second before contact, so the beater is still visibly travelling as it meets the hide — and lifts slowly */
+export const DILATE = { from: 8.95, deep: 9.62, lift: 11.6, gone: 20.5 };
 
 /** the world's rate against film time: 1 normally, SLOWEST at the deepest. Falls and rises log-smoothly, so the
  *  slowing reads as an exponential settling, not a ramp */
@@ -81,7 +83,8 @@ export const ACT = {
   shock: 10.9,
   /** the great membrane answers */
   cosmos: 12.4,
-  /** the foam of universes: the camera out past our membrane */
+  /** the worlds beyond: the membrane opened widest on them
+   *  (the name's from when the camera flew out to the foam of universes; it stays in the realm now) */
   foam: 15.0,
   /** the way back in */
   home: 18.6,

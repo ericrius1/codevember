@@ -1,7 +1,8 @@
 // Her regalia, laid on at run time: cards anchored to points of her mesh and skinned by the same bones (the mantle of
-// beetle-wing scales and leaves over her shoulders, the skirt's tiers of scales, glowing flowers), and strands
-// simulated on the CPU (regalia.ts) and drawn here as tubes (her rope locks, the headdress's fibre-optic filaments,
-// the seed pods' cords, the sash's tails) with beads, pods and the filaments' glowing tips.
+// beetle-wing scales and leaves over her shoulders, the skirt's tiers of scales, glowing flowers, the crown of leaves),
+// and strands simulated on the CPU (hair.ts) and drawn here as tubes (her rope locks, the bead strings from her
+// diadem, the seed pods' cords, the sash's tails) with what's threaded on them: glass and gold beads, gold coils and
+// carved bone pins on the locks, filigree pods lit from inside, seed pods.
 #include "./common"
 
 struct RegU {
@@ -16,13 +17,13 @@ struct Card {
   pos: vec4f,     // bind-space anchor (xyz), w the card's length
   nrm: vec4f,     // bind-space normal (xyz), w its half width
   skin: vec4u,    // x the bones (4 × u8), y the weights (4 × unorm8), z its kind, w a seed
-  shape: vec4f,   // x how far it stands off the surface (rad), y its offset out (m), z its hue, w the way it hangs (0 down the surface .. 1 flat on it, out)
+  shape: vec4f,   // x how far it stands off the surface (rad), y its offset out (m), z its hue, w its lean about its normal (rad)
 }
 @group(2) @binding(2) var<storage, read> cards: array<Card>;
 // the strands: points (xyz, w radius), segments (a, b, kind, t along its chain × 65535)
 @group(2) @binding(3) var<storage, read> pts: array<vec4f>;
 @group(2) @binding(4) var<storage, read> segs: array<vec4u>;
-// the beads: point index, kind (0 glass, 1 gold, 2 pod, 3 a filament's tip), its radius (× 10000), a seed
+// the beads: point index, kind (0 glass, 1 gold, 2 seed pod, 3 filigree pod, 4 bone pin, 5 gold coil), its radius (× 10000), a seed
 @group(2) @binding(5) var<storage, read> beads: array<vec4u>;
 #include "weft/skin"
 
@@ -46,7 +47,9 @@ const ROWS = 7u;
   let n = normalize(dqDir(q, c.nrm.xyz));
   // the card's frame on the surface: down the surface (a scale hangs) or flat, facing out (a flower)
   let downB = normalize(vec3f(0.0, -1.0, 0.0) - c.nrm.xyz * dot(vec3f(0.0, -1.0, 0.0), c.nrm.xyz) + vec3f(0.0, -1e-4, 0.0));
-  let down = normalize(dqDir(q, downB));
+  var down = normalize(dqDir(q, downB));
+  // (leaned about its normal by shape.w: a crown's leaves swept back round the head)
+  down = normalize(down * cos(c.shape.w) + cross(n, down) * sin(c.shape.w));
   let side = normalize(cross(n, down));
   // which corner: quads (COLS-1) × (ROWS-1), six vertices each
   let quad = vi / 6u; let k = vi % 6u;
@@ -102,10 +105,10 @@ const ROWS = 7u;
     let ribs = 0.5 + 0.5 * sin((uv.y * 30.0 + abs(uv.x) * 8.0));
     let thick = 400.0 + in.hue * 110.0 + uv.y * 60.0 + ribs * 20.0;
     let film = thinFilm(nv, thick) * vec3f(0.85, 0.9, 1.0);
-    let base = vec3f(0.025, 0.03, 0.03) + film * 0.16;
+    let base = vec3f(0.02, 0.026, 0.024) + film * film * 0.07;
     let spec = ggx(N, V, L.keyL, 0.25) * L.key + ggx(N, V, L.drumL, 0.25) * L.drum;
-    col = base * (L.key * sat(dot(N, L.keyL)) + L.drum * sat(dot(N, L.drumL)) + L.amb * 1.5) + film * spec * 1.6;
-    col += film * L.rim * pow(1.0 - nv, 2.0) * 1.5;
+    col = base * (L.key * sat(dot(N, L.keyL)) + L.drum * sat(dot(N, L.drumL)) + L.amb * 1.5) + film * spec * 1.2;
+    col += film * film * L.rim * pow(1.0 - nv, 2.5) * 1.1;
     col = mix(col, vec3f(0.5, 0.35, 0.1) * (L.key + L.drum) * 0.4, rib * 0.5);
     // the edge's gold thread
     col += vec3f(1.0, 0.6, 0.15) * (1.0 - smoothstep(0.0, 0.08, 1.0 - abs(uv.x) - (1.0 - uv.y) * 0.1)) * 0.05 * (1.0 + 3.0 * R.look.z);
@@ -125,11 +128,15 @@ const ROWS = 7u;
     if (r > petal) { discard; }
     let heart = 1.0 - smoothstep(0.12, 0.2, r);
     let pc = mix(vec3f(0.55, 0.9, 1.0), vec3f(0.9, 0.95, 1.0), r);
-    col = mix(pc * (0.5 + 1.2 * (1.0 + 2.0 * R.look.z)) * (1.0 - r * 0.5), vec3f(3.0, 1.8, 0.4), heart);
+    col = mix(pc * (0.12 + 0.35 * R.look.z) * (1.0 - r * 0.5) + pc * L.key * 0.15, vec3f(1.2, 0.75, 0.2) * (0.6 + R.look.z), heart);
     col += pc * L.key * 0.2;
   } else {
-    // gold
-    col = vec3f(0.55, 0.36, 0.1) * (L.key * sat(dot(N, L.keyL)) + L.amb) + vec3f(1.0, 0.75, 0.4) * ggx(N, V, L.keyL, 0.2) * L.key * 3.0;
+    // a beaten gold leaf: its midrib and veins pressed in, a broad sheen (never a glitter), the drum's light in it
+    let vein = 1.0 - smoothstep(0.0, 0.07, abs(uv.x)) + 0.5 * (1.0 - smoothstep(0.0, 0.05, abs(fract(uv.y * 5.0 - abs(uv.x) * 1.4) - 0.5)));
+    let gb = vec3f(0.55, 0.35, 0.09) * (1.0 - 0.35 * sat(vein));
+    let F = mix(gb, vec3f(0.95, 0.72, 0.35), pow(1.0 - nv, 5.0));
+    col = gb * 0.3 * (L.key * sat(dot(N, L.keyL)) + L.drum * sat(dot(N, L.drumL)) + L.amb)
+      + F * (ggx(N, V, L.keyL, 0.36) * L.key + ggx(N, V, L.drumL, 0.36) * L.drum) * 1.6 + F * (L.rim * 0.25 + L.amb * 0.3);
   }
   col += vec3f(0.35, 0.85, 0.8) * shockAt(in.wpos) * 0.3;
   return vec4f(col, 1.0);
@@ -194,11 +201,9 @@ const SIDES = 8u;
     let sh = pow(sqrt(max(0.0, 1.0 - dot(T, H) * dot(T, H))), 60.0);
     col = base * (L.key * sat(dot(N, L.keyL) + 0.3) + L.drum * sat(dot(N, L.drumL) + 0.3) + L.amb) + vec3f(0.25, 0.3, 0.5) * sh * L.key * 0.12;
     col += L.rim * pow(1.0 - abs(dot(N, V)), 3.0) * 0.4;
-  } else if (in.kind == 1u || in.kind == 4u) {
-    // a fibre-optic filament (cyan, or gold): dark at its root, its light running out toward its tip
-    let g = pow(in.t.x, 3.0);
-    let hue = select(vec3f(0.15, 1.0, 0.9), vec3f(1.0, 0.7, 0.2), in.kind == 4u);
-    col = vec3f(0.02, 0.03, 0.04) + hue * g * (0.6 + 1.5 * R.look.z + 0.6 * R.look.w);
+  } else if (in.kind == 1u) {
+    // a bead string's thread: fine gold
+    col = vec3f(0.5, 0.32, 0.09) * (L.key * sat(dot(N, L.keyL) + 0.3) + L.amb) + vec3f(1.0, 0.75, 0.4) * ggx(N, V, L.keyL, 0.3) * L.key;
   } else if (in.kind == 2u) {
     // a cord
     let base = vec3f(0.3, 0.2, 0.1) * (0.7 + 0.3 * sin(in.t.x * 400.0 + in.t.y * 2.0));
@@ -213,54 +218,101 @@ const SIDES = 8u;
   return vec4f(col, 1.0);
 }
 
-// ---------------------------------------------------------------- beads, pods, the filaments' tips
+// ---------------------------------------------------------------- what's threaded on the strands
 struct BeadOut {
   @builtin(position) pos: vec4f,
   @location(0) wpos: vec3f,
   @location(1) n: vec3f,
   @location(2) @interpolate(flat) kind: u32,
   @location(3) @interpolate(flat) seed: f32,
+  // the unit sphere's point it was made from (x, y along its strand, z), for its carving
+  @location(4) local: vec3f,
 };
 @vertex fn vsBead(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> BeadOut {
   var o: BeadOut;
   let b = beads[ii];
   let P = pts[b.x];
   let r = f32(b.z) / 10000.0;
-  // a sphere: 8 round × 6 down, six vertices a quad
+  let kind = b.y;
+  // its frame: along its strand (toward the tip), and two across
+  var T = vec3f(0.0, -1.0, 0.0);
+  if (kind >= 3u) {
+    let nb = select(pts[b.x + 1u].xyz, P.xyz, kind == 3u);
+    T = normalize(nb - pts[b.x - 1u].xyz + vec3f(0.0, -1e-6, 0.0));
+  }
+  let X = normalize(cross(T, select(vec3f(0.0, 0.0, 1.0), vec3f(1.0, 0.0, 0.0), abs(T.z) > 0.9)));
+  let Y = cross(X, T);
+  // a sphere: 8 round × 6 down, six vertices a quad (along its strand: its own y)
   let quad = vi / 6u; let k = vi % 6u;
   let corner = array<vec2u, 6>(vec2u(0u, 0u), vec2u(1u, 0u), vec2u(0u, 1u), vec2u(1u, 0u), vec2u(1u, 1u), vec2u(0u, 1u))[k];
   let lon = f32((quad % 8u) + corner.x) / 8.0 * TAU;
   let lat = (f32((quad / 8u) + corner.y) / 6.0 - 0.5) * PI;
-  var n = vec3f(cos(lat) * cos(lon), sin(lat), cos(lat) * sin(lon));
-  var sc = vec3f(1.0);
-  if (b.y == 2u) { sc = vec3f(1.0, 1.5, 1.0); }
-  o.wpos = P.xyz + n * sc * r;
+  let n = vec3f(cos(lat) * cos(lon), sin(lat), cos(lat) * sin(lon));
+  // its shape: across, along, across; and how far down its strand it hangs
+  var sc = vec3f(1.0); var drop = 0.0;
+  if (kind == 2u) { sc = vec3f(1.0, 1.5, 1.0); }
+  if (kind == 3u) { sc = vec3f(1.0, 1.45, 1.0); drop = 1.0; }
+  if (kind == 4u) { sc = vec3f(0.55, 3.4, 0.55); }
+  if (kind == 5u) { sc = vec3f(1.0, 0.5, 1.0); }
+  // (a pod's point, a filigree pod's tip: the far end drawn out)
+  var shape = n;
+  if (kind == 2u || kind == 3u) { shape = vec3f(n.x * (1.0 - 0.35 * max(-n.y, 0.0)), n.y, n.z * (1.0 - 0.35 * max(-n.y, 0.0))); }
+  let lp = shape * sc * r;
+  let nl = normalize(n / sc);
+  if (kind < 3u) {
+    // (round beads and seed pods: upright)
+    o.wpos = P.xyz + lp;
+    o.n = nl;
+  } else {
+    // (along its strand: its y down the strand toward the tip; a filigree pod hangs from its point)
+    o.wpos = P.xyz + X * lp.x + T * (lp.y + drop * r * sc.y) + Y * lp.z;
+    o.n = normalize(X * nl.x + T * nl.y + Y * nl.z);
+  }
   o.pos = frame.viewProj * vec4f(o.wpos, 1.0);
-  o.n = normalize(n / sc);
-  o.kind = b.y;
+  o.kind = kind;
   o.seed = f32(b.w) / 65535.0;
+  o.local = n;
   return o;
 }
 @fragment fn fsBead(in: BeadOut) -> @location(0) vec4f {
   let N = normalize(in.n);
   let V = normalize(frame.camPos - in.wpos);
   let L = stageLight(in.wpos, N);
+  let nv = max(dot(N, V), 0.0);
   var col = vec3f(0.0);
-  let spec = ggx(N, V, L.keyL, 0.15) * L.key + ggx(N, V, L.drumL, 0.15) * L.drum;
+  // (rough enough that a glint spreads over a bead rather than winking on and off in a frame)
+  let spec = ggx(N, V, L.keyL, 0.32) * L.key + ggx(N, V, L.drumL, 0.32) * L.drum;
+  let goldC = vec3f(0.6, 0.38, 0.1) * (L.key * sat(dot(N, L.keyL)) + L.drum * sat(dot(N, L.drumL)) * 0.6 + L.amb) + vec3f(1.0, 0.75, 0.4) * spec * 2.2
+    + vec3f(1.0, 0.8, 0.5) * L.rim * pow(1.0 - nv, 2.0) * 0.4;
   if (in.kind == 0u) {
     // glass: teal or amber, lit through
     let g = mix(vec3f(0.1, 0.7, 0.65), vec3f(0.9, 0.5, 0.1), step(0.5, in.seed));
-    col = g * (0.15 + 0.3 * R.look.z) + g * L.drum * 0.2 + vec3f(1.0) * spec * 1.5;
+    col = g * (0.12 + 0.3 * R.look.z) * (0.5 + nv) + g * L.drum * 0.2 + vec3f(1.0) * spec * 1.5 + g * L.rim * pow(1.0 - nv, 2.0);
   } else if (in.kind == 1u) {
-    col = vec3f(0.6, 0.38, 0.1) * (L.key * sat(dot(N, L.keyL)) + L.amb) + vec3f(1.0, 0.75, 0.4) * spec * 3.0;
+    col = goldC;
   } else if (in.kind == 2u) {
     // a seed pod: dark husk, a glow from its holes
     let hole = step(0.8, hash13(floor(in.wpos * 300.0)));
     col = vec3f(0.12, 0.06, 0.025) * (L.key * sat(dot(N, L.keyL)) + L.drum * sat(dot(N, L.drumL)) + L.amb) + vec3f(1.0, 0.6, 0.2) * hole * (0.3 + 1.5 * R.look.z) + spec * 0.4;
+  } else if (in.kind == 3u) {
+    // a filigree pod: a cage of gold wire, an ember inside it
+    let a = atan2(in.local.z, in.local.x);
+    let ribs = abs(fract(a / TAU * 8.0 + in.local.y * 0.6) - 0.5);
+    let rings = abs(fract(in.local.y * 2.5) - 0.5);
+    let wire = 1.0 - smoothstep(0.06, 0.12, min(ribs, rings));
+    let ember = vec3f(1.0, 0.55, 0.15) * (0.8 + 2.5 * R.look.z) * (0.5 + 0.5 * nv);
+    col = mix(ember, goldC, wire);
+  } else if (in.kind == 4u) {
+    // a carved bone pin: ivory, rings cut round it, a gold cap at its head
+    let y = in.local.y;
+    let ring = 1.0 - smoothstep(0.05, 0.15, abs(fract(y * 3.0) - 0.5));
+    let ivory = vec3f(0.62, 0.55, 0.42) * (1.0 - 0.45 * ring);
+    col = ivory * (L.key * sat(dot(N, L.keyL) * 0.8 + 0.2) + L.drum * sat(dot(N, L.drumL)) + L.amb * 1.2) + vec3f(0.6) * ggx(N, V, L.keyL, 0.4) * L.key;
+    col = mix(col, goldC, step(0.82, -y));
   } else {
-    // a filament's tip: a point of light
-    let g = mix(vec3f(0.2, 1.0, 0.9), vec3f(1.0, 0.7, 0.25), step(0.5, in.seed));
-    col = g * (2.5 + 5.0 * R.look.z + 2.0 * R.look.w);
+    // a gold coil wound round the lock
+    let ridge = 0.6 + 0.4 * sin(in.local.y * 22.0);
+    col = goldC * ridge;
   }
   col += vec3f(0.35, 0.85, 0.8) * shockAt(in.wpos) * 0.3;
   return vec4f(col, 1.0);

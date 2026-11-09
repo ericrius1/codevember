@@ -15,12 +15,20 @@ struct DrumU {
   sim: vec4f,
   // x the damping σ0·dt, y the frequency-dependent damping (σ1·dt/h²), z substeps this frame, w the visual gain
   sim2: vec4f,
-  // the hide's frame: xyz its centre, w unused
+  // the hide's frame: xyz its centre, w how far the whole drum's rocked back on its stand by the strokes (rad, about z)
   center: vec4f,
   // x the rim texture's repeats round the shell, y the hide's glow, z the time (s), w the inner light's flicker
   look: vec4f,
 }
 @group(2) @binding(0) var<uniform> D: DrumU;
+// the drum rocked on its stand by a stroke: turned about the stand's foot (z through it)
+const ROCK_PIVOT = vec3f(0.18, 0.12, 0.0);
+fn rock(p: vec3f) -> vec3f {
+  let a = D.center.w; let c = cos(a); let s = sin(a);
+  let q = p - ROCK_PIVOT;
+  return ROCK_PIVOT + vec3f(q.x * c - q.y * s, q.x * s + q.y * c, q.z);
+}
+fn rockDir(n: vec3f) -> vec3f { let a = D.center.w; let c = cos(a); let s = sin(a); return vec3f(n.x * c - n.y * s, n.x * s + n.y * c, n.z); }
 // ---------------------------------------------------------------- the hide, drawn
 struct HideOut {
   @builtin(position) pos: vec4f,
@@ -62,12 +70,12 @@ fn simAt(uv: vec2f) -> f32 {
   let lapv = simAt(uv + vec2f(e, 0.0)) + simAt(uv - vec2f(e, 0.0)) + simAt(uv + vec2f(0.0, e)) + simAt(uv - vec2f(0.0, e)) - 4.0 * simAt(uv);
   // the hide's frame: its normal toward the player (-x), a across (+z), b up (+y); displaced into the drum by h
   let C = D.center.xyz;
-  let wp = C + vec3f(h, lp.y, lp.x);
+  let wp = rock(C + vec3f(h, lp.y, lp.x));
   o.wpos = wp;
   o.pos = frame.viewProj * vec4f(wp, 1.0);
   o.uv = uv;
   // (the surface x = h(z, y): its normal toward -x)
-  o.n = normalize(vec3f(-1.0, hy, hx));
+  o.n = rockDir(normalize(vec3f(-1.0, hy, hx)));
   o.disp = h;
   o.curv = lapv * g / (D.sim.y * D.sim.y);
   return o;
@@ -82,6 +90,11 @@ fn simAt(uv: vec2f) -> f32 {
   let tuv = (in.uv - 0.5) * 0.985 + 0.5;
   var alb = textureSample(hideTex, samp_linear, vec2f(tuv.x, 1.0 - tuv.y)).rgb;
   alb = pow(alb, vec3f(2.2));
+  // (a hide, not a decal: paler and creamier at its middle where it's stretched thinnest, deepening to a dark amber
+  // toward the rim where it's thick and laps the shell)
+  let rr = length(in.uv - 0.5) * 2.0;
+  alb = mix(alb, vec3f(luma(alb)) * vec3f(1.15, 1.0, 0.78), 0.28 * (1.0 - rr * rr));
+  alb *= mix(1.08, 0.52, smoothstep(0.35, 1.0, rr));
   // (its painted lines: turquoise and gold against the amber — they glow)
   let sat_ = max(alb.r, max(alb.g, alb.b)) - min(alb.r, min(alb.g, alb.b));
   let teal = sat(alb.g + alb.b * 0.6 - alb.r * 1.2) * 2.5;
@@ -90,22 +103,30 @@ fn simAt(uv: vec2f) -> f32 {
   // light through the hide from inside the drum: warm, brighter where it's stretched thin (the ripples' crests and
   // troughs), the veins darker in it
   let stretch = 1.0 - exp(-abs(in.curv) * 0.004);
-  let thru = D.look.y * (0.3 + 0.25 * D.look.w) * (1.0 + 0.6 * stretch + 0.35 * G.drumCol.w);
+  let thru = D.look.y * (0.3 + 0.25 * D.look.w) * (1.0 + 0.6 * stretch + 0.15 * G.drumCol.w);
   let r = length(in.uv - 0.5) * 2.0;
   let backlit = vec3f(1.0, 0.48, 0.16) * alb * thru * (1.0 - 0.35 * r * r);
   var col: vec3f;
   if (front) {
     let diff = sat(dot(N, L.keyL)) * L.key + sat(dot(N, L.drumL)) * L.drum * 0.2 + L.amb;
-    col = alb * diff * 0.45 + backlit;
-    col += vec3f(1.0) * ggx(N, V, L.keyL, 0.45) * L.key * 0.25;
-    col += L.rim * pow(1.0 - sat(dot(N, V)), 4.0) * 0.4;
+    // (its relief: the ripples' slopes shaded as a raking light from above and her side would — the rings read as rings
+    // however bright the light through it is)
+    let tilt = N - vec3f(-1.0, 0.0, 0.0);
+    let rake = dot(tilt, normalize(vec3f(0.0, 0.75, 0.65)));
+    let relief = clamp(1.0 + 3.2 * rake, 0.35, 1.9);
+    col = (alb * diff * 0.45 + backlit) * relief;
+    // the crests catch the lights: sharp glints, and the sky's shimmer slid across them (a taut, oiled skin)
+    col += vec3f(1.0, 0.9, 0.75) * (ggx(N, V, L.keyL, 0.16) * L.key * 0.35 + ggx(N, V, L.drumL, 0.2) * L.drum * 0.25);
+    let fs = fresnel(0.035, sat(dot(N, V)));
+    let R = reflect(-V, N);
+    col += fs * (L.rim * (0.8 + 1.4 * sat(R.y)) + L.amb * 0.6) * (0.6 + 2.0 * length(tilt.yz));
     // the painted lines glow, more as the hide's struck and as it's stretched
-    col += mix(vec3f(0.2, 1.0, 0.85), vec3f(1.0, 0.7, 0.2), gold / max(paint, 1e-3)) * paint * (0.22 + 0.7 * stretch + 0.4 * G.drumCol.w) * D.look.y;
+    col += mix(vec3f(0.2, 1.0, 0.85), vec3f(1.0, 0.7, 0.2), gold / max(paint, 1e-3)) * paint * (0.2 + 0.6 * stretch + 0.18 * G.drumCol.w) * D.look.y * relief;
   } else {
     col = backlit * 0.6 + alb * L.amb * 0.3;
   }
   // (the ripples catch the light: a sheen along their slopes)
-  col += vec3f(1.0, 0.8, 0.5) * stretch * 0.3 * D.look.y;
+  col += vec3f(1.0, 0.8, 0.5) * stretch * 0.18 * D.look.y;
   col += vec3f(0.35, 0.85, 0.8) * shockAt(in.wpos) * 0.3;
   return vec4f(col, 1.0);
 }
@@ -130,9 +151,12 @@ struct BodyOut {
     let top = v.v;
     p.x += a * (top - p.y);
   }
+  // (the drum and its stand rock with the strokes; the dais and the rock under it don't)
+  let rocks = m != 5u && m != 7u;
+  if (rocks) { p = rock(p); }
   o.wpos = p;
   o.pos = frame.viewProj * vec4f(p, 1.0);
-  o.n = meshNormal(v);
+  o.n = select(meshNormal(v), rockDir(meshNormal(v)), rocks);
   o.uv = meshUV(v);
   o.col = meshColor(v);
   o.mat = m;
@@ -162,11 +186,15 @@ fn woodGrain(p: vec3f, s: f32) -> f32 { return 0.5 + 0.5 * sin(p.y * s + fbm(p *
   let m = in.mat;
   // (sampled out here: only uniform control flow may take derivatives)
   let rimC = textureSample(rimTex, samp_repeat, vec2f(in.uv.x * D.look.x, 1.0 - in.uv.y)).rgb;
+  // (the footprints of a pixel in uv and in the world, for fading fine carving out before it shimmers)
+  let fwu = fwidth(in.uv.y); let fwp = length(fwidth(P));
   if (m == 0u) {
     // the shell: the carved band (its texture round it), polished
     let t = rimC;
     base = pow(t, vec3f(2.2));
     let inlay = sat((base.b - base.r * 0.6) * 4.0);
+    // (the wood itself old and dark, its red taken down toward a deep brown: carved hardwood, not lacquer)
+    base = mix(base, vec3f(luma(base)) * vec3f(1.0, 0.72, 0.55), (1.0 - inlay) * 0.55) * mix(0.7, 1.0, inlay);
     let goldL = sat((base.r + base.g) * 0.5 - 0.4) * sat(1.0 - base.b * 3.0) * 3.0;
     rough = mix(0.32, 0.18, inlay); spec = mix(0.05, 0.12, inlay);
     // abalone inlays: thin film
@@ -215,10 +243,14 @@ fn woodGrain(p: vec3f, s: f32) -> f32 { return 0.5 + 0.5 * sin(p.y * s + fbm(p *
     rough = 0.6;
   } else if (m == 8u) {
     // the beater's shaft: dark carved wood, a spiral groove with a thread of gold in it
+    // (each faded to its mean as it nears a pixel's size: the spiral and the grain never moiré)
     let g = fract(in.uv.y * 30.0 + in.uv.x);
-    base = in.col.rgb * (0.7 + 0.4 * woodGrain(P * 20.0, 60.0));
+    let gw = max(0.06, fwu * 30.0 * 1.2);
+    let gk = 0.06 / gw * (1.0 - smoothstep(0.25, 0.6, fwu * 30.0));
+    let grainK = 1.0 - smoothstep(0.004, 0.012, fwp * 20.0);
+    base = in.col.rgb * (0.7 + 0.4 * mix(0.5, woodGrain(P * 20.0, 60.0), grainK));
     rough = 0.35; spec = 0.05;
-    emit += vec3f(1.0, 0.6, 0.15) * (1.0 - smoothstep(0.0, 0.06, abs(g - 0.5))) * 0.25 * (1.0 + 3.0 * G.drumCol.w);
+    emit += vec3f(1.0, 0.6, 0.15) * (1.0 - smoothstep(0.0, gw, abs(g - 0.5))) * gk * 0.25 * (1.0 + 3.0 * G.drumCol.w);
   } else if (m == 9u) {
     // the beater's head: soft leather over felt
     base = in.col.rgb * (0.75 + 0.4 * fbm(P * 40.0));

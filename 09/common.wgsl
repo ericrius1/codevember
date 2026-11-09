@@ -91,7 +91,7 @@ fn stageLight(p: vec3f, N: vec3f) -> StageLight {
   o.drumL = d / max(dl, 1e-3);
   // (the hide is a big disc: its light falls off over its own size, and only on its front side)
   let face = sat(dot(-o.drumL, vec3f(-1.0, 0.0, 0.0)) * 1.5 + 0.2);
-  o.drum = G.drumCol.rgb * G.drumLight.w * face / (1.0 + dl * dl * 0.9) * (1.0 + G.drumCol.w);
+  o.drum = G.drumCol.rgb * G.drumLight.w * face / (1.0 + dl * dl * 0.9) * (1.0 + 0.5 * G.drumCol.w);
   o.rim = G.rimCol.rgb * G.rimCol.w;
   let up = N.y * 0.5 + 0.5;
   o.amb = mix(vec3f(0.12, 0.07, 0.05) * G.ambient.w, G.ambient.rgb, up);

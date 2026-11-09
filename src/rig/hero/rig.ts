@@ -369,6 +369,9 @@ const turnHand = (G: HandFrame, a: number): HandFrame => ({ ...G, p: rotateAxis(
  *  two fifths: body/anatomy.ts) */
 const rollK = (G: HandFrame) => 1 + ((G.k ?? 1) - 1) * 0.25, wristK = (G: HandFrame) => 1 + ((G.k ?? 1) - 1) * 0.4;
 /** how far a forearm rolls from its middle (pronation, supination) */
+/** how fast an arm's fit lets its elbow swing round the shoulder-wrist line (rad/s), and how much better (in the fit's
+ *  own cost, and a share of it) a far way round must be before the elbow hurries over to it */
+const ARM_SWING = 9, ARM_FLIP = 2.5;
 const ROLL_MAX = 1.48;
 /** the upper arm's up (the elbow's inside, where the forearm folds to) and the forearm's (its roll's zero: the thumb
  *  that way is the forearm at its middle, neither turned palm down nor up) */
@@ -673,6 +676,9 @@ export class HeroRig {
   private lastPos: V3 = [0, 0, 0];
   /** the whole-body solver (body/solve.ts), set when the body's tools load (body/api.ts): a body goal waits for it */
   static bodyKit: typeof import('../body/solve') | null = null;
+  /** the arm fit follows its own minimum frame on frame (armFit): elbows that slide, never flip. Off by default (a
+   *  change to how every arm with a goal settles); a day that wants it sets it */
+  static armContinuity = false;
   /** a woman's body (the centre of mass's segments): Katara's */
   female: boolean;
   /** the body's suppleness (body/anatomy.ts FLEX: Iroh's an old man's, Aang's a supple airbender's): its forearm's turn
@@ -1879,7 +1885,7 @@ export class HeroRig {
     }
     // (and the elbow for it: swung round the shoulder-wrist line to where the whole arm's most at ease)
     if (G) {
-      const fit = this.armFit(side, ti, shoulder, target, lu, lf, soft, pole, G, CS, shoulderBind);
+      const fit = this.armFit(side, ti, shoulder, target, lu, lf, soft, pole, G, CS, shoulderBind, dt);
       pole = norm(lerp3(pole, fit, goalW));
       if (G.turn) G = turnHand(G, this.psi[ti]);
     } else { this.swPrev[ti] = null; this.psi[ti] = 0; }
@@ -1953,9 +1959,14 @@ export class HeroRig {
    *  one where it's most at ease: the forearm's roll to the hand's thumb and the wrist's bend (flexion, deviation) each
    *  within their comfortable ranges (past them quickly worse, past a joint's limit far worse — the ergonomists' RULA
    *  bands), the elbow off the torso and not up over the shoulder, near the goal's preferred way and last frame's.
-   *  Sampled round the circle, then refined. Returns the pole that bends the elbow there. */
+   *  Sampled round the circle, then refined. Returns the pole that bends the elbow there.
+   *  Frame on frame it follows its own minimum: the best within as far as an elbow can swing in `dt` of where it was
+   *  (so it slides, never jumps, when another way round becomes a little better — an elbow flipping over in one frame
+   *  is the worst thing an arm can do on screen); when where it is has become much worse than the best (a joint's
+   *  limit) it hurries over there, still through the way between; the first frame, or after a jump in time, it takes
+   *  the best of all. */
   private armFit(side: number, ti: number, shoulder: V3, wrist: V3, lu: number, lf: number, soft: number, pref: V3, G: HandFrame,
-    CS: Fr, shoulderBind: V3): V3 {
+    CS: Fr, shoulderBind: V3, dt = 1 / 60): V3 {
     const ax = norm(sub(wrist, shoulder));
     let r0 = rej(pref, ax);
     if (len(r0) < 1e-4) r0 = rej(CS.y, ax);
@@ -1993,15 +2004,32 @@ export class HeroRig {
     const N = 36;
     let bi = 0, bc = Infinity;
     for (let k = 0; k < N; k++) { const r = cost((k / N) * TAU); if (r.c < bc) { bc = r.c; bi = k; } }
-    // (a golden-section search either side of the best sample)
-    let lo = ((bi - 1) / N) * TAU, hi = ((bi + 1) / N) * TAU;
-    const g = 0.381966;
-    let x1 = lo + g * (hi - lo), x2 = hi - g * (hi - lo), f1 = cost(x1).c, f2 = cost(x2).c;
-    for (let it = 0; it < 10; it++) {
-      if (f1 < f2) { hi = x2; x2 = x1; f2 = f1; x1 = lo + g * (hi - lo); f1 = cost(x1).c; }
-      else { lo = x1; x1 = x2; f1 = f2; x2 = hi - g * (hi - lo); f2 = cost(x2).c; }
+    // (a golden-section search over [lo, hi])
+    const golden = (lo: number, hi: number) => {
+      const g = 0.381966;
+      let x1 = lo + g * (hi - lo), x2 = hi - g * (hi - lo), f1 = cost(x1).c, f2 = cost(x2).c;
+      for (let it = 0; it < 12; it++) {
+        if (f1 < f2) { hi = x2; x2 = x1; f2 = f1; x1 = lo + g * (hi - lo); f1 = cost(x1).c; }
+        else { lo = x1; x1 = x2; f1 = f2; x2 = hi - g * (hi - lo); f2 = cost(x2).c; }
+      }
+      return cost((lo + hi) / 2);
+    };
+    // the best of all: either side of the best sample
+    const global = golden(((bi - 1) / N) * TAU, ((bi + 1) / N) * TAU);
+    let best = global;
+    if (HeroRig.armContinuity && pv && pvl > 1e-3 && dt > 0 && dt < 0.25) {
+      // where it was, and the best within an elbow's swing of there (ARM_SWING rad/s)
+      const pn = scale(pv, 1 / pvl), phi0 = Math.atan2(dot(pn, r1), dot(pn, r0));
+      // (where it is is much worse than the best: it swings there faster — up to three times its pace — but still
+      // through the way between, never across it in a frame)
+      const w0 = ARM_SWING * dt + 0.01;
+      let local = golden(phi0 - w0, phi0 + w0);
+      for (let k = 2; k <= 3 && local.c > global.c + ARM_FLIP * (1 + 0.05 * global.c); k++) {
+        const w = Math.min(Math.PI, w0 * k);
+        local = golden(phi0 - w, phi0 + w);
+      }
+      best = local;
     }
-    const best = cost((lo + hi) / 2);
     if (turn > 0) {
       let pc = Infinity, ps = 0;
       for (let k = 0; k <= 8; k++) {

@@ -36,8 +36,9 @@ A day can have people in it. `src/rig` is Boulder's character runtime, lifted (i
 the arm fit, finger IK, verlet chains, the face): a person is built in Blender by Boulder's town pipeline from a spec
 in the day's folder (09/character: `zsh 09/character/build.sh` → `09/assets/<who>_{hi,lo}.bin.gz`), loaded with
 `loadHero` and posed each frame by a `BodyGoal`. Beside it, `src/rig/strike.ts` (a stroke planner for anything swung
-at a surface: the whip of a downswing, contact, the rebound, the kinetic chain's phases, a hammer grip's hand goal)
-and `src/rig/strands.ts` (verlet strands rooted on bones: locks, filaments, cords), both also in Boulder. Skinning in
+at a surface: the whip of a downswing, contact, the rebound, the kinetic chain's phases, a hammer grip's hand goal),
+`src/rig/strands.ts` (strands rooted on bones: locks, bead strings, cords) and `src/rig/track.ts` (quintic keyed
+tracks), all also in Boulder; `node 09/lab/run.mjs` measures a day's motion for jerk without the GPU. Skinning in
 WGSL is weft's (`#include "weft/skin"`).
 
 A day with sound gives its meta an `audio` file one loop long: the HUD gets a Sound button, and while it plays the

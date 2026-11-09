@@ -9,6 +9,8 @@ import type { V3 } from '../src/rig/hero/math';
 import shamanShader from './shaman.wgsl';
 
 HeroRig.bodyKit = solve;
+// (her elbows slide, never flip: the arm fit follows its own minimum frame on frame)
+HeroRig.armContinuity = true;
 
 const LAYOUT: GPUVertexBufferLayout = {
   arrayStride: VBYTES, attributes: [

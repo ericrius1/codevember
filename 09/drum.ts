@@ -10,12 +10,8 @@ import type { V3 } from '../src/rig/hero/math';
 import drumShader from './drum.wgsl';
 import membraneShader from './membrane.wgsl';
 
-export const DRUM = {
-  /** the hide's centre (world) and radius, the shell's depth behind it */
-  c: [0, 1.06, 0] as V3, r: 0.85, depth: 0.58,
-};
-/** the dais's centre and radius */
-export const DAIS = { c: [-0.3, 0, 0.2] as V3, r: 2.45 };
+import { DRUM, DAIS } from './stage';
+export { DRUM, DAIS };
 
 // the hide's physics: a real hide's wave speed (its tension over its mass), its stiffness, its losses
 const N = 256;
@@ -24,8 +20,12 @@ const KAPPA = 0.16;           // m²/s (bending stiffness; with λ² below, insi
 const SIGMA0 = 55;            // 1/s on the membrane's clock (its visual decay)
 const SIGMA1 = 0.004;         // m²/s (the high modes' extra loss)
 const K_MAX = 64;
-/** the membrane's clock against film time: the world's rate, but never faster than this (so ripples can be seen) */
-export const MEMBRANE_PACE = 0.08;
+/** the membrane's clock against film time: never faster than MEMBRANE_PACE (so ripples can be seen at all), and in
+ *  the dilated moment slower than the world itself (MEMBRANE_DEEP of its rate) — at a hundredth of time a wave would
+ *  still cross the hide in under a second; at this it crawls, its rings spreading from the beater and back off the rim
+ *  over seconds, which is what the close-up is for */
+export const MEMBRANE_PACE = 0.08, MEMBRANE_DEEP = 0.4;
+export const membranePace = (rate: number) => Math.min(MEMBRANE_PACE, MEMBRANE_DEEP * rate);
 
 const H = (2 * DRUM.r) / N;
 const DT = (0.42 * H) / C_WAVE;
@@ -190,7 +190,7 @@ export class Drum {
     this.propU = kit.uniforms(drumShader.structs.PropU, 'drum.prop');
     this.propU.set({ model: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] as never });
     this.U = kit.uniforms(drumShader.structs.DrumU, 'drum');
-    this.U.set({ sim: [R, H, lam2, mu2] as never, sim2: [0, 0, 0, 1] as never, center: [...DRUM.c, 0] as never, look: [3, 1, 0, 1] as never });
+    this.U.set({ sim: [R, H, lam2, mu2] as never, sim2: [0, 0, 0, Number(new URLSearchParams(globalThis.location?.search ?? '').get('hidegain') ?? 1)] as never, center: [...DRUM.c, 0] as never, look: [3, 1, 0, 1] as never });
   }
 
   async loadTextures() {
@@ -209,10 +209,10 @@ export class Drum {
     [this.hideTex, this.rimTex] = await Promise.all([load(new URL('./assets/hide.jpg', import.meta.url).href), load(new URL('./assets/rim.jpg', import.meta.url).href)]);
   }
 
-  /** this frame's steps of the hide: as many as the membrane's clock moved (film dt × min(rate, MEMBRANE_PACE)), each
+  /** this frame's steps of the hide: as many as the membrane's clock moved (film dt × membranePace(rate)), each
    *  with where the beater's head was at that instant (its story time, spread over the frame's) */
   advance(dtFilm: number, rate: number, story0: number, story1: number, head: HeadAt) {
-    const dSigma = Math.min(dtFilm, 0.1) * Math.min(rate, MEMBRANE_PACE);
+    const dSigma = Math.min(dtFilm, 0.1) * membranePace(rate);
     this.acc += dSigma;
     const K = Math.min(K_MAX, Math.floor(this.acc / DT));
     this.acc -= K * DT;
@@ -245,7 +245,9 @@ export class Drum {
       indices: { buffer: this.hide.indices, format: 'uint32' }, bind: { ...bind, verts: this.hide.vertices } as never });
   }
   /** the drum's look this frame: the inner light's flicker, the time */
-  look(t: number, glow: number) { this.U.set({ look: [3, glow, t, 0.85 + 0.15 * Math.sin(t * 7.1) * Math.sin(t * 3.3)] as never }); }
+  look(t: number, glow: number, rock = 0) {
+    this.U.set({ look: [3, glow, t, 0.85 + 0.15 * Math.sin(t * 7.1) * Math.sin(t * 3.3)] as never, center: [...DRUM.c, rock] as never });
+  }
 }
 
 /** the beater: a carved shaft, a cord-wrapped grip, a padded leather head netted with cord — built about its grip

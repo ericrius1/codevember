@@ -5,5 +5,5 @@
     "types": ["@webgpu/types", "vite/client", "@ericrius1/weft/client"]
   },
   "include": ["src", "0*/**/*", "1*/**/*", "2*/**/*", "3*/**/*"],
-  "exclude": ["node_modules", "dist", "deploy", "*/audio"]
+  "exclude": ["node_modules", "dist", "deploy", "*/audio", "*/lab"]
 }
