@@ -49,7 +49,11 @@ WGSL is weft's (`#include "weft/skin"`).
 A day with sound gives its meta an `audio` file one loop long: the HUD gets a Sound button, and while it plays the
 loop's clock is the sound's. Its film takes `film/<dd>.wav` under it if there is one (tools/render.mjs).
 
-`--q 'cam=x,y,z,tx,ty,tz,fov'` (render.mjs) passes the page parameters through: 09 takes a fixed camera, for looking.
+`--q 'cam=x,y,z,tx,ty,tz,fov'` (render.mjs) passes the page parameters through: 09 takes a fixed camera, for looking,
+and `veil=0..1` / `trip=0..1` to hold the hide's thinning and the trip (the world inside the drum, 09/inner.wgsl). A
+stateful sketch's stills want `--q 'lead=3'`: each still's last 3 s stepped first, uncaptured, so its simulations (09's
+hide) are where the film would have them. 09/design holds its look references (`node 09/design/refs.mjs`: Codex's
+image generation, handed the concepts and a frame of the film).
 
 ## The films
 

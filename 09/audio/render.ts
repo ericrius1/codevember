@@ -1,19 +1,22 @@
-// 09 / Membrane, the soundtrack: node 09/audio/render.ts writes film/09.wav (48 kHz, 24-bit, exactly one 26 s loop)
+// 09 / Membrane, the soundtrack: node 09/audio/render.ts writes film/09.wav (48 kHz, 24-bit, exactly one 50 s loop)
 // and 09/assets/membrane.m4a (the same, AAC, for the live page), and prints what it measured.
 //
 // It follows the score (../score.ts) as the picture does. The drum is simulated, not sampled: every stroke is the hide
 // (membrane.ts, the picture's physics with a real drum's losses) struck by a modelled beater at the stroke's speed and
-// place, heard in front and through the shell (voice.ts), with the pods rattling after it (layers.ts). The great
-// stroke at 9.6 s, where time runs at a hundredth, is a film's slow-motion hit rather than a hit slowed down a hundred
-// times (which you couldn't hear): a reversed swell into it, the beater's whoosh slowing, the strike with copies of
-// itself an octave and two down and a sub under them, and its ring kept at pitch but stretched, the hide simulated with
-// its losses cut as far as time is slowed, so it rings on through the cosmos and dies as time comes back. Then the
-// universe's membrane, a second, vast simulation, pushed by the drum's ring and by the ripples the picture shows
-// crossing it; the shimmer and the foam of other universes out past it; everything gathered back in; the pulse.
+// place, heard in front and through the shell (voice.ts), with the pods rattling after it (layers.ts); the pulse's
+// three each harder and louder than the last. The great stroke at 13.4 s, the last, where time runs at a
+// two-hundredth, is a film's slow-motion hit rather than a hit slowed down two hundred times (which you couldn't hear):
+// a reversed swell into it, the beater's whoosh slowing, the strike with copies of itself an octave and two down and a
+// sub under them, and its ring kept at pitch but stretched, the hide simulated with its losses cut as far as time is
+// slowed, so it rings on through the cosmos and fades as time lifts to its dream pace. Under it all, from the first
+// stroke, the universe's membrane, a second, vast simulation, pushed by each stroke's ring and by the ripples the
+// picture shows crossing it; the shimmer and the foam of other universes out past it, growing through the trip; drawn
+// back in, backwards, into the dark of the loop's end.
 //
-// It's a loop by construction: everything is laid into one loop's length with its tail wrapped round onto the start
-// (the 25.4 s stroke's ring is under the 1.2 s one), the reverbs' tails folded back the same way, the bed made of
-// whole cycles, the master's filters and limiter run twice round. The simulations are cached (sims.ts, .cache/).
+// It's a loop by construction: everything is laid into one loop's length with its tail wrapped round onto the start,
+// the reverbs' tails folded back the same way, the bed made of whole cycles, the master's filters and limiter run
+// twice round; the trip falls away into the fade at its end, the bed carrying on across the seam. The simulations are
+// cached (sims.ts, .cache/).
 // STEMS=<dir> also writes each layer on its own.
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
@@ -39,7 +42,7 @@ const secs = () => ((performance.now() - T0) / 1000).toFixed(1);
 /** the mix: each layer's level, its sends to the hall and the cosmos (the returns at the end) */
 const MIX = {
   stroke: [1.5, 0.36, 0.03], rattle: [1.2, 0.25, 0.02], whoosh: [2.0, 0.15, 0],
-  big: [0.62, 0.22, 0.18], octave: [0.4, 0.12, 0.16], octave2: [0.28, 0, 0.1], sub: [0.22, 0, 0.05],
+  big: [0.75, 0.22, 0.2], octave: [0.52, 0.12, 0.18], octave2: [0.38, 0, 0.12], sub: [0.34, 0, 0.06],
   bigRattle: [0.34, 0.3, 0.12], slowRattle: [0.2, 0.1, 0.5], bigWhoosh: [1, 0.2, 0.3], breath: [0.06, 0.2, 0.2],
   swell: [0.75, 0, 0.04], shock: [0.5, 0.08, 0.35],
   universe: [0.4, 0, 0.22], shimmer: [0.29, 0.05, 0.55], gather: [0.2, 0, 0.5], foam: [0.6, 0.15, 0.4], bed: [0.18, 0, 0.2],
@@ -51,10 +54,13 @@ log('the felt, the strikes');
 const [felt] = await run([{ kind: 'felt', spec: { ms: 8.5, v: STROKES[0].v, at: STROKES[0].at } }], log);
 const K = felt.meta.K as number;
 // the great stroke's losses: cut as far as time is slowed (σ0 by √rate, the high modes' less), back as it returns
-const RING = 10.6;
+const RING = 26;
 const slowed: [number, number][] = [];
 for (let i = 0; i <= RING * 100; i++) { const r = rate(BIG.t + i * 0.01); slowed.push([Math.max(0.1, Math.sqrt(r)), Math.pow(r, 0.3)]); }
-const strikeSpecs: StrikeSpec[] = STROKES.map((s) => ({ v: s.v, at: s.at, K, seconds: s.big ? RING : 3.4, loss: s.big ? slowed : undefined }));
+// (the felt's contact model holds to about 10 m/s — past it its force spikes, and at 12 it blows up — so the great
+// stroke is struck there in the simulation; its weight past that is the layers under it)
+const SIM_V_MAX = 9.8;
+const strikeSpecs: StrikeSpec[] = STROKES.map((s) => ({ v: Math.min(s.v, SIM_V_MAX), at: s.at, K, seconds: s.big ? RING : 3.4, loss: s.big ? slowed : undefined }));
 const sims = await run(strikeSpecs.map((spec) => ({ kind: 'strike' as const, spec })), log);
 log(`  (${secs()} s)`);
 
@@ -124,10 +130,13 @@ const both = (s: Stereo, fn: (x: Buf) => Buf): Stereo => ({ l: fn(s.l), r: fn(s.
 
 log('the strokes');
 const voices: Stereo[] = STROKES.map((s, i) => voice(sims[i], { seed: 11 + i, slap: s.big ? 1.3 : 1 }));
+// (each of the pulse louder than the last: the harder stroke's own louder ring, and a little more on top)
+const PULSE_GAIN = [0.8, 1.0, 1.25];
 STROKES.forEach((s, i) => {
   if (s.big) return;
-  place('drum', voices[i], s.t, ...MIX.stroke);
-  place('rattle', rattle(s.v, 100 + i), s.t, ...MIX.rattle);
+  const g = PULSE_GAIN[i] ?? 1;
+  place('drum', voices[i], s.t, MIX.stroke[0] * g, MIX.stroke[1], MIX.stroke[2]);
+  place('rattle', rattle(s.v, 100 + i), s.t, MIX.rattle[0] * g, MIX.rattle[1], MIX.rattle[2]);
   const w = whoosh(s.t, s.v, 0.24, 200 + i);
   place('air', w.s, w.at, ...MIX.whoosh);
 });
@@ -148,7 +157,7 @@ const oct = both(head(big, 2.4), (x) => decaying(filt(varispeed(x, 0.5), new Biq
 const oct2 = both(head(big, 1.8), (x) => decaying(filt(varispeed(x, 0.25), new Biquad('hp', 23, 0.7), new Biquad('lp', 240, 0.7)), 0.6));
 place('big', oct, BIG.t, ...MIX.octave);
 place('big', oct2, BIG.t, ...MIX.octave2);
-const sub = subDrop(54, 29, 4, 1.05);
+const sub = subDrop(54, 26, 6, 1.6);
 place('big', { l: sub, r: sub }, BIG.t, ...MIX.sub);
 place('rattle', rattle(BIG.v, 150, true), BIG.t, ...MIX.bigRattle);
 place('rattle', slowRattle(160), BIG.t + 0.06, ...MIX.slowRattle);
@@ -170,7 +179,8 @@ const IR_H = hall(), IR_C = cosmic();
   // (it ends a breath before the blow: a moment sucked out of the air, then the hit)
   const t0 = BIG.t - 0.065 - len / SR;
   // (and it grows as an exponential does, the reverb's own shape backwards being flat)
-  envelope(sw, t0, curve([[t0, 0], [8.95, 0], [9.1, 0.03], [9.2, 0.08], [9.3, 0.19], [9.4, 0.43], [9.47, 0.78], [BIG.t - 0.1, 1], [BIG.t - 0.065, 0]]));
+  const B = BIG.t;
+  envelope(sw, t0, curve([[t0, 0], [B - 0.65, 0], [B - 0.5, 0.03], [B - 0.4, 0.08], [B - 0.3, 0.19], [B - 0.2, 0.43], [B - 0.13, 0.78], [B - 0.1, 1], [B - 0.065, 0]]));
   place('big', sw, t0, ...MIX.swell);
 }
 // the shock leaving the drum
@@ -178,19 +188,31 @@ place('air', shock(230), ACT.shock, ...MIX.shock);
 
 // ---------------------------------------------------------------- the universe's membrane
 log('the universe');
-const U0 = 10.6, U1 = 24.8;
+// (from the first stroke to the fade: each stroke of the pulse rings it a little, the great one for good)
+const U0 = STROKES[0].t - 0.2, U1 = ACT.black;
 const dec = (x: Buf) => { const y = filt(x.slice(), new Biquad('lp', 4200, 0.7), new Biquad('lp', 4200, 0.7)), out = new Float32Array(Math.floor(y.length / 4)); for (let i = 0; i < out.length; i++) out[i] = y[i * 4]; return out; };
 const uSR = COSMOS.sr;
 const drives: Drive[] = [];
 {
-  // the drum's ring, feeding it from the shock on
-  const from = Math.round((U0 - BIG.t) * SR), ring = dec(bigMono.slice(from));
-  for (let i = 0; i < ring.length; i++) ring[i] *= 400 * Math.min(1, i / (0.8 * uSR));
-  drives.push({ at: [0.05, -0.08], rad: 0.06, signal: ring });
-  // the ripples the picture shows crossing it (main.ts's waves): each a swell of the strike an octave down
-  // (the picture's ripple events, main.ts's G.waves: the first two now start where the shock's front first meets the
-  // wall, at 12.55 and 13.5)
-  const WAVES: [number, number, number, number][] = [[1, 0.02, 0, ACT.cosmos + 0.15], [0.95, 0.25, 0.1, ACT.cosmos + 1.1], [0.9, -0.3, -0.2, ACT.cosmos + 2.6]];
+  // each stroke of the pulse: its ring, a touch (the picture's wall answers each with a ring of its own)
+  STROKES.forEach((k, i) => {
+    if (k.big) return;
+    const lead = Math.round((k.t - U0) * uSR), ring = dec(mono(voices[i]));
+    const sig = new Float32Array(lead + ring.length);
+    for (let j = 0; j < ring.length; j++) sig[lead + j] = ring[j] * 90 * (PULSE_GAIN[i] ?? 1);
+    drives.push({ at: [0.05 - 0.04 * i, -0.08 + 0.05 * i], rad: 0.06, signal: sig });
+  });
+  // the great stroke's ring, feeding it from the moment it lands (the wall struck with the hide)
+  {
+    const lead = Math.round((BIG.t - U0) * uSR), ring = dec(bigMono);
+    const sig = new Float32Array(lead + ring.length);
+    for (let j = 0; j < ring.length; j++) sig[lead + j] = ring[j] * 400 * Math.min(1, j / (0.4 * uSR));
+    drives.push({ at: [0.05, -0.08], rad: 0.06, signal: sig });
+  }
+  // the ripples the picture shows crossing it (main.ts's waves: the great stroke's three, the trip's two): each a
+  // swell of the strike an octave down
+  const WAVES: [number, number, number, number][] = [[1, 0.02, 0, BIG.t + 0.02], [0.8, 0.25, 0.1, BIG.t + 2.2], [0.7, -0.3, -0.2, BIG.t + 5.5],
+    [0.65, -0.4, 0.35, ACT.trip + 1.5], [0.7, 0.3, -0.4, ACT.trip + 9]];
   const blow = dec(varispeed(fadeOut(bigMono.slice(0, Math.round(1.1 * SR)), 0.6), 0.5));
   for (const [a, x, y, t] of WAVES) {
     const lead = Math.round((t - U0 - 0.25) * uSR), sig = new Float32Array(lead + blow.length);
@@ -199,7 +221,7 @@ const drives: Drive[] = [];
   }
 }
 const uLoss: [number, number][] = [];
-const g0 = curve([[U0, 1], [ACT.home, 1], [ACT.settle, 7], [U1, 10]]), g1 = curve([[U0, 1], [ACT.home, 1], [ACT.settle, 3], [U1, 4]]);
+const g0 = curve([[U0, 1], [ACT.fade - 1, 1], [U1, 6]]), g1 = curve([[U0, 1], [ACT.fade - 1, 1], [U1, 3]]);
 for (let t = U0; t <= U1; t += 0.01) uLoss.push([g0(t), g1(t)]);
 const uSpec: UniverseSpec = { seconds: U1 - U0, drives, loss: uLoss };
 const [uni] = await run([{ kind: 'universe', spec: uSpec }], log);
@@ -219,22 +241,24 @@ const cosmosU: Stereo = (() => {
   for (let i = 0; i < s.l.length; i++) { s.l[i] *= g; s.r[i] *= g; }
   return s;
 })();
-log(`  universe's loudest mode near ${peakHz(cosmosU.l, 12, 200, Math.round((ACT.cosmos - U0) * SR), SR * 2).toFixed(1)} Hz`);
-envelope(cosmosU, U0, curve([[U0, 0], [11.3, 0.7], [ACT.cosmos, 1], [ACT.home, 1], [ACT.settle, 0.7], [U1, 0]]));
+log(`  universe's loudest mode near ${peakHz(cosmosU.l, 12, 200, Math.round((BIG.t + 1 - U0) * SR), SR * 2).toFixed(1)} Hz`);
+// (under the pulse as each stroke's answer, swelling with the great stroke, full through the trip, gone under the fade)
+envelope(cosmosU, U0, curve([[U0, 0], [U0 + 0.3, 0.75], [BIG.t, 0.8], [BIG.t + 1.5, 1], [ACT.fade, 1], [ACT.black - 0.1, 0]]));
 place('cosmos', cosmosU, U0, ...MIX.universe);
-// the shimmer as the foam of universes ripples, and the same drawn back in, backwards, on the way home
+// the shimmer as the foam of universes ripples, growing through the trip; and the same drawn back in, backwards,
+// into the dark at the loop's end
 {
-  const a = Math.round((14 - U0) * SR), b = Math.round((21.6 - U0) * SR);
+  const S0 = BIG.t + 1.0, S1 = ACT.black;
+  const a = Math.round((S0 - U0) * SR), b = Math.round((S1 - U0) * SR);
   const src = { l: cosmosU.l.slice(a, b), r: cosmosU.r.slice(a, b) };
   const sh = shimmer(src, 300);
-  envelope(sh, 14, curve([[14, 0], [15.2, 0.55], [16.6, 1], [ACT.home, 0.85], [20.3, 0.2], [21.6, 0]]));
+  envelope(sh, S0, curve([[S0, 0], [S0 + 2.5, 0.45], [ACT.trip, 0.8], [ACT.fade - 2, 1], [ACT.fade + 0.4, 0.7], [S1 - 0.1, 0]]));
   const g = 1 / Math.max(peak(sh.l), peak(sh.r));
-  place('shimmer', sh, 14, MIX.shimmer[0] * g, MIX.shimmer[1], MIX.shimmer[2]);
-  const c = Math.round((ACT.foam - 14) * SR), d = Math.round((ACT.home - 14) * SR), len = d - c, back = stereo(len);
-  for (let i = 0; i < len; i++) { back.l[i] = sh.r[d - 1 - i]; back.r[i] = sh.l[d - 1 - i]; }
-  // (it comes to rest as the camera does, fading under the bed rather than cut)
-  const t0 = ACT.settle + 0.15 - len / SR;
-  envelope(back, t0, curve([[t0, 0], [19.4, 0.1], [20.9, 0.8], [ACT.settle - 0.3, 1], [ACT.settle + 0.15, 0]]));
+  place('shimmer', sh, S0, MIX.shimmer[0] * g, MIX.shimmer[1], MIX.shimmer[2]);
+  const len = Math.round(6 * SR), c = Math.round((ACT.trip - S0) * SR), back = stereo(len);
+  for (let i = 0; i < len; i++) { back.l[i] = sh.r[c + len - 1 - i]; back.r[i] = sh.l[c + len - 1 - i]; }
+  const t0 = ACT.black - 0.05 - len / SR;
+  envelope(back, t0, curve([[t0, 0], [t0 + 2.5, 0.15], [ACT.fade, 0.7], [ACT.fade + 0.6, 1], [ACT.black - 0.05, 0]]));
   place('shimmer', back, t0, MIX.gather[0] * g, MIX.gather[1], MIX.gather[2]);
 }
 place('shimmer', foam(F0, 310), 0, ...MIX.foam);
@@ -249,7 +273,8 @@ const wetH = reverb(sendH, IR_H), wetC = reverb(sendC, IR_C);
 // the drum's and the great stroke's buses held at their peaks (clean look-ahead limiting, slow enough to keep the boom's
 // shape), so the master hardly has to touch them
 const busRed: string[] = [];
-for (const [g, under, ahead, release] of [['drum', 4, 0.008, 0.25], ['big', 4, 0.01, 0.4]] as [Group, number, number, number][]) {
+// (the pulse's bus only just: its loudest stroke must stay its loudest)
+for (const [g, under, ahead, release] of [['drum', 1.5, 0.008, 0.25], ['big', 4, 0.01, 0.4]] as [Group, number, number, number][]) {
   const s = groups.get(g)!, c = Math.max(peak(s.l), peak(s.r)) * Math.pow(10, -under / 20);
   busRed.push(`${g} ${limit(s, c, { ahead, release }).toFixed(1)} dB`);
 }
@@ -269,8 +294,9 @@ for (let i = 0; i < N; i++) { dcL += out.l[i]; dcR += out.r[i]; }
 log(`\nmaster: gain ${todb(M.gain).toFixed(1)} dB, ${M.lufs.toFixed(2)} LUFS, peak ${todb(M.peak).toFixed(2)} dBFS, true peak ≈ ${todb(tp).toFixed(2)} dBTP, limiting ${M.reduction.toFixed(1)} dB at most, the low end's soft clip ${M.lowClip.toFixed(1)} dB at most (the buses before it: ${busRed.join(', ')}), DC ${(dcL / N).toExponential(1)} / ${(dcR / N).toExponential(1)}`);
 // each layer's loudness through each part of the act (ungated, with the master's gain; the master's own last)
 {
-  const PARTS: [string, number, number][] = [['pulse', 0, 5.25], ['wind-up', 5.25, 7.9], ['dilate', 7.9, 9.6], ['stroke', 9.6, 10.9], ['shock', 10.9, 12.4],
-    ['cosmos', 12.4, 15], ['foam', 15, 18.6], ['home', 18.6, 21.5], ['settle', 21.5, 23.5], ['pulse', 23.5, 26]];
+  const B = BIG.t;
+  const PARTS: [string, number, number][] = [['stroke 1', 1.5, 4.5], ['stroke 2', 4.7, 7.7], ['stroke 3', 7.9, 9.05], ['wind-up', 9.05, B - 0.7], ['dilate', B - 0.7, B],
+    ['great', B, B + 2], ['slowed', B + 2, ACT.shock], ['lift', ACT.shock, ACT.trip], ['trip', ACT.trip, 38], ['deeper', 38, ACT.fade], ['fade', ACT.fade, LOOP]];
   const rows: [string, Stereo, number][] = [...[...groups].map(([g, s]) => [g, s, M.gain] as [string, Stereo, number]), ['hall', wetH, M.gain], ['cosmic', wetC, M.gain], ['MASTER', out, 1]];
   log('  ' + ''.padEnd(8) + PARTS.map(([p]) => p.padStart(8)).join(''));
   for (const [name, s, g] of rows) {
@@ -295,7 +321,7 @@ log(`\nmaster: gain ${todb(M.gain).toFixed(1)} dB, ${M.lufs.toFixed(2)} LUFS, pe
 }
 {
   // where the limiters work: their deepest gain reduction (dB) in each half second
-  const cut = (tr: Float32Array) => Array.from({ length: 52 }, (_, k) => { let m = 1; for (let i = k * SR / 2; i < (k + 1) * SR / 2; i++) m = Math.min(m, tr[i]); return (-20 * Math.log10(m)).toFixed(0); }).join(' ');
+  const cut = (tr: Float32Array) => Array.from({ length: Math.round(LOOP * 2) }, (_, k) => { let m = 1; for (let i = k * SR / 2; i < (k + 1) * SR / 2; i++) m = Math.min(m, tr[i]); return (-20 * Math.log10(m)).toFixed(0); }).join(' ');
   log('  limiting by half second, all: ' + cut(M.trace));
 }
 const prof = loudnessProfile(out);

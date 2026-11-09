@@ -9,7 +9,7 @@
 // acceleration) laid out from the strokes' own times, each channel's keys a little after or before the others' (the
 // hips first, the trunk, the arms after: overlapping action), so nothing in her ever jumps or stops dead — the only
 // break in the whole loop is the beater meeting the hide.
-import { STROKES, BIG, LOOP, story, STORY_LOOP } from './score';
+import { STROKES, BIG, LOOP, ACT, story, STORY_LOOP } from './score';
 import { Strokes, gripGoal, type StrokeSpec, type StrokeState } from '../src/rig/strike';
 import { Track, type Key } from '../src/rig/track';
 import { type V3, add, sub, scale, norm } from '../src/rig/hero/math';
@@ -43,29 +43,33 @@ function specFor(i: number, shift: number): StrokeSpec {
   if (k.big) {
     const S = story(k.t);
     const down = 0.26, hang = 0.5;
-    const liftFrom = story(4.8) + 0.5;
+    // (the wind-up starts as the stroke before it has settled)
+    const liftFrom = story(STROKES[i - 1].t) + 0.5;
     return {
       t, at, normal: [-1, 0, 0], dir: norm([0.75, -0.66, 0.04]), speed: v, shaft: norm([0.66, 0.75, -0.04]),
       cock: 2.7, down, handShare: 0.45,
       // the top: her hand high over her head and back, the beater pointing back and up behind her
       top: [-1.0, 2.04, STRIKE_A + 0.24],
       lift: S - down - hang - liftFrom, hang,
-      dwell: 0.0055, depth: 0.09, restitution: 0.35, settle: 1.6,
+      dwell: 0.0055, depth: 0.13, restitution: 0.35, settle: 1.6,
       // after: no flourish — the beater comes down by her side, its head low ahead of her (a hanging arm, the shaft square to it), and she stands
       // and watches what the stroke has done
       ready: { hand: [-0.74, 0.9, 0.38], shaft: norm([0.84, -0.32, 0.3]) },
       lag: 0.12, follow: 0.3, followDist: 0.14, topFlow: 0.3, lay: 0.35,
     };
   }
-  // (a fuller arc than a tap: the hand comes from up by her ear, the beater cocked back past upright)
-  const prevBig = STROKES[i - 1]?.big;
-  const nextBig = STROKES[i + 1]?.big;
+  // (a fuller arc than a tap: the hand comes from up by her ear, the beater cocked back past upright; each stroke of
+  // the pulse harder than the last, its arc bigger, its push into the hide deeper)
+  // (the stroke before the first is the great one, at the end of the loop before)
+  const n = STROKES.length;
+  const prevBig = STROKES[(i - 1 + n) % n].big;
+  const nextBig = STROKES[(i + 1) % n].big;
   return {
     t, at, normal: [-1, 0, 0], dir: DIR, speed: v, shaft: SHAFT,
     cock: 1.55 + (v - 3) * 0.15, down: 0.25, handShare: 0.36,
     top: add(sub(at, scale(SHAFT, BEATER.reach)), [-0.3, 0.5 + (v - 3) * 0.06, 0.15]),
     lift: prevBig ? 1.6 : 0.66, hang: 0.1,
-    dwell: 0.0065, depth: 0.018 + (v - 3) * 0.006, restitution: 0.55, settle: nextBig ? 0.4 : 0.55,
+    dwell: 0.0065, depth: 0.026 + (v - 3) * 0.01, restitution: 0.55, settle: nextBig ? 0.4 : 0.55,
     ready: { hand: [-0.6, 1.22, STRIKE_A + 0.06], shaft: norm([0.2, 0.97, -0.05]) },
     lag: 0.1, follow: 0.12, followDist: 0.04, topFlow: 0.4,
   };
@@ -78,9 +82,10 @@ specs.unshift(specFor(STROKES.length - 1, -STORY_LOOP), specFor(STROKES.length -
 specs.push(specFor(0, STORY_LOOP), specFor(1, STORY_LOOP));
 export const strokes = new Strokes(specs, BEATER, specs[0].ready!);
 
-// the great stroke's story times: contact, and her arms opening to the sky after it (and coming down again)
+// the great stroke's story times: contact, her coming up out of it into stillness (and only in the dark at the loop's
+// end back to where the pulse starts)
 const SB = story(BIG.t);
-const OPEN = { in0: SB + 0.02, in1: SB + 1.4, out0: story(21.2), out1: story(22.4) };
+const OPEN = { in0: SB + 0.02, in1: SB + 1.4, out0: story(ACT.fade + 0.7), out1: story(ACT.black + 0.42) };
 
 // ---------------------------------------------------------------- her body's channels, keyed from the strokes
 type K = Key<number>;
@@ -114,7 +119,7 @@ for (const k of strokes.list) {
     // Each stroke is a bounce through her whole body, back to standing easy before the next: she rises a little as
     // the beater goes up (the up-beat), drops into her knees on contact as the trunk crunches over the stroke and the
     // head nods with it, and comes back up through the rebound.
-    const a = 0.8 + 0.28 * (S.speed - 3);
+    const a = 0.8 + 0.14 * (S.speed - 3);
     key('hips', tT - 0.35 * D, -0.26 * a); key('hips', tC + 0.14, 0.12 * a); key('hips', tC + 0.75, 0);
     key('trunk', tT - 0.08 * D, -0.22 * a); key('trunk', tC + 0.17, 0.1 * a); key('trunk', tC + 0.8, 0);
     key('flex', tT - 0.04, -0.1 * a); key('flex', tC + 0.1, 0.26 * a); key('flex', tC + 0.8, 0.03 * a);
@@ -133,15 +138,21 @@ for (const k of strokes.list) {
   // weight thrown forward; then stillness: she comes up out of the stroke into a deep, rooted stance, the beater
   // lowered, both arms down, and watches — the hide, then the worlds opening beyond it — till the pulse comes back
   const tR = k.begins;
-  key('hips', tR + 0.4, -0.05); key('hips', tT - 0.3 * D, -0.44); key('hips', tC + 0.3, 0.22); key('hips', OPEN.in1, 0.04); key('hips', OPEN.out1, 0);
-  key('trunk', tR + 0.5, -0.04); key('trunk', tT - 0.04 * D, -0.42); key('trunk', tC + 0.36, 0.2); key('trunk', OPEN.in1, 0.0);
-  key('flex', tR + 0.6, -0.04); key('flex', tT - 0.08, -0.24); key('flex', tC + 0.09, 0.4); key('flex', OPEN.in1, 0.03); key('flex', OPEN.out0, 0.02); key('flex', OPEN.out1, 0.0);
-  key('side', tR + 0.6, 0.02); key('side', tT - 0.05, 0.12); key('side', tC + 0.1, -0.06); key('side', OPEN.in1, 0.0);
-  key('load', tR + 0.4, 0.2); key('load', tT - 0.25, 0.85); key('load', tC + 0.12, 1.0); key('load', OPEN.in1, 0.4); key('load', OPEN.out0, 0.36); key('load', OPEN.out1, 0.15);
-  key('shift', tR + 0.4, -0.02); key('shift', tT - 0.2, -0.16); key('shift', tC + 0.16, 0.2); key('shift', OPEN.in1, 0.0);
-  key('nod', tT - 0.1, -0.06); key('nod', tC + 0.08, 0.12); key('nod', OPEN.in1, -0.07); key('nod', OPEN.out0, -0.06); key('nod', OPEN.out1, 0.02);
-  key('sky', SB + 0.05, 0, 'hold'); key('sky', OPEN.in1, 1, 'hold'); key('sky', OPEN.out0, 1, 'hold'); key('sky', OPEN.out1, 0, 'hold');
-  leftAt(tR + 0.3, LH.rest); leftAt(tT - 0.35, LH.reach); leftAt(tC + 0.06, LH.tuck); leftAt(OPEN.in1, LH.still); leftAt(OPEN.out0, LH.still); leftAt(OPEN.out1 + 0.3, LH.rest);
+  // (its keys after it on its own loop's clock: the great stroke is also the stroke before the loop's first)
+  const sh = tC - SB;
+  const O = { in1: OPEN.in1 + sh, out0: OPEN.out0 + sh, out1: OPEN.out1 + sh };
+  key('hips', tR + 0.4, -0.05); key('hips', tT - 0.3 * D, -0.44); key('hips', tC + 0.3, 0.22); key('hips', O.in1, 0.04); key('hips', O.out1, 0);
+  key('trunk', tR + 0.5, -0.04); key('trunk', tT - 0.04 * D, -0.42); key('trunk', tC + 0.36, 0.2); key('trunk', O.in1, 0.0);
+  key('flex', tR + 0.6, -0.04); key('flex', tT - 0.08, -0.24); key('flex', tC + 0.09, 0.4); key('flex', O.in1, 0.03); key('flex', O.out0, 0.02); key('flex', O.out1, 0.0);
+  key('side', tR + 0.6, 0.02); key('side', tT - 0.05, 0.12); key('side', tC + 0.1, -0.06); key('side', O.in1, 0.0);
+  key('load', tR + 0.4, 0.2); key('load', tT - 0.25, 0.85); key('load', tC + 0.12, 1.0); key('load', O.in1, 0.4); key('load', O.out0, 0.36); key('load', O.out1, 0.15);
+  key('shift', tR + 0.4, -0.02); key('shift', tT - 0.2, -0.16); key('shift', tC + 0.16, 0.2); key('shift', O.in1, 0.0);
+  key('nod', tT - 0.1, -0.06); key('nod', tC + 0.08, 0.12); key('nod', O.in1, -0.07); key('nod', O.out0, -0.06); key('nod', O.out1, 0.02);
+  // (her gaze: up to the rippling sky as she comes up out of the stroke, down a while to the veil and the world in the
+  // drum, and up again)
+  key('sky', tC + 0.05, 0, 'hold'); key('sky', O.in1, 0.9); key('sky', story(37) + sh, 0.45); key('sky', story(43.5) + sh, 0.95);
+  key('sky', O.out0, 0.95, 'hold'); key('sky', O.out1, 0, 'hold');
+  leftAt(tR + 0.3, LH.rest); leftAt(tT - 0.35, LH.reach); leftAt(tC + 0.06, LH.tuck); leftAt(O.in1, LH.still); leftAt(O.out0, LH.still); leftAt(O.out1 + 0.3, LH.rest);
 }
 // (the sky's weight is 0 everywhere but round the great stroke)
 key('sky', -STORY_LOOP, 0, 'hold'); key('sky', 2 * STORY_LOOP, 0, 'hold');

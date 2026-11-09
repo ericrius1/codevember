@@ -58,6 +58,8 @@ export interface CosmosU {
   worlds: Vec4;
   aux: Vec4;
   front: Vec4;
+  front2: Vec4;
+  trip: Vec4;
 }
 export interface Facet {
   i: number;

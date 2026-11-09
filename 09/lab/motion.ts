@@ -4,7 +4,7 @@
 // and the strands' tips' motion against their roots. It draws what it measured: a chart of every track's acceleration
 // over the loop, and onion skins of her (seen from the drum's side, the swing's plane) through the stroke windows.
 //
-//   node 09/lab/run.mjs [--fps 60] [--from 0 --to 26] [--out dir]
+//   node 09/lab/run.mjs [--fps 60] [--from 0 --to 50] [--out dir]
 //
 // (run.mjs bundles this with esbuild — the .wgsl imports as text — and runs it in node.)
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';

@@ -22,6 +22,9 @@ struct DrumU {
   // x how far you see through the hide (0 opaque .. 1; the great stroke's), y the refraction's strength (screen uv
   // per unit of the normal's tilt), z the fuzz's length (m), w its breeze's clock (s)
   glass: vec4f,
+  // the trip (from the great stroke to the end): x how deep (0..1), y the world inside's clock (s), z how far the hide
+  // breathes on its own (m), w spare
+  trip: vec4f,
 }
 @group(2) @binding(0) var<uniform> D: DrumU;
 // the drum rocked on its stand by a stroke: turned about the stand's foot (z through it)
@@ -48,9 +51,7 @@ struct HideOut {
 // a rigid prop (the beater): its model matrix (its rotation orthonormal)
 struct PropU { model: mat4x4f }
 @group(2) @binding(8) var<uniform> PM: PropU;
-// what's behind the hide (the scene drawn without it, and its depth): seen through it, refracted
-@group(2) @binding(9) var behindTex: texture_2d<f32>;
-@group(2) @binding(10) var behindDepth: texture_depth_2d;
+#include "./inner"
 
 /** the hide's displacement at uv (bilinear by hand: rg32float isn't filterable) */
 fn simAt(uv: vec2f) -> f32 {
@@ -63,17 +64,30 @@ fn simAt(uv: vec2f) -> f32 {
   let d = textureLoad(simTex, clamp(i + vec2i(1, 1), vec2i(0), vec2i(m)), 0).x;
   return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
 }
+/** the hide breathing on its own as the trip deepens (m, into the drum): slow rings from its middle and a turning
+ *  three-fold swell, held at the rim */
+fn breathe(uv: vec2f) -> f32 {
+  let A = D.trip.z;
+  if (A <= 0.0) { return 0.0; }
+  let p = (uv - 0.5) * 2.0;
+  let r = length(p);
+  let a = atan2(p.y, p.x);
+  let T = D.trip.y;
+  let edge = max(1.0 - r * r, 0.0);
+  return A * edge * (0.55 * sin(r * 9.0 - T * 0.9) + 0.35 * r * sin(3.0 * a + r * 4.0 + T * 0.35) + 0.22 * sin(r * 19.0 - T * 1.6 + a));
+}
+/** the hide's displacement drawn: the simulation's, at its gain, and its breath */
+fn hideH(uv: vec2f) -> f32 { return simAt(uv) * D.sim2.w + breathe(uv); }
 @vertex fn vsHide(@builtin(vertex_index) vi: u32) -> HideOut {
   var o: HideOut;
   let v = verts[vi];
   let lp = meshPos(v);            // (a, b) on the hide in its frame, at rest
   let uv = meshUV(v);
-  let g = D.sim2.w;
   let e = 1.5 / f32(N);
-  let h = simAt(uv) * g;
-  let hx = (simAt(uv + vec2f(e, 0.0)) - simAt(uv - vec2f(e, 0.0))) * g / (2.0 * e * 2.0 * D.sim.x);
-  let hy = (simAt(uv + vec2f(0.0, e)) - simAt(uv - vec2f(0.0, e))) * g / (2.0 * e * 2.0 * D.sim.x);
-  let lapv = simAt(uv + vec2f(e, 0.0)) + simAt(uv - vec2f(e, 0.0)) + simAt(uv + vec2f(0.0, e)) + simAt(uv - vec2f(0.0, e)) - 4.0 * simAt(uv);
+  let h = hideH(uv);
+  let hx = (hideH(uv + vec2f(e, 0.0)) - hideH(uv - vec2f(e, 0.0))) / (2.0 * e * 2.0 * D.sim.x);
+  let hy = (hideH(uv + vec2f(0.0, e)) - hideH(uv - vec2f(0.0, e))) / (2.0 * e * 2.0 * D.sim.x);
+  let lapv = hideH(uv + vec2f(e, 0.0)) + hideH(uv - vec2f(e, 0.0)) + hideH(uv + vec2f(0.0, e)) + hideH(uv - vec2f(0.0, e)) - 4.0 * h;
   // the hide's frame: its normal toward the player (-x), a across (+z), b up (+y); displaced into the drum by h
   let C = D.center.xyz;
   let wp = rock(C + vec3f(h, lp.y, lp.x));
@@ -83,7 +97,7 @@ fn simAt(uv: vec2f) -> f32 {
   // (the surface x = h(z, y): its normal toward -x)
   o.n = rockDir(normalize(vec3f(-1.0, hy, hx)));
   o.disp = h;
-  o.curv = lapv * g / (D.sim.y * D.sim.y);
+  o.curv = lapv / (D.sim.y * D.sim.y);
   return o;
 }
 @fragment fn fsHide(in: HideOut, @builtin(front_facing) ff: bool) -> @location(0) vec4f {
@@ -146,29 +160,24 @@ fn simAt(uv: vec2f) -> f32 {
   // (the ripples catch the light: a sheen along their slopes)
   col += vec3f(1.0, 0.8, 0.5) * stretch * 0.18 * D.look.y;
   col += vec3f(0.35, 0.85, 0.8) * shockAt(in.wpos) * 0.3;
-  // after the great stroke the hide thins to a veil: what's behind it (the drum's lit hollow, and out through its open
-  // back the worlds) shows through, bent by the ripples as through water — more where they're steepest, less through
-  // the painted lines, the colours parting a little at the bends
+  // the hide thins to a veil (a little for a moment at each stroke of the pulse, for good from the great one): through
+  // it, the world inside the drum (inner.wgsl), bent by the ripples as through water — more where they're steepest,
+  // less through the painted lines, which glow on over it; and over it all the veil's own film, a soap film's colours
+  // running along the ripples' slopes
   if (D.glass.x > 0.001 && front) {
-    let suv = in.pos.xy * frame.invRes;
     let tilt = N - rockDir(vec3f(-1.0, 0.0, 0.0));
-    let tv = (frame.view * vec4f(tilt, 0.0)).xy;
-    let off = vec2f(tv.x, -tv.y) * D.glass.y;
-    var seen = vec3f(0.0);
-    for (var c = 0; c < 3; c++) {
-      let k = 1.0 + f32(c) * 0.09;
-      var q = suv + off * k;
-      // (anything in front of the hide there — her, the beater — isn't behind it: look straight through instead)
-      let qi = vec2i(clamp(q, vec2f(0.0), vec2f(0.9999)) * frame.res);
-      if (textureLoad(behindDepth, qi, 0) > in.pos.z) { q = suv; }
-      let b = textureSampleLevel(behindTex, samp_linear, clamp(q, vec2f(0.0), vec2f(1.0)), 0.0).rgb;
-      seen[c] = b[c];
-    }
+    let slope = length(tilt.yz);
+    let rdIn = normalize(-V + tilt * D.glass.y * 6.0);
+    let px = frame.fovY / frame.res.y;
+    let inner = innerWorld(in.wpos, rdIn, D.trip.y, D.trip.x, px);
     let nv = sat(dot(N, V));
-    let tr = clamp(D.glass.x * (0.6 + 1.1 * stretch) * (1.0 - 0.7 * paint) * (1.0 - 0.8 * pow(1.0 - nv, 4.0)), 0.0, 0.88);
-    // (through parchment: the light warmed, the hide's own glow over it)
-    let through = seen * mix(vec3f(1.0, 0.78, 0.55), vec3f(1.0), 0.45) * 1.15 + backlit * 0.35;
-    col = mix(col, through, tr);
+    let tr = clamp(D.glass.x * (0.9 + 0.7 * stretch) * (1.0 - 0.4 * paint) * (1.0 - 0.5 * pow(1.0 - nv, 4.0)), 0.0, 0.96);
+    // (through parchment: the light warmed a little, the hide's own glow over it)
+    let through = inner * mix(vec3f(1.0, 0.82, 0.62), vec3f(1.0), 0.5 + 0.45 * D.glass.x) + backlit * 0.3 * (1.0 - 0.7 * D.glass.x);
+    // (the thinner the hide, the less light it scatters back of its own)
+    col = mix(col * (1.0 - 0.55 * D.glass.x), through, tr);
+    let irid = thinFilm(nv, 320.0 + 2600.0 * slope + 900.0 * in.disp) * sat(slope * 18.0) * (0.35 + 0.65 * D.trip.x);
+    col += irid * D.glass.x * (0.18 + 0.5 * stretch) * (0.6 + 0.4 * L.key.r);
   }
   return vec4f(col, 1.0);
 }
@@ -198,9 +207,9 @@ struct FuzzOut {
   let g = D.sim2.w;
   let e = 1.5 / f32(N);
   let sc = 1.0 / (2.0 * e * 2.0 * D.sim.x);
-  let h = simAt(uv) * g;
-  let hx = (simAt(uv + vec2f(e, 0.0)) - simAt(uv - vec2f(e, 0.0))) * g * sc;
-  let hy = (simAt(uv + vec2f(0.0, e)) - simAt(uv - vec2f(0.0, e))) * g * sc;
+  let h = hideH(uv);
+  let hx = (hideH(uv + vec2f(e, 0.0)) - hideH(uv - vec2f(e, 0.0))) * sc;
+  let hy = (hideH(uv + vec2f(0.0, e)) - hideH(uv - vec2f(0.0, e))) * sc;
   // (the hide's speed's slope: a ripple running under the hairs)
   let vel = textureLoad(simTex, clamp(vec2i(uv * f32(N)), vec2i(0), vec2i(i32(N) - 1)), 0);
   let vx = textureLoad(simTex, clamp(vec2i((uv + vec2f(e, 0.0)) * f32(N)), vec2i(0), vec2i(i32(N) - 1)), 0);
@@ -222,8 +231,8 @@ struct FuzzOut {
   o.n = rockDir(n);
   o.ab = lp.xy;
   o.k = k;
-  let lapv = simAt(uv + vec2f(e, 0.0)) + simAt(uv - vec2f(e, 0.0)) + simAt(uv + vec2f(0.0, e)) + simAt(uv - vec2f(0.0, e)) - 4.0 * simAt(uv);
-  o.curv = lapv * g / (D.sim.y * D.sim.y);
+  let lapv = hideH(uv + vec2f(e, 0.0)) + hideH(uv - vec2f(e, 0.0)) + hideH(uv + vec2f(0.0, e)) + hideH(uv - vec2f(0.0, e)) - 4.0 * h;
+  o.curv = lapv / (D.sim.y * D.sim.y);
   return o;
 }
 @fragment fn fsFuzz(in: FuzzOut) -> @location(0) vec4f {
@@ -265,6 +274,8 @@ struct FuzzOut {
   let thru = D.look.y * (0.3 + 0.25 * D.look.w) * (1.0 + 0.6 * stretch + 0.15 * G.drumCol.w);
   col += vec3f(1.0, 0.55, 0.22) * alb * thru * tip * 0.8;
   col += vec3f(0.35, 0.85, 0.8) * shockAt(in.wpos) * 0.3 * tip;
+  // (the down thins with the hide as it turns to a veil)
+  a *= 1.0 - 0.75 * D.glass.x;
   if (a < 0.002) { discard; }
   return vec4f(col, a * 0.85);
 }

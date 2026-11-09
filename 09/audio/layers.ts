@@ -11,7 +11,7 @@
 // periodic and filtered twice round. It sits on the drum's own fundamental (measured from the simulation), its
 // harmonics and fifth soft over it; it closes to a muffled near-silence as time stretches away and opens after.
 import { SR, Biquad, SVF, filt, noise, rng, gauss, curve, granular, type Stereo, stereo, type Buf, smooth, twice, readAt } from './dsp.ts';
-import { LOOP, rate, story } from '../score.ts';
+import { LOOP, rate, story, BIG, ACT } from '../score.ts';
 
 const N = Math.round(LOOP * SR);
 const TAU = Math.PI * 2;
@@ -113,9 +113,11 @@ const whole = (f: number) => Math.round(f * LOOP) / LOOP;
 
 export function bed(f0: number, seed: number): Stereo {
   const out = stereo(N), r = rng(seed), root = whole(f0);
-  // its shape over the loop: a breath in through the wind-up, near-silence as time stretches away, open after
-  const level = curve([[0, 1], [5.25, 1], [7.0, 1.2], [7.9, 1.0], [8.7, 0.16], [9.3, 0.045], [9.62, 0.04], [10.9, 0.45], [12.4, 1.15], [15, 1.3], [18.6, 1.15], [21.5, 1.0], [26, 1]]);
-  const bright = curve([[0, 1000], [5.25, 1000], [7.4, 1300], [7.9, 1000], [8.8, 170], [9.35, 105], [9.62, 105], [10.9, 420], [12.4, 1500], [18.6, 1600], [21.5, 1000], [26, 1000]]);
+  // its shape over the loop: a breath in through the wind-up, near-silence as time stretches away, opening as the
+  // universe answers and wider through the trip, settled again under the fade so the loop closes
+  const B = BIG.t, W = ACT.windup;
+  const level = curve([[0, 1], [W, 1], [W + 1.75, 1.2], [W + 2.65, 1.0], [B - 0.9, 0.16], [B - 0.3, 0.045], [B + 0.02, 0.04], [B + 1.5, 0.3], [B + 4, 0.9], [ACT.shock, 1.15], [ACT.trip, 1.3], [ACT.fade - 2, 1.35], [ACT.black, 1.0], [LOOP, 1]]);
+  const bright = curve([[0, 1000], [W, 1000], [W + 2.15, 1300], [W + 2.65, 1000], [B - 0.8, 170], [B - 0.25, 105], [B + 0.02, 105], [B + 1.5, 300], [B + 4, 900], [ACT.shock, 1500], [ACT.trip, 1700], [ACT.fade - 2, 1800], [ACT.black, 1000], [LOOP, 1000]]);
   const partials: [number, number, number][] = [[1, 0.55, 1], [1.5, 0.22, 2], [2, 0.42, 1], [3, 0.3, 3], [4, 0.17, 2], [5, 0.09, 1], [6, 0.07, 3], [8, 0.035, 2]];
   const pad = stereo(N);
   for (const [m, a, beat] of partials) {
@@ -149,13 +151,13 @@ export function bed(f0: number, seed: number): Stereo {
   return out;
 }
 
-/** the wind-up's breath: soft air rising as she draws the beater back and up (5.4 – 7.9 s) */
+/** the wind-up's breath: soft air rising as she draws the beater back and up */
 export function breath(seed: number): { at: number; s: Stereo } {
-  const t0 = 5.3, t1 = 8.4, n = Math.round((t1 - t0) * SR), out = stereo(n), r = rng(seed);
+  const t0 = ACT.windup + 0.05, t1 = t0 + 3.1, n = Math.round((t1 - t0) * SR), out = stereo(n), r = rng(seed);
   const svl = new SVF(1.1), svr = new SVF(1.1);
   for (let i = 0; i < n; i++) {
-    const t = t0 + i / SR, x = smooth(5.3, 7.6, t);
-    const g = x * x * (1 - smooth(7.7, 8.4, t)), fc = 280 + 700 * x;
+    const t = t0 + i / SR, x = smooth(t0, t0 + 2.3, t);
+    const g = x * x * (1 - smooth(t0 + 2.4, t1, t)), fc = 280 + 700 * x;
     out.l[i] = svl.tick(gauss(r), fc, 1) * g; out.r[i] = svr.tick(gauss(r), fc * 1.07, 1) * g;
   }
   return { at: t0, s: out };
@@ -219,9 +221,11 @@ export function foam(f0: number, seed: number): Stereo {
   const out = stereo(N), r = rng(seed);
   const RATIOS = [1, 1.594, 2.136, 2.296, 2.653, 2.918, 3.156], AMPS = [1, 0.62, 0.42, 0.36, 0.28, 0.2, 0.14];
   const HARM = [4, 5, 6, 8, 10, 12, 16];
-  const dens = curve([[0, 0], [13.6, 0], [15, 3.5], [16.5, 6], [18.6, 4.5], [20.2, 0.6], [21.5, 0], [26, 0]]);
-  let t = 13.6;
-  while (t < 21.5) {
+  // (they start popping as the worlds open, more and more through the trip, and stop under the fade)
+  const B = BIG.t, end = ACT.fade + 0.4;
+  const dens = curve([[0, 0], [B + 2, 0], [B + 4, 2.5], [ACT.trip, 4], [ACT.fade - 3, 6.5], [end, 3], [end + 0.01, 0], [LOOP, 0]]);
+  let t = B + 2;
+  while (t < end) {
     const d = Math.max(0.2, dens(t));
     t += -Math.log(1 - r()) / d;
     if (r() * 6 > dens(t)) continue;

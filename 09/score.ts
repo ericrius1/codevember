@@ -1,14 +1,17 @@
 // 09 / Membrane: the score everything follows — the sketch's picture (main.ts) and its sound (audio/render.ts).
 //
 // Film time t runs 0..LOOP and wraps (the loop). Story time is the world's own clock: it runs with film time except
-// around the great stroke, where time dilates — the rate falls to a hundredth as the beater comes down, holds there
-// while the hide takes it and the ripples run, and comes back up as the universes answer. Everything physical (the
-// membrane, the beater, the locks, the motes) moves in story time; the camera and the cosmos move in film time.
+// from the great stroke on, where time dilates — the rate falls to a two-hundredth as the beater comes down and holds
+// there for seconds while the hide takes it and its rings crawl out across it, then lifts, not all the way: to a
+// dreamlike third of the world's pace, which it keeps to the end, where it comes back in the dark of the loop's wrap.
+// Everything physical (the membrane, the beater, the locks, the motes) moves in story time; the camera and the cosmos
+// move in film time.
 //
-// The drumming: a slow ceremonial pulse (three strokes, each a little stronger), the wind-up, the great stroke, the
-// long answer, and the pulse taken up again — the last two strokes are the first two of the next loop.
+// The drumming: a slow ceremonial pulse (three strokes, each stronger than the last, and louder), the wind-up, and
+// the great stroke — the last. After it nothing is struck again: the hide and our universe's membrane ripple on, the
+// hide thinned to a veil on the world inside the drum, deepening to the end, which fades to black (the loop's seam).
 
-export const LOOP = 26;
+export const LOOP = 50;
 
 export interface Stroke {
   /** film time of contact */
@@ -22,31 +25,31 @@ export interface Stroke {
 }
 
 export const STROKES: Stroke[] = [
-  { t: 1.2, v: 3.2, at: [-0.26, 0.05] },
-  { t: 3.0, v: 3.7, at: [-0.24, 0.07] },
-  { t: 4.8, v: 4.3, at: [-0.27, 0.04] },
-  { t: 9.6, v: 9.5, at: [-0.2, 0.1], big: true },
-  { t: 23.6, v: 2.9, at: [-0.25, 0.06] },
-  { t: 25.4, v: 3.0, at: [-0.26, 0.05] },
+  { t: 2.2, v: 3.0, at: [-0.26, 0.05] },
+  { t: 5.4, v: 4.4, at: [-0.24, 0.07] },
+  { t: 8.6, v: 6.0, at: [-0.27, 0.04] },
+  { t: 13.4, v: 12.5, at: [-0.2, 0.1], big: true },
 ];
 export const BIG = STROKES.find((s) => s.big)!;
 
 // ---------------------------------------------------------------- time dilation
 const smooth = (a: number, b: number, x: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
-/** the slowest the world runs (at the stroke) */
-export const SLOWEST = 0.01;
-/** when the dilation sets in, bottoms out, starts to lift, and is gone (film seconds). It snaps in late — a speed
- *  ramp: the downswing whips through at the world's own speed and time falls away under it in the last few tenths of
- *  a second before contact, so the beater is still visibly travelling as it meets the hide — and lifts slowly */
-export const DILATE = { from: 8.95, deep: 9.62, lift: 11.6, gone: 20.5 };
+/** the slowest the world runs (at the stroke), and the dream pace it lifts to and keeps after */
+export const SLOWEST = 0.005, DREAM = 0.3;
+/** when the dilation sets in, bottoms out, starts to lift, reaches the dream pace, and when time comes back (in the
+ *  dark of the loop's seam) — film seconds. It snaps in late — a speed ramp: the downswing whips through at the
+ *  world's own speed and time falls away under it in the last few tenths of a second before contact, so the beater
+ *  is still visibly travelling as it meets the hide — holds deep for seven seconds, and lifts slowly */
+export const DILATE = { from: 12.75, deep: 13.42, lift: 20.5, dream: 32, back: 48.6, home: 49.7 };
 
-/** the world's rate against film time: 1 normally, SLOWEST at the deepest. Falls and rises log-smoothly, so the
- *  slowing reads as an exponential settling, not a ramp */
+/** the world's rate against film time: 1 normally, SLOWEST at the deepest, DREAM after. Falls and rises
+ *  log-smoothly, so the slowing reads as an exponential settling, not a ramp */
 export function rate(t: number): number {
-  const ls = Math.log(SLOWEST);
+  const ls = Math.log(SLOWEST), ld = Math.log(DREAM);
   const down = smooth(DILATE.from, DILATE.deep, t);
-  const up = smooth(DILATE.lift, DILATE.gone, t);
-  return Math.exp(ls * down * (1 - up));
+  const up = smooth(DILATE.lift, DILATE.dream, t);
+  const back = smooth(DILATE.back, DILATE.home, t);
+  return Math.exp((ls * (1 - up) + ld * up) * down * (1 - back));
 }
 
 // story time: the integral of the rate, tabulated once (fine steps; the loop's total is a little under LOOP)
@@ -76,20 +79,15 @@ export function film(s: number): number {
 // ---------------------------------------------------------------- the act's beats (film seconds)
 export const ACT = {
   /** after the third stroke she draws all the way back: the wind-up */
-  windup: 5.25,
+  windup: 9.05,
   /** the downswing starts (story time from here to contact is a real downswing's ~0.2 s) */
   swing: 0,   // filled below
-  /** the shock leaves the drum, the camera pulls away */
-  shock: 10.9,
-  /** the great membrane answers */
-  cosmos: 12.4,
-  /** the worlds beyond: the membrane opened widest on them
-   *  (the name's from when the camera flew out to the foam of universes; it stays in the realm now) */
-  foam: 15.0,
-  /** the way back in */
-  home: 18.6,
-  /** back at the drum, the pulse taken up again */
-  settle: 21.5,
+  /** the close look at the hide ends as time starts to lift: the camera rises past the drum, the shock leaves it */
+  shock: 20.0,
+  /** the worlds beyond opened widest, time at its dream pace: the trip, deepening to the end */
+  trip: 27.0,
+  /** the fade to black, and the black of the loop's seam */
+  fade: 48.3, black: 49.5,
 };
 ACT.swing = film(story(BIG.t) - 0.19);
 

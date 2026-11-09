@@ -16,13 +16,14 @@ struct Globals {
   // the shock out of the great stroke: xyz where it started, w its radius (m, world); x its strength, y its width (m),
   // z the dilation's depth (0 none .. 1 deepest), w the stroke's afterglow (0..1, fading)
   shock: vec4f, shock2: vec4f,
-  // the cosmos: x the great membrane's ripple (0..1), y how much of the other universes shows through it, z the foam's
-  // ripples, w the hue's drift
+  // the cosmos: x the great membrane's ripple (0..1), y how much of the other universes shows through it, z the trip
+  // (0..1: the great stroke to the end, deepening), w the hue's drift
   cosmos: vec4f,
   // the great membrane (our universe's wall): xyz its sphere's centre, w its radius
   wall: vec4f,
-  // the ripples on it: up to 4 events — xyz where on it (unit, from the centre), w when (film s; < 0 none)
-  waves: array<vec4f, 4>,
+  // the ripples on it: up to 8 events — xyz where on it (from the centre; its length the ripple's strength), w when (on
+  // the ripples' own clock; < 0 none): 0–2 the pulse's strokes, 3–5 the great stroke's, 6–7 the trip's
+  waves: array<vec4f, 8>,
   // the shaman's glow: x her lines' pulse (0..), y the stroke's light running up her arm (0..1 of the way), z, w
   glow: vec4f,
 }

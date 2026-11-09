@@ -138,8 +138,16 @@ async function film(kit: Kit, meta: SketchMeta, fps: number, size: number, setN:
   const stills = new URLSearchParams(location.search).get('stills');
   if (stills) {
     const us = stills.split(',').map(Number);
+    // (lead=<s>: the frames before each still stepped first, uncaptured — what a stateful sketch's simulation needs to
+    // be where the film would have it)
+    const lead = Math.round(Number(new URLSearchParams(location.search).get('lead') ?? 0) * fps);
     for (let k = 0; k < us.length; k++) {
-      setN(Math.round(us[k] * perLoop));
+      const at = Math.round(us[k] * perLoop);
+      if (lead > 0) {
+        setN(Math.max(0, at - lead));
+        for (let i = 0; i < Math.min(lead, at); i++) { kit.step(1 / fps); if (i % 30 === 0) await kit.queue.onSubmittedWorkDone(); }
+      }
+      setN(at);
       const img = await cap.step(1 / fps);
       const c = new OffscreenCanvas(img.width, img.height);
       c.getContext('2d')!.putImageData(img, 0, 0);

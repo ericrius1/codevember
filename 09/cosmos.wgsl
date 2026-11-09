@@ -22,6 +22,10 @@ struct CosmosU {
   // the front: the great stroke's shock reaching the wall — x when it first does, behind the drum (film s; < 0 not
   // yet), y how far that is from the drum (m), z how fast the line where it arrives sweeps on round (m/s), w its height
   front: vec4f,
+  // the pulse's front: each stroke of the pulse's shock reaching the wall (as front, for the latest of them)
+  front2: vec4f,
+  // x how fast the great front's crest fades (1/s), y the pulse's, z the trip (0..1), w spare
+  trip: vec4f,
 }
 @group(2) @binding(0) var<uniform> K: CosmosU;
 
@@ -36,7 +40,8 @@ fn ripple(n: vec3f, R: f32, ev: vec4f, speed: f32, amp: f32, k: f32) -> f32 {
   let front = speed * age;
   let x = front - arc;
   if (x < 0.0) { return 0.0; }
-  let fade = exp(-age * 0.14) * (1.0 - exp(-age * 3.0));
+  // (its strength: the event's length)
+  let fade = exp(-age * 0.1) * (1.0 - exp(-age * 3.0)) * length(ev.xyz);
   // (the rings stretch a little as they spread)
   let lam = 1.0 / k * (1.0 + age * 0.05);
   return amp * sin(TAU * x / lam) * exp(-x / (front * 0.5 + 25.0)) * fade * smoothstep(0.0, lam * 0.5, x);
@@ -179,18 +184,28 @@ const ANSWERS = array<vec3f, 12>(
 fn wallRipple(n: vec3f) -> f32 {
   let R = G.wall.w;
   var h = 0.0;
-  for (var i = 0; i < 4; i++) { h += ripple(n, R, G.waves[i], 52.0 + f32(i) * 8.0, 1.0 - 0.2 * f32(i), 0.075); }
-  // the neighbours answer, each from its own face, a beat after the shock's ripple reaches it
-  if (G.waves[0].w > 0.0) {
+  for (var i = 0; i < 8; i++) { h += ripple(n, R, G.waves[i], 52.0 + f32(i % 3) * 8.0, 1.0, 0.075); }
+  // the neighbours answer the great stroke, each from its own face, a beat after its ripple reaches them
+  let gw = G.waves[3];
+  if (gw.w > 0.0) {
     for (var i = 0; i < 12; i++) {
       let s = ANSWERS[i];
-      let reach = acos(clamp(dot(s, normalize(G.waves[0].xyz)), -1.0, 1.0)) * R / 52.0;
-      let ev = vec4f(s, G.waves[0].w + reach + 0.9 + 0.8 * hash11(f32(i) * 3.1));
-      h += ripple(n, R, ev, 46.0, 0.24, 0.09);
+      let reach = acos(clamp(dot(s, normalize(gw.xyz)), -1.0, 1.0)) * R / 52.0;
+      let ev = vec4f(s * 0.3, gw.w + reach + 0.9 + 0.8 * hash11(f32(i) * 3.1));
+      h += ripple(n, R, ev, 46.0, 1.0, 0.09);
     }
   }
   // (a faint breath on it always: the cosmos never quite still)
-  h += 0.03 * sin(dot(n, vec3f(3.0, 1.0, 2.0)) * 23.0 + G.clock.x * 0.4) * sin(dot(n, vec3f(-1.0, 4.0, 1.0)) * 19.0 - G.clock.x * 0.3);
+  let tc = G.clock.x;
+  h += 0.03 * sin(dot(n, vec3f(3.0, 1.0, 2.0)) * 23.0 + tc * 0.4) * sin(dot(n, vec3f(-1.0, 4.0, 1.0)) * 19.0 - tc * 0.3);
+  // the trip: the whole membrane heaving more and more in great slow swells, crossing, turning
+  let tr = G.cosmos.z;
+  if (tr > 0.0) {
+    let sw = 0.5 * sin(dot(n, vec3f(2.0, 3.0, -1.0)) * 4.0 - tc * 0.55) * sin(dot(n, vec3f(-3.0, 1.0, 2.0)) * 3.0 + tc * 0.42)
+      + 0.35 * sin(acos(clamp(dot(n, vec3f(0.99, -0.12, 0.0)), -1.0, 1.0)) * 14.0 - tc * 0.9)
+      + 0.2 * dotNoise(n * 5.0 + vec3f(0.0, tc * 0.05, 0.0));
+    h += tr * sw * 0.9;
+  }
   return h;
 }
 
@@ -615,12 +630,12 @@ fn world(kind: i32, ro: vec3f, rd: vec3f, tm: f32) -> vec3f {
 /** the front at a point of the wall (q, unit n): x its height there, y its slope (per m, along its way), z how far
  *  behind it the point is (m: < 0 not reached yet) — a single bright crest sweeping out from behind the drum across the
  *  whole dome (where the shock's sphere meets the wall), the membrane ringing behind it */
-fn frontAt(q: vec3f) -> vec3f {
-  if (K.front.x < 0.0 || G.clock.x < K.front.x) { return vec3f(0.0, 0.0, -1e4); }
-  let age = G.clock.x - K.front.x;
-  let d = length(q - G.drum.xyz) - K.front.y;
-  let x = age * K.front.z - d;
-  let fade = exp(-age * 0.45) * K.front.w;
+fn frontAt(q: vec3f, F: vec4f, fadeRate: f32) -> vec3f {
+  if (F.x < 0.0 || G.clock.x < F.x) { return vec3f(0.0, 0.0, -1e4); }
+  let age = G.clock.x - F.x;
+  let d = length(q - G.drum.xyz) - F.y;
+  let x = age * F.z - d;
+  let fade = exp(-age * fadeRate) * F.w;
   let w = 5.0;
   let crest = exp(-(x / w) * (x / w));
   let rings = select(0.0, sin(TAU * x / 22.0) * exp(-x / 55.0) * smoothstep(4.0, 18.0, x) * 0.55, x > 0.0);
@@ -651,11 +666,12 @@ fn frontAt(q: vec3f) -> vec3f {
   }
   let hr = h * amp;
   // the front: where it is, its slope's way (out across the wall, away from the drum)
-  let fr = frontAt(q);
+  let fr = frontAt(q, K.front, K.trip.x);
+  let fr2 = frontAt(q, K.front2, K.trip.y);
   let away = normalize(normalize(q - G.drum.xyz) - n * dot(normalize(q - G.drum.xyz), n) + vec3f(1e-5));
   // (the light through it bent as through water: our own sky by the ripples and the front, the worlds beyond by the
   // front and only a little by the ripples — their shapes stay their own, only the view of them wavers)
-  let bendF = away * fr.y * 0.9;
+  let bendF = away * (fr.y + fr2.y) * 0.9;
   let bent = normalize(rd + dh * amp * K.aux.x + bendF);
   let bentW = normalize(rd + dh * amp * K.aux.x * 0.12 + bendF * 0.7);
   var col = nebula(bent) + stars(bent) * 0.8;
@@ -664,11 +680,11 @@ fn frontAt(q: vec3f) -> vec3f {
   let fc = facetOf(nw);
   let seamW = 0.0021;
   let inner = smoothstep(seamW * 1.2, seamW * 4.0, fc.seam);
-  // how far it's open on the world beyond: the troughs first, as the ripples come; then the whole face
-  // (only behind the front: the faces open as it passes them)
+  // how far it's open on the world beyond: the troughs first, as the ripples come (each where its ripple's reached);
+  // then the whole face (only behind the great front: the faces open as it passes them)
   let behind = select(smoothstep(0.0, 70.0, fr.z), 1.0, K.front.x < 0.0 && K.aux.y >= 0.0);
   let reveal = K.worlds.x * behind;
-  let open = sat(smoothstep(0.15, 0.85, -hr) * 0.75 * G.cosmos.y * behind + reveal * (0.8 + 0.3 * clamp(-hr, -1.0, 1.0))) * inner;
+  let open = sat(smoothstep(0.15, 0.85, -hr) * 0.75 * G.cosmos.y + reveal * (0.8 + 0.3 * clamp(-hr, -1.0, 1.0))) * inner;
   if (open > 0.002) {
     let M = facetFrame(fc.i);
     let ld = vec3f(dot(bentW, M[0]), dot(bentW, M[1]), dot(bentW, M[2]));
@@ -685,11 +701,15 @@ fn frontAt(q: vec3f) -> vec3f {
   let filmCol = thinFilm(c, nm) * (0.03 + 0.5 * fresnel(0.04, c)) * (1.0 + 2.5 * abs(hr));
   col += filmCol * (0.06 + 0.22 * abs(hr)) * (1.0 - 0.6 * open);
   // the crests burn with the film's colours; a thin bright line where it turns over
+  // (the crests: bands of the film's colours, wide and burning as the trip deepens — design/ref-cosmos.jpg)
+  let trip = G.cosmos.z;
   let crest = max(hr, 0.0) * max(hr, 0.0) * (1.0 - 0.6 * open);
+  let band = smoothstep(0.1, 0.9, abs(hr)) * (1.0 - 0.5 * open);
   let edge = exp(-pow(hr / 0.08, 2.0)) * smoothstep(0.05, 0.3, length(dh) * 0.004) * amp;
-  col += pow(thinFilm(c, 280.0 + 240.0 * hr + 160.0 * fbm(n * 9.0)), vec3f(2.0)) * crest * 0.18 + vec3f(0.8, 0.9, 1.0) * edge * 0.08;
-  // the front's crest: a band of the film bulged and burning with its colours as it sweeps the dome
-  let fcrest = max(fr.x, 0.0);
+  col += pow(thinFilm(c, 280.0 + 240.0 * hr + 160.0 * fbm(n * 9.0)), vec3f(2.0)) * (crest * (0.2 + 0.45 * trip) + band * 0.3 * trip) + vec3f(0.8, 0.9, 1.0) * edge * 0.08;
+  // the front's crest: a band of the film bulged and burning with its colours as it sweeps the dome (the great
+  // stroke's, and the pulse's fainter)
+  let fcrest = max(fr.x, 0.0) + max(fr2.x, 0.0);
   col += (thinFilm(c, 320.0 + 300.0 * fcrest) * 0.3 + vec3f(0.62, 0.72, 0.85) * (0.25 + 0.6 * fcrest * fcrest)) * fcrest * 0.42;
   // the faces' borders: where three films meet, a bright tube of film, brightest at the corners
   let seam = exp(-pow(fc.seam / seamW, 2.0));
