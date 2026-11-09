@@ -72,10 +72,7 @@ export async function sketch(meta: SketchMeta, setup: (ctx: Ctx) => Promise<Fram
     document.body.classList.add('nogpu');
     hud.setMode('film');
     hud.say(`This one needs WebGPU (${(e as Error)?.message ?? e}). Here's the film.`);
-    hud.begin(async () => {
-      await hud.filmReady; hud.started = true; hud.film.muted = !hud.soundOn; await hud.film.play();
-      setTimeout(() => hud.hush(), 4000);
-    });
+    hud.begin(async () => { hud.started = true; setTimeout(() => hud.hush(), 4000); await hud.playFilm(); });
     hud.sound((on) => { hud.film.muted = !on; });
   };
   let kit: Kit;
@@ -121,10 +118,7 @@ export async function sketch(meta: SketchMeta, setup: (ctx: Ctx) => Promise<Fram
     });
     if (!controlled) hud.begin(async () => {
       t = 0; n = 0; paused = false; begun = true; hud.started = true;
-      try {
-        if (hud.mode === 'film') { await hud.filmReady; hud.film.muted = !hud.soundOn; await hud.film.play(); }
-        else await playSound();
-      } catch (e) { begun = false; hud.started = false; throw e; }
+      if (hud.mode === 'film') await hud.playFilm(); else await playSound();
     });
   }
   hud.onModeChange = (mode) => {
@@ -365,17 +359,31 @@ function buildHud(meta: SketchMeta) {
       const button = gate.querySelector<HTMLButtonElement>('.begin-drum')!;
       const label = button.querySelector('.begin-label')!;
       button.disabled = false; label.textContent = 'Begin';
-      button.addEventListener('click', async () => {
+      button.addEventListener('click', () => {
+        if (button.disabled) return;
         button.disabled = true;
-        try {
-          await cb();
-          // (struck: its ripple runs out over the page as the threshold fades and the piece comes up)
-          gate.classList.add('leaving'); document.body.classList.remove('gated');
-          setTimeout(() => gate.remove(), 1400);
-        } catch {
-          button.disabled = false; label.textContent = 'Begin';
-        }
+        // (struck: its ripple runs out over the page as the threshold fades and the piece comes up — at once, whatever
+        // the sound does: a phone may refuse it or be slow to load it, and Begin must never just sit there. The
+        // sound's play() is called inside this tap, before anything's awaited, or iOS counts it as no gesture)
+        gate.classList.add('leaving'); document.body.classList.remove('gated');
+        setTimeout(() => gate.remove(), 1400);
+        cb().catch((e) => {
+          console.error(e);
+          api.soundState(false); api.say('Sound could not start. Tap Sound to try again.');
+          setTimeout(() => api.hush(), 5000);
+        });
       });
+    },
+    /** the film from where it is, with sound if it's on and allowed, else muted (a phone always lets a muted film
+     *  play); play() is called before anything's awaited when the film's already listed, so a tap counts */
+    async playFilm() {
+      if (!video.getAttribute('src') && !(await api.filmReady)) throw new Error('no film');
+      video.muted = !api.soundOn;
+      try { await video.play(); } catch (e) {
+        if (video.muted) throw e;
+        api.soundState(false); await video.play();
+        api.say('Tap Sound for sound.'); setTimeout(() => api.hush(), 4000);
+      }
     },
     /** the Sound button: shown, calling back with on/off */
     sound(cb: (on: boolean) => void) {

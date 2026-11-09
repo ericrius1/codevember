@@ -57,6 +57,8 @@ body.gated .hud { opacity: 0; pointer-events: none; transition: none; }
   background: radial-gradient(110% 85% at 50% 52%, color-mix(in srgb, var(--bg) 58%, transparent) 0%, color-mix(in srgb, var(--bg) 82%, transparent) 58%, var(--bg) 100%);
   backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); transition: opacity 1.2s ease 0.15s; }
 .begin-gate.leaving { opacity: 0; pointer-events: none; }
+/* (a tap is a tap: no double-tap zoom, no wait to see if it's one) */
+.begin-gate, .begin-drum, .hud button, .hud a { touch-action: manipulation; }
 .begin-card { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 24px; max-width: min(600px, 92vw);
   animation: begin-rise 1.6s cubic-bezier(.2, .7, .2, 1) both; }
 @keyframes begin-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
