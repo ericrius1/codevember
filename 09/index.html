@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>09 / Membrane — Codevember 2026</title>
   <meta name="description" content="Codevember 2026, day 9: a shaman strikes a great drum and the membrane between universes ripples. WebGPU, live." />
   <meta property="og:title" content="09 / Membrane — Codevember 2026" />
@@ -10,6 +10,16 @@
   <meta property="og:image" content="https://footage.ericrius1.workers.dev/codevember/870906231b106494/09-card.jpg" />
   <meta name="twitter:card" content="summary_large_image" />
   <link rel="icon" href="data:," />
+  <!-- No browser zoom on a phone (it crops the page): Safari and Chrome on an iPhone ignore user-scalable=no, so a
+       pinch is cancelled here, and touch-action on html and body stops pinch and double-tap zoom too. The page's own
+       touch and pointer handlers still get every event; a Mac's trackpad pinch is left alone. -->
+  <script>
+    if (navigator.maxTouchPoints > 0) {
+      const no = (e) => { if (e.cancelable) e.preventDefault(); }, held = { passive: false };
+      for (const g of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(g, no, held);
+      document.addEventListener('touchmove', (e) => { if (e.touches.length > 1) no(e); }, held);
+    }
+  </script>
 </head>
 <body>
   <script type="module" src="./main.ts"></script>

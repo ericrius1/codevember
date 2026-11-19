@@ -2,7 +2,9 @@
 
 :root { --bg: #ece8e1; --fg: #2a2622; --accent: #2a2622; --mono: 'IBM Plex Mono', ui-monospace, monospace; }
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); overflow: hidden; }
+/* (touch-action: no browser zoom on a phone, by a pinch or a double tap, which cropped the page; the stage's none takes
+   the day's own) */
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); overflow: hidden; touch-action: pan-x pan-y; }
 body { font: 400 12px/1.5 var(--mono); -webkit-font-smoothing: antialiased; }
 a { color: inherit; text-decoration: none; }
 a:hover { text-decoration: underline; text-underline-offset: 3px; }

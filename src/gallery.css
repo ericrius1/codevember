@@ -2,7 +2,8 @@
 
 :root { --bg: #ece7df; --fg: #2b2520; --muted: #7d746a; --line: #d6cfc4; --accent: #b4441f; --mono: 'IBM Plex Mono', ui-monospace, monospace; }
 * { box-sizing: border-box; }
-html, body { margin: 0; background: var(--bg); color: var(--fg); }
+/* (touch-action: the page scrolls, and a phone's browser doesn't zoom it by a pinch or a double tap, which cropped it) */
+html, body { margin: 0; background: var(--bg); color: var(--fg); touch-action: pan-x pan-y; }
 body { font: 400 13px/1.6 var(--mono); -webkit-font-smoothing: antialiased; }
 a { color: inherit; text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--fg) 30%, transparent); text-underline-offset: 3px; }
 a:hover { text-decoration-color: currentColor; }
